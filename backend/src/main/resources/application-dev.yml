@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:nexo_factura}
+    username: ${DB_USER:nexo}
+    password: ${DB_PASSWORD:nexo}
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    cl.nexosoftware.factura: DEBUG
+    org.hibernate.SQL: DEBUG

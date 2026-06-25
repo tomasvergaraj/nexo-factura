@@ -1,0 +1,18 @@
+# Java / Maven
+backend/target/
+*.class
+
+# Node
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Entornos
+.env
+.env.local
+
+# IDE / SO
+.idea/
+.vscode/
+*.iml
+.DS_Store

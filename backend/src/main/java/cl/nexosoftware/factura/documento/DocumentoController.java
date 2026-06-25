@@ -1,0 +1,72 @@
+package cl.nexosoftware.factura.documento;
+
+import cl.nexosoftware.factura.common.PageResponse;
+import cl.nexosoftware.factura.documento.DocumentoDtos.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/empresas/{empresaId}/documentos")
+@RequiredArgsConstructor
+@Tag(name = "Documentos (DTE)", description = "Emision y gestion de documentos tributarios")
+public class DocumentoController {
+
+    private final DocumentoService service;
+
+    @GetMapping
+    @Operation(summary = "Listar documentos, opcionalmente filtrando por estado")
+    public PageResponse<DocumentoResumen> listar(@PathVariable Long empresaId,
+                                                 @RequestParam(required = false) EstadoDte estado,
+                                                 @PageableDefault(size = 20) Pageable pageable) {
+        return service.listar(empresaId, estado, pageable);
+    }
+
+    @GetMapping("/{id}")
+    public DocumentoResponse obtener(@PathVariable Long empresaId, @PathVariable Long id) {
+        return service.obtener(empresaId, id);
+    }
+
+    @PostMapping
+    @Operation(summary = "Crear un documento en borrador")
+    public ResponseEntity<DocumentoResponse> crear(@PathVariable Long empresaId,
+                                                   @Valid @RequestBody CrearDocumentoRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.crear(empresaId, req));
+    }
+
+    @PostMapping("/{id}/emitir")
+    @Operation(summary = "Emitir: asigna folio, genera timbre, XML y firma")
+    public DocumentoResponse emitir(@PathVariable Long empresaId, @PathVariable Long id) {
+        return service.emitir(empresaId, id);
+    }
+
+    @PostMapping("/{id}/enviar")
+    @Operation(summary = "Enviar el documento firmado al SII")
+    public DocumentoResponse enviar(@PathVariable Long empresaId, @PathVariable Long id) {
+        return service.enviarSii(empresaId, id);
+    }
+
+    @GetMapping("/{id}/estado-sii")
+    @Operation(summary = "Consultar el estado del envio en el SII")
+    public DocumentoResponse estadoSii(@PathVariable Long empresaId, @PathVariable Long id) {
+        return service.consultarEstadoSii(empresaId, id);
+    }
+
+    @GetMapping("/{id}/pdf")
+    @Operation(summary = "Descargar la representacion impresa en PDF")
+    public ResponseEntity<byte[]> pdf(@PathVariable Long empresaId, @PathVariable Long id) {
+        byte[] pdf = service.generarPdf(empresaId, id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"dte-" + id + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+}

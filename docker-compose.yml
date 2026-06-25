@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nexo-factura-db
+    environment:
+      POSTGRES_DB: nexo_factura
+      POSTGRES_USER: nexo
+      POSTGRES_PASSWORD: nexo
+    ports:
+      - "5432:5432"
+    volumes:
+      - nexo_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexo -d nexo_factura"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: nexo-factura-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: nexo_factura
+      DB_USER: nexo
+      DB_PASSWORD: nexo
+      APP_JWT_SECRET: dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789
+      APP_CORS_ORIGINS: http://localhost:5173,http://localhost:8081
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    container_name: nexo-factura-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
+volumes:
+  nexo_db_data:

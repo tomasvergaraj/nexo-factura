@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: nexo-factura
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: America/Santiago
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+app:
+  jwt:
+    # En produccion definir APP_JWT_SECRET con al menos 32 bytes.
+    secret: ${APP_JWT_SECRET:dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789}
+    expiration-minutes: ${APP_JWT_EXPIRATION_MINUTES:480}
+  cors:
+    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
+  sii:
+    # CERTIFICACION (Maullin) o PRODUCCION (Palena)
+    ambiente: ${APP_SII_AMBIENTE:CERTIFICACION}
+    certificado-path: ${APP_SII_CERT_PATH:}
+    certificado-password: ${APP_SII_CERT_PASSWORD:}
