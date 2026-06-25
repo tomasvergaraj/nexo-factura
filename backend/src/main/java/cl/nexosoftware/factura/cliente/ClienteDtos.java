@@ -1,15 +1,15 @@
 package cl.nexosoftware.factura.cliente;
 
+import cl.nexosoftware.factura.common.validation.RutValido;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 
 public final class ClienteDtos {
 
     private ClienteDtos() {}
 
     public record ClienteRequest(
-            @NotBlank @Pattern(regexp = "^\\d{1,8}-[\\dkK]$", message = "RUT invalido") String rut,
+            @NotBlank @RutValido String rut,
             @NotBlank String razonSocial,
             String giro,
             String direccion,

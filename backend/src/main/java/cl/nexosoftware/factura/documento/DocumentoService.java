@@ -81,6 +81,8 @@ public class DocumentoService {
             }
         }
 
+        validarReferenciasDeNota(doc);
+
         aplicarTotales(doc);
         documentoRepository.save(doc);
         return DocumentoMapper.toResponse(doc);
@@ -104,6 +106,13 @@ public class DocumentoService {
 
         doc.setXmlDte(xmlFirmado);
         doc.setEstado(EstadoDte.FIRMADO);
+
+        // 3. Si es una nota de credito que anula, transicionar el original ACEPTADO -> ANULADO
+        //    en la misma transaccion (rollback atomico con la reserva del folio).
+        if (doc.getTipoDte() == TipoDte.NOTA_CREDITO) {
+            anularOriginalesReferenciados(doc);
+        }
+
         documentoRepository.save(doc);
         return DocumentoMapper.toResponse(doc);
     }
@@ -196,6 +205,62 @@ public class DocumentoService {
                 .afecto(afecto)
                 .montoLinea(monto)
                 .build();
+    }
+
+    /**
+     * Valida que las notas de credito/debito (56/61) referencien al menos un
+     * documento original coherente: existente, no borrador, distinto de la nota y
+     * con la misma fecha de emision registrada en la referencia.
+     */
+    private void validarReferenciasDeNota(DocumentoTributario doc) {
+        if (doc.getTipoDte() != TipoDte.NOTA_CREDITO && doc.getTipoDte() != TipoDte.NOTA_DEBITO) {
+            return;
+        }
+        if (doc.getReferencias().isEmpty()) {
+            throw new ReglaNegocioException(
+                    "Una " + doc.getTipoDte().getDescripcion() + " debe referenciar al menos un documento");
+        }
+        for (Referencia ref : doc.getReferencias()) {
+            DocumentoTributario original = localizarReferenciado(doc.getEmpresaId(), ref);
+            if (original.getId() != null && original.getId().equals(doc.getId())) {
+                throw new ReglaNegocioException("Una nota no puede referenciarse a si misma");
+            }
+            if (original.getEstado() == EstadoDte.BORRADOR) {
+                throw new ReglaNegocioException(
+                        "El documento referenciado aun esta en borrador y no puede ser corregido");
+            }
+            if (!original.getFechaEmision().equals(ref.getFechaRef())) {
+                throw new ReglaNegocioException(
+                        "La fecha de la referencia no coincide con la del documento original");
+            }
+        }
+    }
+
+    /**
+     * Anula los documentos originales referenciados por una nota de credito con
+     * codigo de referencia ANULA_DOCUMENTO. Solo un documento ACEPTADO es anulable.
+     */
+    private void anularOriginalesReferenciados(DocumentoTributario doc) {
+        for (Referencia ref : doc.getReferencias()) {
+            if (ref.getTipoReferencia() != TipoReferencia.ANULA_DOCUMENTO) {
+                continue;
+            }
+            DocumentoTributario original = localizarReferenciado(doc.getEmpresaId(), ref);
+            if (original.getEstado() != EstadoDte.ACEPTADO) {
+                throw new ReglaNegocioException(
+                        "Solo se puede anular un documento ACEPTADO; el documento referenciado esta en estado "
+                                + original.getEstado());
+            }
+            transicionar(original, EstadoDte.ANULADO);
+            documentoRepository.save(original);
+        }
+    }
+
+    private DocumentoTributario localizarReferenciado(Long empresaId, Referencia ref) {
+        TipoDte tipoRef = TipoDte.desdeCodigo(ref.getTipoDocumentoRef());
+        return documentoRepository
+                .findByEmpresaIdAndTipoDteAndFolio(empresaId, tipoRef, ref.getFolioRef())
+                .orElseThrow(() -> new ReglaNegocioException("No existe el documento referenciado"));
     }
 
     private void aplicarTotales(DocumentoTributario doc) {

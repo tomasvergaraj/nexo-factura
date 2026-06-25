@@ -87,6 +87,7 @@ public final class ModeloDte {
 
     /** Timbre Electronico (TED). En produccion el campo FRMT se firma con la llave del CAF. */
     @XmlAccessorType(XmlAccessType.FIELD)
+    @XmlRootElement(name = "TED")
     public static class Ted {
         @XmlAttribute(name = "version") public String version = "1.0";
         @XmlElement(name = "DD") public Dd dd;

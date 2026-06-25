@@ -2,11 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Receipt } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
-import { Card, Field, Select, Input, Button, Spinner } from "../../components/ui";
-import { crearDocumento, getClientes, getProductos, type NuevaLinea } from "../../lib/api";
+import { Card, Field, Select, Input, Button, Spinner, Textarea } from "../../components/ui";
+import {
+  crearDocumento, getClientes, getDocumento, getDocumentos, getProductos, mensajeError,
+  type NuevaLinea,
+} from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { formatCLP, formatRut } from "../../lib/format";
-import type { Cliente, Producto } from "../../lib/types";
+import { formatCLP, formatFecha, formatRut } from "../../lib/format";
+import {
+  CODIGO_TIPO_DTE, TIPO_DTE_LABEL, TIPO_REFERENCIA_LABEL,
+  type Cliente, type DocumentoResumen, type Producto, type ReferenciaRequest,
+  type TipoDte, type TipoReferencia,
+} from "../../lib/types";
 
 interface LineaEditable extends NuevaLinea {
   uid: number;
@@ -14,26 +21,92 @@ interface LineaEditable extends NuevaLinea {
 
 const TASA_IVA = 19;
 
+// Tipos emisibles desde este formulario.
+const TIPOS_EMISIBLES: TipoDte[] = [
+  "FACTURA_AFECTA", "FACTURA_EXENTA", "NOTA_CREDITO", "NOTA_DEBITO",
+];
+
+const TIPOS_REFERENCIA: TipoReferencia[] = ["ANULA_DOCUMENTO", "CORRIGE_TEXTO", "CORRIGE_MONTO"];
+
+function esNota(tipo: TipoDte) {
+  return tipo === "NOTA_CREDITO" || tipo === "NOTA_DEBITO";
+}
+
 export function NuevaFactura() {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [emisibles, setEmisibles] = useState<DocumentoResumen[]>([]);
+  const [tipoDte, setTipoDte] = useState<TipoDte>("FACTURA_AFECTA");
   const [clienteId, setClienteId] = useState<number | "">("");
   const [lineas, setLineas] = useState<LineaEditable[]>([]);
   const [emitiendo, setEmitiendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
+
+  // Referencia (solo notas de crédito/débito).
+  const [refDocId, setRefDocId] = useState<number | "">("");
+  const [folioRef, setFolioRef] = useState<number | null>(null);
+  const [fechaRef, setFechaRef] = useState<string>("");
+  const [tipoDocumentoRef, setTipoDocumentoRef] = useState<number | null>(null);
+  const [tipoReferencia, setTipoReferencia] = useState<TipoReferencia>("ANULA_DOCUMENTO");
+  const [razon, setRazon] = useState("");
+
+  const afectoPorDefecto = tipoDte !== "FACTURA_EXENTA";
 
   useEffect(() => {
     const empresaId = empresaIdActual();
-    getClientes(empresaId).then(setClientes);
-    getProductos(empresaId).then(setProductos);
+    Promise.all([getClientes(empresaId), getProductos(empresaId), getDocumentos(empresaId)])
+      .then(([cs, ps, ds]) => {
+        setClientes(cs);
+        setProductos(ps);
+        setEmisibles(ds.filter((d) => d.folio != null));
+      })
+      .finally(() => setCargando(false));
   }, []);
 
   const cliente = clientes.find((c) => c.id === clienteId);
 
+  function cambiarTipo(nuevo: TipoDte) {
+    setTipoDte(nuevo);
+    setError(null);
+    // Valor por defecto del tipo de referencia según la nota.
+    setTipoReferencia(nuevo === "NOTA_DEBITO" ? "CORRIGE_MONTO" : "ANULA_DOCUMENTO");
+    // Las líneas exentas no llevan IVA.
+    if (nuevo === "FACTURA_EXENTA") {
+      setLineas((prev) => prev.map((l) => ({ ...l, afecto: false })));
+    }
+    // Si dejamos de ser nota, limpiamos la referencia.
+    if (!esNota(nuevo)) {
+      setRefDocId("");
+      setFolioRef(null);
+      setFechaRef("");
+      setTipoDocumentoRef(null);
+      setRazon("");
+    }
+  }
+
+  async function elegirDocumentoReferenciado(docId: number) {
+    setRefDocId(docId);
+    const resumen = emisibles.find((d) => d.id === docId);
+    if (!resumen) return;
+    setFolioRef(resumen.folio);
+    setFechaRef(resumen.fechaEmision);
+    setTipoDocumentoRef(CODIGO_TIPO_DTE[resumen.tipoDte]);
+    // Autocompletar el cliente del documento original (vía su RUT receptor).
+    try {
+      const original = await getDocumento(empresaIdActual(), docId);
+      const match = clientes.find((c) => c.rut === original.receptorRut);
+      if (match) setClienteId(match.id);
+    } catch {
+      // Sin bloquear: el usuario puede elegir el cliente manualmente.
+    }
+  }
+
   function agregarLinea() {
     setLineas((prev) => [
       ...prev,
-      { uid: Date.now(), nombre: "", cantidad: 1, precioUnitario: 0, descuentoMonto: 0, afecto: true },
+      { uid: Date.now(), nombre: "", cantidad: 1, precioUnitario: 0, descuentoMonto: 0, afecto: afectoPorDefecto },
     ]);
   }
 
@@ -47,7 +120,7 @@ export function NuevaFactura() {
     setLineas((prev) =>
       prev.map((l) =>
         l.uid === uid
-          ? { ...l, productoId: p.id, nombre: p.nombre, precioUnitario: p.precioNeto, afecto: p.afecto }
+          ? { ...l, productoId: p.id, nombre: p.nombre, precioUnitario: p.precioNeto, afecto: afectoPorDefecto && p.afecto }
           : l,
       ),
     );
@@ -70,24 +143,48 @@ export function NuevaFactura() {
     return { neto, exento, iva, total: neto + iva + exento };
   }, [lineas]);
 
-  const puedeEmitir = clienteId !== "" && lineas.length > 0 && totales.total > 0;
+  const requiereReferencia = esNota(tipoDte);
+  const referenciaCompleta = !requiereReferencia
+    || (folioRef != null && tipoDocumentoRef != null && fechaRef !== "" && razon.trim() !== "");
+
+  const puedeEmitir = clienteId !== "" && lineas.length > 0 && totales.total > 0 && referenciaCompleta;
 
   async function emitir() {
-    if (!puedeEmitir) return;
+    setError(null);
+    if (clienteId === "" || lineas.length === 0 || totales.total <= 0) return;
+
+    let referencias: ReferenciaRequest[] | undefined;
+    if (requiereReferencia) {
+      if (folioRef == null || tipoDocumentoRef == null || !fechaRef || !razon.trim()) {
+        setError("Completa la referencia al documento original (folio, fecha y motivo).");
+        return;
+      }
+      referencias = [{
+        tipoDocumentoRef,
+        folioRef,
+        fechaRef,
+        tipoReferencia,
+        razon: razon.trim(),
+      }];
+    }
+
     setEmitiendo(true);
     try {
-      await crearDocumento(empresaIdActual(), {
-        tipoDte: "FACTURA_AFECTA",
+      const creado = await crearDocumento(empresaIdActual(), {
+        tipoDte,
         clienteId: clienteId as number,
         lineas: lineas.map(({ uid: _uid, ...l }) => l),
+        ...(referencias ? { referencias } : {}),
       });
-      navigate("/app/documentos");
+      navigate(`/app/documentos/${creado.id}`);
+    } catch (e) {
+      setError(mensajeError(e, "No se pudo crear el documento."));
     } finally {
       setEmitiendo(false);
     }
   }
 
-  if (clientes.length === 0) {
+  if (cargando) {
     return (
       <AppShell titulo="Nueva factura">
         <div className="grid h-64 place-items-center"><Spinner className="h-6 w-6" /></div>
@@ -101,21 +198,83 @@ export function NuevaFactura() {
         {/* Formulario */}
         <div className="space-y-5">
           <Card className="p-6">
-            <h2 className="mb-4 font-display text-base font-bold text-ink">Receptor</h2>
-            <Field label="Cliente">
-              <Select value={clienteId} onChange={(e) => setClienteId(Number(e.target.value) || "")}>
-                <option value="">Selecciona un cliente…</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.razonSocial} · {formatRut(c.rut)}</option>
-                ))}
-              </Select>
-            </Field>
+            <h2 className="mb-4 font-display text-base font-bold text-ink">Documento</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Tipo de documento">
+                <Select value={tipoDte} onChange={(e) => cambiarTipo(e.target.value as TipoDte)}>
+                  {TIPOS_EMISIBLES.map((t) => (
+                    <option key={t} value={t}>{TIPO_DTE_LABEL[t]}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Cliente">
+                <Select value={clienteId} onChange={(e) => setClienteId(Number(e.target.value) || "")}>
+                  <option value="">Selecciona un cliente…</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.razonSocial} · {formatRut(c.rut)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
             {cliente && (
               <p className="mt-3 text-xs text-slate">
                 {formatRut(cliente.rut)} · {cliente.comuna ?? "—"} · {cliente.email ?? "sin correo"}
               </p>
             )}
           </Card>
+
+          {requiereReferencia && (
+            <Card className="p-6">
+              <h2 className="mb-4 font-display text-base font-bold text-ink">
+                Referencia al documento original
+              </h2>
+              <div className="space-y-4">
+                <Field label="Documento de referencia" hint="Solo documentos con folio asignado.">
+                  <Select
+                    value={refDocId}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (v) elegirDocumentoReferenciado(v);
+                      else { setRefDocId(""); setFolioRef(null); setFechaRef(""); setTipoDocumentoRef(null); }
+                    }}
+                  >
+                    <option value="">Selecciona el documento original…</option>
+                    {emisibles.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {TIPO_DTE_LABEL[d.tipoDte]} N° {d.folio} · {d.receptorRazonSocial} · {formatCLP(d.total)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+
+                {folioRef != null && (
+                  <p className="text-xs text-slate tnum">
+                    Referencia: documento {tipoDocumentoRef} · folio {folioRef} · {formatFecha(fechaRef)}
+                  </p>
+                )}
+
+                <Field label="Tipo de referencia">
+                  <Select
+                    value={tipoReferencia}
+                    onChange={(e) => setTipoReferencia(e.target.value as TipoReferencia)}
+                  >
+                    {TIPOS_REFERENCIA.map((t) => (
+                      <option key={t} value={t}>{TIPO_REFERENCIA_LABEL[t]}</option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <Field label="Motivo (razón)">
+                  <Textarea
+                    rows={2}
+                    value={razon}
+                    placeholder="Ej: Anula factura por error en el monto."
+                    onChange={(e) => setRazon(e.target.value)}
+                  />
+                </Field>
+              </div>
+            </Card>
+          )}
 
           <Card className="p-6">
             <div className="mb-4 flex items-center justify-between">
@@ -127,7 +286,7 @@ export function NuevaFactura() {
 
             {lineas.length === 0 ? (
               <p className="rounded-lg border border-dashed border-line py-8 text-center text-sm text-slate-soft">
-                Agrega productos o servicios a la factura.
+                Agrega productos o servicios al documento.
               </p>
             ) : (
               <div className="space-y-3">
@@ -188,6 +347,7 @@ export function NuevaFactura() {
         <div>
           <Card className="sticky top-24 p-6">
             <h2 className="font-display text-base font-bold text-ink">Resumen</h2>
+            <p className="mt-1 text-xs text-slate-soft">{TIPO_DTE_LABEL[tipoDte]}</p>
             <div className="mt-5 space-y-2.5 text-sm">
               <Linea label="Neto" valor={formatCLP(totales.neto)} />
               {totales.exento > 0 && <Linea label="Exento" valor={formatCLP(totales.exento)} />}
@@ -198,11 +358,15 @@ export function NuevaFactura() {
               </div>
             </div>
 
+            {error && (
+              <div className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</div>
+            )}
+
             <Button className="mt-6 w-full" onClick={emitir} disabled={!puedeEmitir || emitiendo}>
-              {emitiendo ? "Emitiendo…" : <><Receipt size={17} /> Emitir factura</>}
+              {emitiendo ? "Creando…" : <><Receipt size={17} /> Crear documento</>}
             </Button>
             <p className="mt-3 text-center text-xs text-slate-soft">
-              Se asignará folio, timbre y se enviará al SII.
+              Se crea en borrador; podrás emitirlo y enviarlo al SII desde el detalle.
             </p>
           </Card>
         </div>

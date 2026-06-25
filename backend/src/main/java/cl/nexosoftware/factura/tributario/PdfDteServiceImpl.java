@@ -7,6 +7,9 @@ import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -18,10 +21,14 @@ import java.util.Locale;
 /**
  * Representacion impresa del DTE con OpenPDF. Replica el formato chileno: recuadro
  * rojo con RUT, tipo y folio; datos de emisor y receptor; tabla de detalle;
- * totales; y un espacio reservado para el timbre (PDF417). El codigo de barras
- * PDF417 real se genera a partir del TED al integrar el CAF.
+ * totales; y el timbre electronico (PDF417).
+ *
+ * El PDF417 codifica el TED real (fragmento XML del timbre, ISO-8859-1) generado
+ * por {@link TedGenerator}. La firma FRMT sigue siendo un marcador de posicion
+ * hasta integrar la llave privada del CAF real.
  */
 @Service
+@RequiredArgsConstructor
 public class PdfDteServiceImpl implements PdfDteService {
 
     private static final Color COBALTO = new Color(14, 123, 214);
@@ -29,6 +36,11 @@ public class PdfDteServiceImpl implements PdfDteService {
     private static final Color GRIS = new Color(91, 107, 123);
     private static final DecimalFormat CLP =
             new DecimalFormat("#,##0", new DecimalFormatSymbols(Locale.forLanguageTag("es-CL")));
+
+    private static final Logger log = LoggerFactory.getLogger(PdfDteServiceImpl.class);
+
+    private final TedGenerator tedGenerator;
+    private final Pdf417Generator pdf417Generator;
 
     @Override
     public byte[] generar(DocumentoTributario doc, Empresa emisor) {
@@ -43,7 +55,10 @@ public class PdfDteServiceImpl implements PdfDteService {
             pdf.add(new Paragraph(" "));
             pdf.add(detalle(doc));
             pdf.add(totales(doc));
-            pdf.add(timbre());
+
+            ModeloDte.Ted ted = tedGenerator.generar(doc, emisor.getRut());
+            String tedXml = tedGenerator.aXml(ted);
+            agregarTimbre(pdf, tedXml);
 
             pdf.close();
             return out.toByteArray();
@@ -152,16 +167,40 @@ public class PdfDteServiceImpl implements PdfDteService {
         return wrapper;
     }
 
-    private Paragraph timbre() {
-        Paragraph p = new Paragraph();
-        p.setSpacingBefore(18f);
-        p.add(new Chunk("[ Timbre Electronico SII - PDF417 ]\n", font(9, Font.BOLD, GRIS)));
-        p.add(new Chunk("Res. XX de XXXX - Verifique en www.sii.cl\n",
-                font(8, Font.NORMAL, GRIS)));
-        p.add(new Chunk("El codigo PDF417 se genera a partir del TED al integrar un CAF real.",
-                font(7, Font.ITALIC, GRIS)));
-        p.setAlignment(Element.ALIGN_CENTER);
-        return p;
+    /**
+     * Agrega el timbre electronico al PDF: el codigo de barras PDF417 que codifica
+     * el TED real, centrado, con la leyenda del SII debajo. La imagen se agrega como
+     * elemento de bloque (no como Chunk inline) y escalada para caber en el ancho de
+     * la pagina; de lo contrario OpenPDF descarta una imagen mas ancha que la linea.
+     * Si la generacion del PDF417 falla (zxing o el render), cae al texto de respaldo
+     * para no romper la emision.
+     */
+    private void agregarTimbre(Document pdf, String tedXml) throws DocumentException {
+        pdf.add(new Paragraph(" "));
+        try {
+            byte[] png = pdf417Generator.generarPng(tedXml);
+            Image img = Image.getInstance(png);
+            img.setAlignment(Image.ALIGN_CENTER);
+            img.scaleToFit(360f, 120f); // cabe en el ancho util de la pagina (LETTER, margenes 40)
+            pdf.add(img);
+
+            Paragraph leyenda = new Paragraph();
+            leyenda.setAlignment(Element.ALIGN_CENTER);
+            leyenda.add(new Chunk("Timbre Electronico SII\n", font(8, Font.BOLD, GRIS)));
+            leyenda.add(new Chunk("Verifique en www.sii.cl", font(7, Font.NORMAL, GRIS)));
+            pdf.add(leyenda);
+        } catch (Exception e) {
+            // Fallback: si zxing falla, mantener el texto para no romper la emision.
+            log.warn("No se pudo generar el PDF417 del timbre, usando texto de respaldo", e);
+            Paragraph p = new Paragraph();
+            p.setAlignment(Element.ALIGN_CENTER);
+            p.add(new Chunk("[ Timbre Electronico SII - PDF417 ]\n", font(9, Font.BOLD, GRIS)));
+            p.add(new Chunk("Res. XX de XXXX - Verifique en www.sii.cl\n",
+                    font(8, Font.NORMAL, GRIS)));
+            p.add(new Chunk("No se pudo generar el codigo PDF417 del timbre.",
+                    font(7, Font.ITALIC, GRIS)));
+            pdf.add(p);
+        }
     }
 
     // ---- helpers ----

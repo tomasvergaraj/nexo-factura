@@ -5,10 +5,11 @@
 import axios from "axios";
 import { cerrarSesion, obtenerToken, RUTA_LOGIN } from "./auth";
 import {
-  clientesMock, dashboardMock, documentoDetalleMock, documentosMock, productosMock,
+  clientesMock, dashboardMock, documentoDetalleMock, documentosMock, foliosMock, productosMock,
 } from "./mock";
 import type {
-  Cliente, DocumentoResponse, DocumentoResumen, Producto, ResumenDashboard,
+  Caf, CafRequest, Cliente, ClienteRequest, DocumentoResponse, DocumentoResumen,
+  Producto, ProductoRequest, ReferenciaRequest, ResumenDashboard,
 } from "./types";
 
 // Opt-in a datos mock: solo con VITE_USE_MOCK="true" (default false).
@@ -24,13 +25,15 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-// Ante 401/403 la sesión dejó de ser válida: limpiamos y volvemos al login.
-// Evitamos el bucle si ya estamos en la pantalla de login.
+// Solo el 401 invalida la sesión: limpiamos y volvemos al login (evitando el
+// bucle si ya estamos ahí). Un 403 con token válido es un problema de permiso o
+// de negocio que debe manejar la página (ocultando botones por rol o mostrando
+// el error), no un motivo para cerrar sesión.
 http.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       cerrarSesion();
       if (window.location.pathname !== RUTA_LOGIN) {
         window.location.assign(RUTA_LOGIN);
@@ -41,6 +44,36 @@ http.interceptors.response.use(
 );
 
 const demora = (ms = 250) => new Promise((r) => setTimeout(r, ms));
+
+// Forma del cuerpo de error de la API (ApiError del backend).
+export interface ApiErrorBody {
+  estado: number;
+  error: string;
+  mensaje: string;
+  ruta: string;
+  detalles: { campo: string; mensaje: string }[] | null;
+}
+
+/** Mensaje legible de un error de la API (409 de negocio, etc.). */
+export function mensajeError(error: unknown, fallback = "Ocurrió un error inesperado."): string {
+  if (axios.isAxiosError(error)) {
+    const body = error.response?.data as ApiErrorBody | undefined;
+    if (body?.mensaje) return body.mensaje;
+  }
+  return fallback;
+}
+
+/** Errores de validación campo a campo (400). Devuelve un mapa campo→mensaje. */
+export function erroresDeCampo(error: unknown): Record<string, string> {
+  const mapa: Record<string, string> = {};
+  if (axios.isAxiosError(error)) {
+    const body = error.response?.data as ApiErrorBody | undefined;
+    for (const d of body?.detalles ?? []) {
+      if (d.campo && !mapa[d.campo]) mapa[d.campo] = d.mensaje;
+    }
+  }
+  return mapa;
+}
 
 // ---- Dashboard ----
 export async function getDashboard(empresaId: number): Promise<ResumenDashboard> {
@@ -82,13 +115,57 @@ export interface NuevaLinea {
 
 export async function crearDocumento(
   empresaId: number,
-  payload: { tipoDte: string; clienteId: number; observacion?: string; lineas: NuevaLinea[] },
+  payload: {
+    tipoDte: string;
+    clienteId: number;
+    observacion?: string;
+    lineas: NuevaLinea[];
+    referencias?: ReferenciaRequest[];
+  },
 ): Promise<DocumentoResponse> {
   if (USE_MOCK) {
     await demora(400);
     return documentoDetalleMock;
   }
   const { data } = await http.post(`/empresas/${empresaId}/documentos`, payload);
+  return data;
+}
+
+export async function emitirDocumento(empresaId: number, id: number): Promise<DocumentoResponse> {
+  if (USE_MOCK) {
+    await demora(400);
+    return { ...documentoDetalleMock, estado: "FIRMADO", folio: documentoDetalleMock.folio ?? 144 };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/documentos/${id}/emitir`);
+  return data;
+}
+
+export async function enviarDocumento(empresaId: number, id: number): Promise<DocumentoResponse> {
+  if (USE_MOCK) {
+    await demora(400);
+    return { ...documentoDetalleMock, estado: "ENVIADO", trackId: documentoDetalleMock.trackId ?? "5829134" };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/documentos/${id}/enviar`);
+  return data;
+}
+
+export async function consultarEstadoSii(empresaId: number, id: number): Promise<DocumentoResponse> {
+  if (USE_MOCK) {
+    await demora(400);
+    return { ...documentoDetalleMock, estado: "ACEPTADO" };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/documentos/${id}/estado-sii`);
+  return data;
+}
+
+export async function descargarPdf(empresaId: number, id: number): Promise<Blob> {
+  if (USE_MOCK) {
+    await demora();
+    return new Blob(["%PDF-1.4 (mock)"], { type: "application/pdf" });
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/documentos/${id}/pdf`, {
+    responseType: "blob",
+  });
   return data;
 }
 
@@ -102,6 +179,37 @@ export async function getClientes(empresaId: number): Promise<Cliente[]> {
   return data.contenido;
 }
 
+function clienteDeMock(id: number, payload: ClienteRequest): Cliente {
+  return {
+    id,
+    rut: payload.rut,
+    razonSocial: payload.razonSocial,
+    giro: payload.giro,
+    comuna: payload.comuna,
+    email: payload.email,
+  };
+}
+
+export async function crearCliente(empresaId: number, payload: ClienteRequest): Promise<Cliente> {
+  if (USE_MOCK) {
+    await demora(400);
+    return clienteDeMock(Date.now(), payload);
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/clientes`, payload);
+  return data;
+}
+
+export async function editarCliente(
+  empresaId: number, id: number, payload: ClienteRequest,
+): Promise<Cliente> {
+  if (USE_MOCK) {
+    await demora(400);
+    return clienteDeMock(id, payload);
+  }
+  const { data } = await http.put(`/empresas/${empresaId}/clientes/${id}`, payload);
+  return data;
+}
+
 export async function getProductos(empresaId: number): Promise<Producto[]> {
   if (USE_MOCK) {
     await demora();
@@ -109,6 +217,66 @@ export async function getProductos(empresaId: number): Promise<Producto[]> {
   }
   const { data } = await http.get(`/empresas/${empresaId}/productos`);
   return data.contenido;
+}
+
+function productoDeMock(id: number, payload: ProductoRequest): Producto {
+  return {
+    id,
+    codigo: payload.codigo,
+    nombre: payload.nombre,
+    precioNeto: payload.precioNeto,
+    unidad: payload.unidad ?? "UN",
+    afecto: payload.afecto,
+  };
+}
+
+export async function crearProducto(empresaId: number, payload: ProductoRequest): Promise<Producto> {
+  if (USE_MOCK) {
+    await demora(400);
+    return productoDeMock(Date.now(), payload);
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/productos`, payload);
+  return data;
+}
+
+export async function editarProducto(
+  empresaId: number, id: number, payload: ProductoRequest,
+): Promise<Producto> {
+  if (USE_MOCK) {
+    await demora(400);
+    return productoDeMock(id, payload);
+  }
+  const { data } = await http.put(`/empresas/${empresaId}/productos/${id}`, payload);
+  return data;
+}
+
+// ---- Folios (CAF) ----
+// GET devuelve una LISTA PLANA (no `data.contenido`).
+export async function getFolios(empresaId: number): Promise<Caf[]> {
+  if (USE_MOCK) {
+    await demora();
+    return foliosMock;
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/folios`);
+  return data;
+}
+
+export async function cargarCaf(empresaId: number, payload: CafRequest): Promise<Caf> {
+  if (USE_MOCK) {
+    await demora(400);
+    return {
+      id: Date.now(),
+      tipoDte: payload.tipoDte,
+      folioDesde: payload.folioDesde,
+      folioHasta: payload.folioHasta,
+      folioActual: payload.folioDesde,
+      foliosDisponibles: payload.folioHasta - payload.folioDesde + 1,
+      agotado: false,
+      fechaVencimiento: payload.fechaVencimiento ?? null,
+    };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/folios`, payload);
+  return data;
 }
 
 export default http;

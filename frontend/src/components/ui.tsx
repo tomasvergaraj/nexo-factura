@@ -1,4 +1,7 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import { useEffect } from "react";
+import type {
+  ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes,
+} from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
@@ -69,6 +72,92 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
     >
       {children}
     </select>
+  );
+}
+
+export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={`w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-slate-soft focus:border-cobalt focus:ring-0 ${className}`}
+      {...props}
+    />
+  );
+}
+
+export function Checkbox({ label, className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { label?: ReactNode }) {
+  return (
+    <label className={`inline-flex cursor-pointer items-center gap-2 text-sm text-ink ${className}`}>
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-line text-cobalt focus:ring-0"
+        {...props}
+      />
+      {label}
+    </label>
+  );
+}
+
+export function Modal({ open, onClose, title, children, footer }: {
+  open: boolean;
+  onClose: () => void;
+  title?: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-[14px] border border-line bg-white shadow-[0_24px_60px_-20px_rgba(11,27,43,0.4)]"
+      >
+        {title && (
+          <div className="border-b border-line px-6 py-4">
+            <h2 className="font-display text-base font-bold text-ink">{title}</h2>
+          </div>
+        )}
+        <div className="px-6 py-5">{children}</div>
+        {footer && (
+          <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">{footer}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function EmptyState({ icon, titulo, descripcion, accion }: {
+  icon?: ReactNode;
+  titulo: string;
+  descripcion?: string;
+  accion?: ReactNode;
+}) {
+  return (
+    <div className="grid place-items-center px-6 py-16 text-center">
+      {icon && (
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-mist text-cobalt">
+          {icon}
+        </span>
+      )}
+      <h3 className="mt-4 font-display text-base font-bold text-ink">{titulo}</h3>
+      {descripcion && <p className="mt-2 max-w-sm text-sm text-slate">{descripcion}</p>}
+      {accion && <div className="mt-5">{accion}</div>}
+    </div>
   );
 }
 

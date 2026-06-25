@@ -22,6 +22,9 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
     @EntityGraph(attributePaths = {"lineas"})
     Optional<DocumentoTributario> findWithDetalleById(Long id);
 
+    /** Localiza un documento por su identidad tributaria (empresa + tipo + folio). */
+    Optional<DocumentoTributario> findByEmpresaIdAndTipoDteAndFolio(Long empresaId, TipoDte tipoDte, Long folio);
+
     Page<DocumentoTributario> findByEmpresaIdOrderByCreadoEnDesc(Long empresaId, Pageable pageable);
 
     Page<DocumentoTributario> findByEmpresaIdAndEstadoOrderByCreadoEnDesc(

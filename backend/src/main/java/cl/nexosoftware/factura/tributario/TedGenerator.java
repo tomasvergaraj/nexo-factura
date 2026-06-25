@@ -1,8 +1,11 @@
 package cl.nexosoftware.factura.tributario;
 
 import cl.nexosoftware.factura.documento.DocumentoTributario;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Component;
 
+import java.io.StringWriter;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
@@ -37,6 +40,25 @@ public class TedGenerator {
         frmt.valor = firmarDd(dd);
         ted.frmt = frmt;
         return ted;
+    }
+
+    /**
+     * Serializa el TED a su fragmento XML ({@code <TED ...>...</TED>}) en ISO-8859-1,
+     * sin formato. Es el contenido que se codifica en el PDF417 del timbre.
+     */
+    public String aXml(ModeloDte.Ted ted) {
+        try {
+            JAXBContext ctx = JAXBContext.newInstance(ModeloDte.Ted.class);
+            Marshaller marshaller = ctx.createMarshaller();
+            marshaller.setProperty(Marshaller.JAXB_FRAGMENT, true);
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, false);
+            marshaller.setProperty(Marshaller.JAXB_ENCODING, "ISO-8859-1");
+            StringWriter sw = new StringWriter();
+            marshaller.marshal(ted, sw);
+            return sw.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo serializar el TED a XML", e);
+        }
     }
 
     private String firmarDd(ModeloDte.Dd dd) {

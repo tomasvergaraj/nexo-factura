@@ -38,14 +38,16 @@ public class DocumentoController {
     }
 
     @PostMapping
-    @Operation(summary = "Crear un documento en borrador")
+    @Operation(summary = "Crear un documento en borrador. Las notas de credito/debito (56/61) "
+            + "exigen al menos una referencia coherente al documento original.")
     public ResponseEntity<DocumentoResponse> crear(@PathVariable Long empresaId,
                                                    @Valid @RequestBody CrearDocumentoRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.crear(empresaId, req));
     }
 
     @PostMapping("/{id}/emitir")
-    @Operation(summary = "Emitir: asigna folio, genera timbre, XML y firma")
+    @Operation(summary = "Emitir: asigna folio, genera timbre, XML y firma. "
+            + "Una nota de credito con referencia ANULA_DOCUMENTO anula el original ACEPTADO en la misma transaccion.")
     @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
     public DocumentoResponse emitir(@PathVariable Long empresaId, @PathVariable Long id) {
         return service.emitir(empresaId, id);

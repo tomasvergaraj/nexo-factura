@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import { Card, Spinner, Input, Button } from "../../components/ui";
@@ -13,6 +13,7 @@ type Filtro = "TODOS" | EstadoDte;
 const FILTROS: Filtro[] = ["TODOS", "ACEPTADO", "ENVIADO", "BORRADOR", "RECHAZADO"];
 
 export function Documentos() {
+  const navigate = useNavigate();
   const [docs, setDocs] = useState<DocumentoResumen[] | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("TODOS");
   const [busqueda, setBusqueda] = useState("");
@@ -76,7 +77,20 @@ export function Documentos() {
               </thead>
               <tbody>
                 {visibles.map((d) => (
-                  <tr key={d.id} className="border-b border-line/70 last:border-0 hover:bg-mist/60">
+                  <tr
+                    key={d.id}
+                    onClick={() => navigate(`/app/documentos/${d.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/app/documentos/${d.id}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Ver documento ${d.folio ?? "borrador"} de ${d.receptorRazonSocial}`}
+                    className="cursor-pointer border-b border-line/70 last:border-0 hover:bg-mist/60 focus:bg-mist/60 focus:outline-none"
+                  >
                     <td className="px-6 py-3.5 font-medium text-ink tnum">{d.folio ?? "—"}</td>
                     <td className="px-6 py-3.5 text-slate">{TIPO_DTE_LABEL[d.tipoDte]}</td>
                     <td className="px-6 py-3.5 text-ink">{d.receptorRazonSocial}</td>

@@ -48,6 +48,15 @@ public final class DocumentoDtos {
             long montoLinea
     ) {}
 
+    public record ReferenciaResponse(
+            int tipoDocumentoRef,
+            long folioRef,
+            LocalDate fechaRef,
+            TipoReferencia tipoReferencia,
+            int codigoReferencia,
+            String razon
+    ) {}
+
     public record DocumentoResponse(
             Long id,
             TipoDte tipoDte,
@@ -65,7 +74,8 @@ public final class DocumentoDtos {
             String trackId,
             String observacion,
             List<LineaResponse> lineas,
-            OffsetDateTime creadoEn
+            OffsetDateTime creadoEn,
+            List<ReferenciaResponse> referencias
     ) {}
 
     /** Vista compacta para listados. */

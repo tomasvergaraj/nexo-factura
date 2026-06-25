@@ -199,7 +199,7 @@ class AislamientoMultiTenantIT extends AbstractIntegrationTest {
         mockMvc.perform(put("/api/empresas/{id}/clientes/{cli}", empresaIdA, clienteIdB)
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(clienteRequestJson("77299299-9", "Cliente Ajeno")))
+                        .content(clienteRequestJson("77299299-8", "Cliente Ajeno")))
                 .andExpect(status().isNotFound());
 
         // actualizar producto de B bajo empresa A

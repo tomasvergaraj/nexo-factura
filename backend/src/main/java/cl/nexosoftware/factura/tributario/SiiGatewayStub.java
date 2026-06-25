@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * simula la aceptacion del documento sin contactar al SII.
  */
 @Component
-@Profile("!produccion")
+@Profile("!prod")
 @Slf4j
 public class SiiGatewayStub implements SiiGateway {
 

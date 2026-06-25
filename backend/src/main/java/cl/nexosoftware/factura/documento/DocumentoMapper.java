@@ -17,11 +17,14 @@ public final class DocumentoMapper {
         List<LineaResponse> lineas = d.getLineas().stream()
                 .map(DocumentoMapper::toLinea)
                 .toList();
+        List<ReferenciaResponse> referencias = d.getReferencias().stream()
+                .map(DocumentoMapper::toReferencia)
+                .toList();
         return new DocumentoResponse(
                 d.getId(), d.getTipoDte(), d.getTipoDte().getCodigo(), d.getFolio(), d.getEstado(),
                 d.getFechaEmision(), d.getReceptorRut(), d.getReceptorRazonSocial(),
                 d.getNeto(), d.getExento(), d.getTasaIva(), d.getIva(), d.getTotal(),
-                d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn());
+                d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn(), referencias);
     }
 
     public static DocumentoResumen toResumen(DocumentoTributario d) {
@@ -34,5 +37,11 @@ public final class DocumentoMapper {
         return new LineaResponse(
                 l.getNumeroLinea(), l.getNombre(), l.getCantidad(), l.getUnidad(),
                 l.getPrecioUnitario(), l.getDescuentoMonto(), l.isAfecto(), l.getMontoLinea());
+    }
+
+    private static ReferenciaResponse toReferencia(Referencia r) {
+        return new ReferenciaResponse(
+                r.getTipoDocumentoRef(), r.getFolioRef(), r.getFechaRef(),
+                r.getTipoReferencia(), r.getTipoReferencia().getCodigo(), r.getRazon());
     }
 }

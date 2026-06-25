@@ -1,17 +1,15 @@
 package cl.nexosoftware.factura.empresa;
 
+import cl.nexosoftware.factura.common.validation.RutValido;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 
 public final class EmpresaDtos {
 
     private EmpresaDtos() {}
 
-    private static final String RUT_REGEX = "^\\d{1,8}-[\\dkK]$";
-
     public record EmpresaRequest(
-            @NotBlank @Pattern(regexp = RUT_REGEX, message = "RUT invalido, use formato 76543210-9") String rut,
+            @NotBlank @RutValido String rut,
             @NotBlank String razonSocial,
             @NotBlank String giro,
             Integer actividadEconomica,

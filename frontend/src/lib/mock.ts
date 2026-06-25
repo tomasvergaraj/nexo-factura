@@ -2,7 +2,7 @@
 // Cambie USE_MOCK a false en api.ts para consumir la API real.
 
 import type {
-  Cliente, DocumentoResponse, DocumentoResumen, Producto, ResumenDashboard,
+  Caf, Cliente, DocumentoResponse, DocumentoResumen, Producto, ResumenDashboard,
 } from "./types";
 
 export const clientesMock: Cliente[] = [
@@ -53,7 +53,13 @@ export const documentoDetalleMock: DocumentoResponse = {
     { numeroLinea: 2, nombre: "Plan de soporte mensual", cantidad: 3, unidad: "MES", precioUnitario: 120000, descuentoMonto: 0, afecto: true, montoLinea: 360000 },
     { numeroLinea: 3, nombre: "Hora de desarrollo", cantidad: 23.6, unidad: "HRA", precioUnitario: 25000, descuentoMonto: 0, afecto: true, montoLinea: 590000 },
   ],
+  referencias: [],
 };
+
+export const foliosMock: Caf[] = [
+  { id: 1, tipoDte: "FACTURA_AFECTA", folioDesde: 1, folioHasta: 200, folioActual: 143, foliosDisponibles: 58, agotado: false, fechaVencimiento: "2026-12-31" },
+  { id: 2, tipoDte: "NOTA_CREDITO", folioDesde: 1, folioHasta: 20, folioActual: 21, foliosDisponibles: 0, agotado: true, fechaVencimiento: "2026-12-31" },
+];
 
 /** Serie de emisión de los últimos 7 días para el gráfico del dashboard. */
 export const serieEmisionMock = [
