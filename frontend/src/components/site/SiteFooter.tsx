@@ -2,8 +2,8 @@ import { Logo } from "../Logo";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-line bg-mist">
-      <div className="mx-auto max-w-6xl px-5 py-14">
+    <footer className="border-t border-line bg-canvas">
+      <div className="mx-auto max-w-6xl px-5 py-16">
         <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div>
             <Logo size={30} />
@@ -28,10 +28,12 @@ export function SiteFooter() {
 function FooterCol({ titulo, items }: { titulo: string; items: string[] }) {
   return (
     <div>
-      <h4 className="mb-3 text-sm font-semibold text-ink">{titulo}</h4>
-      <ul className="space-y-2 text-sm text-slate">
+      <h4 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-soft">{titulo}</h4>
+      <ul className="space-y-2.5 text-sm text-slate">
         {items.map((i) => (
-          <li key={i}><a href="/#" className="hover:text-cobalt">{i}</a></li>
+          <li key={i}>
+            <a href="/#" className="transition-colors hover:text-cobalt">{i}</a>
+          </li>
         ))}
       </ul>
     </div>

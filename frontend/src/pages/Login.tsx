@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, AlertCircle, ShieldCheck } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { Button, Field, Input } from "../components/ui";
+import { Alert, Button, Field, Input } from "../components/ui";
 import { FacturaPreview } from "../components/FacturaPreview";
 import axios from "axios";
 import http, { USE_MOCK } from "../lib/api";
@@ -44,24 +44,27 @@ export function Login() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="grid min-h-screen bg-canvas lg:grid-cols-2">
       {/* Panel del formulario */}
       <div className="flex flex-col px-6 py-8 sm:px-12">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate hover:text-ink">
-          <ArrowLeft size={16} /> Volver al inicio
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate transition-colors hover:text-ink"
+        >
+          <ArrowLeft className="h-4 w-4" /> Volver al inicio
         </Link>
 
-        <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center py-10">
           <div className="w-full max-w-sm">
             <Logo size={34} />
-            <h1 className="mt-8 font-display text-2xl font-bold tracking-tight text-ink">
+            <h1 className="mt-8 font-display text-2xl font-semibold text-ink">
               Ingresa a tu cuenta
             </h1>
-            <p className="mt-1.5 text-sm text-slate">
+            <p className="mt-2 text-sm text-slate">
               Administra y emite tus documentos tributarios.
             </p>
 
-            <div className="mt-7 space-y-4">
+            <div className="mt-8 space-y-5">
               <Field label="Correo">
                 <Input
                   type="email"
@@ -79,26 +82,35 @@ export function Login() {
                 />
               </Field>
 
-              {error && <p className="text-sm text-danger">{error}</p>}
+              {error && (
+                <Alert tone="danger" icon={<AlertCircle className="h-4 w-4" />}>
+                  {error}
+                </Alert>
+              )}
 
-              <Button className="w-full" onClick={entrar} disabled={cargando}>
+              <Button size="lg" className="w-full" onClick={entrar} disabled={cargando}>
                 {cargando ? "Entrando…" : "Entrar"}
               </Button>
             </div>
 
-            <div className="mt-6 rounded-lg border border-line bg-mist px-4 py-3 text-xs text-slate">
-              <span className="font-semibold text-ink-soft">Acceso de demostración</span><br />
-              admin@nexofactura.cl · nexo1234
+            <div className="mt-6 flex items-start gap-3 rounded-md border border-line bg-mist px-4 py-3">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+              <div className="text-xs text-slate">
+                <p className="font-medium text-ink-soft">Acceso de demostración</p>
+                <p className="mt-0.5 tnum">admin@nexofactura.cl · nexo1234</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Panel ilustrado */}
-      <div className="relative hidden items-center justify-center bg-mist p-12 lg:flex">
-        <div className="max-w-md">
-          <FacturaPreview />
-          <p className="mt-6 text-center text-sm text-slate">
+      <div className="relative hidden items-center justify-center overflow-hidden border-l border-line bg-mist p-12 lg:flex">
+        <div className="relative w-full max-w-md">
+          <FacturaPreview className="shadow-lg" />
+          <p className="mt-7 text-center text-sm text-slate">
             Cada documento timbrado, firmado y enviado al SII desde un solo lugar.
           </p>
         </div>

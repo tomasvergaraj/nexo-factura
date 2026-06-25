@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Users, Pencil } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import {
-  Card, Spinner, Input, Button, Field, Modal, EmptyState,
+  Card, Input, Button, Field, Modal, EmptyState,
+  PageHeader, LoadingState, Th, Alert, IconButton,
 } from "../../components/ui";
 import {
   crearCliente, editarCliente, erroresDeCampo, getClientes, mensajeError,
@@ -104,58 +105,65 @@ export function Clientes() {
 
   return (
     <AppShell titulo="Clientes">
-      <div className="space-y-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full sm:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-soft" />
-            <Input
-              className="pl-9"
-              placeholder="Buscar por nombre o RUT…"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-          <Button onClick={abrirNuevo}><Plus size={16} /> Nuevo cliente</Button>
+      <div className="space-y-6">
+        <PageHeader
+          titulo="Clientes"
+          descripcion="Administra los receptores de tus documentos electrónicos."
+          accion={<Button onClick={abrirNuevo}><Plus className="h-4 w-4" /> Nuevo cliente</Button>}
+        />
+
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-soft" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nombre o RUT…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            aria-label="Buscar clientes"
+          />
         </div>
 
         <Card className="overflow-hidden">
           {!clientes ? (
-            <div className="grid h-64 place-items-center"><Spinner className="h-6 w-6" /></div>
+            <LoadingState mensaje="Cargando clientes…" />
           ) : visibles.length === 0 ? (
             <EmptyState
-              icon={<Users size={24} />}
+              icon={<Users className="h-6 w-6" />}
               titulo={busqueda ? "Sin coincidencias" : "Aún no hay clientes"}
               descripcion={busqueda
                 ? "Ningún cliente coincide con la búsqueda."
                 : "Crea tu primer cliente para empezar a emitir documentos."}
-              accion={!busqueda && <Button onClick={abrirNuevo}><Plus size={16} /> Nuevo cliente</Button>}
+              accion={!busqueda && <Button onClick={abrirNuevo}><Plus className="h-4 w-4" /> Nuevo cliente</Button>}
             />
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-slate-soft">
-                  <th className="px-6 py-3 font-semibold">RUT</th>
-                  <th className="px-6 py-3 font-semibold">Razón social</th>
-                  <th className="px-6 py-3 font-semibold">Comuna</th>
-                  <th className="px-6 py-3 font-semibold">Email</th>
-                  <th className="px-6 py-3" />
+                <tr className="border-b border-line">
+                  <Th>RUT</Th>
+                  <Th>Razón social</Th>
+                  <Th>Comuna</Th>
+                  <Th>Email</Th>
+                  <Th align="right"><span className="sr-only">Acciones</span></Th>
                 </tr>
               </thead>
               <tbody>
                 {visibles.map((c) => (
-                  <tr key={c.id} className="border-b border-line/70 last:border-0 hover:bg-mist/60">
-                    <td className="px-6 py-3.5 font-medium text-ink tnum">{formatRut(c.rut)}</td>
-                    <td className="px-6 py-3.5 text-ink">{c.razonSocial}</td>
-                    <td className="px-6 py-3.5 text-slate">{c.comuna ?? "—"}</td>
-                    <td className="px-6 py-3.5 text-slate">{c.email ?? "—"}</td>
-                    <td className="px-6 py-3.5 text-right">
-                      <button
+                  <tr
+                    key={c.id}
+                    className="border-b border-line last:border-0 transition-colors hover:bg-mist/60"
+                  >
+                    <td className="px-4 py-3.5 font-medium text-ink tnum">{formatRut(c.rut)}</td>
+                    <td className="px-4 py-3.5 text-ink">{c.razonSocial}</td>
+                    <td className="px-4 py-3.5 text-slate">{c.comuna ?? "—"}</td>
+                    <td className="px-4 py-3.5 text-slate">{c.email ?? "—"}</td>
+                    <td className="px-4 py-3.5 text-right">
+                      <IconButton
                         onClick={() => abrirEdicion(c)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-slate-soft hover:border-cobalt hover:text-cobalt"
+                        className="border border-line hover:border-cobalt hover:bg-cobalt-soft hover:text-cobalt"
                         aria-label={`Editar ${c.razonSocial}`}
                       >
-                        <Pencil size={15} />
-                      </button>
+                        <Pencil className="h-4 w-4" />
+                      </IconButton>
                     </td>
                   </tr>
                 ))}
@@ -178,12 +186,10 @@ export function Clientes() {
           </>
         }
       >
-        <div className="space-y-4">
-          {errorGeneral && (
-            <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{errorGeneral}</div>
-          )}
+        <div className="space-y-5">
+          {errorGeneral && <Alert>{errorGeneral}</Alert>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="RUT" error={errores.rut}>
+            <Field label="RUT" error={errores.rut} hint="Con dígito verificador.">
               <Input
                 value={form.rut}
                 placeholder="76.543.210-9"

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { FileText, CircleDollarSign, Clock, CircleCheck, ArrowUpRight } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import { Kpi } from "../../components/app/Kpi";
-import { Card, Spinner } from "../../components/ui";
+import { Card, LoadingState, Th } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import { getDashboard } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
@@ -21,7 +21,7 @@ export function Dashboard() {
   return (
     <AppShell titulo="Resumen">
       {!data ? (
-        <div className="grid h-64 place-items-center"><Spinner className="h-6 w-6" /></div>
+        <LoadingState mensaje="Cargando resumen…" />
       ) : (
         <div className="space-y-6">
           {/* KPIs */}
@@ -40,7 +40,7 @@ export function Dashboard() {
           <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
             <Card className="p-6">
               <div className="flex items-center justify-between">
-                <h2 className="font-display text-base font-bold text-ink">Emisión últimos 7 días</h2>
+                <h2 className="font-display text-base font-semibold text-ink">Emisión últimos 7 días</h2>
                 <span className="text-xs text-slate-soft">en pesos</span>
               </div>
               <BarChart />
@@ -48,7 +48,7 @@ export function Dashboard() {
 
             <Card className="flex flex-col justify-between p-6">
               <div>
-                <h2 className="font-display text-base font-bold text-ink">Emite en segundos</h2>
+                <h2 className="font-display text-base font-semibold text-ink">Emite en segundos</h2>
                 <p className="mt-2 text-sm leading-relaxed text-slate">
                   Crea una factura nueva, agrega el detalle y deja que el sistema
                   calcule el IVA, timbre y envíe al SII.
@@ -56,9 +56,10 @@ export function Dashboard() {
               </div>
               <Link
                 to="/app/nueva-factura"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-cobalt hover:gap-3 transition-all"
+                className="group mt-4 inline-flex items-center gap-2 text-sm font-medium text-cobalt transition-colors hover:text-cobalt-dark"
               >
-                Nueva factura <ArrowUpRight size={16} />
+                Nueva factura
+                <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </Link>
             </Card>
           </div>
@@ -66,35 +67,37 @@ export function Dashboard() {
           {/* Recientes */}
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-line px-6 py-4">
-              <h2 className="font-display text-base font-bold text-ink">Documentos recientes</h2>
-              <Link to="/app/documentos" className="text-sm font-medium text-cobalt hover:underline">
+              <h2 className="font-display text-base font-semibold text-ink">Documentos recientes</h2>
+              <Link to="/app/documentos" className="text-sm font-medium text-cobalt transition-colors hover:text-cobalt-dark">
                 Ver todos
               </Link>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-slate-soft">
-                  <th className="px-6 py-3 font-semibold">Folio</th>
-                  <th className="px-6 py-3 font-semibold">Tipo</th>
-                  <th className="px-6 py-3 font-semibold">Cliente</th>
-                  <th className="px-6 py-3 font-semibold">Fecha</th>
-                  <th className="px-6 py-3 font-semibold">Estado</th>
-                  <th className="px-6 py-3 text-right font-semibold">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recientes.map((d) => (
-                  <tr key={d.id} className="border-b border-line/70 last:border-0 hover:bg-mist/60">
-                    <td className="px-6 py-3 font-medium text-ink tnum">{d.folio ?? "—"}</td>
-                    <td className="px-6 py-3 text-slate">{TIPO_DTE_LABEL[d.tipoDte]}</td>
-                    <td className="px-6 py-3 text-ink">{d.receptorRazonSocial}</td>
-                    <td className="px-6 py-3 text-slate tnum">{formatFecha(d.fechaEmision)}</td>
-                    <td className="px-6 py-3"><StatusBadge estado={d.estado} /></td>
-                    <td className="px-6 py-3 text-right font-medium text-ink tnum">{formatCLP(d.total)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line">
+                    <Th>Folio</Th>
+                    <Th>Tipo</Th>
+                    <Th>Cliente</Th>
+                    <Th>Fecha</Th>
+                    <Th>Estado</Th>
+                    <Th align="right">Total</Th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.recientes.map((d) => (
+                    <tr key={d.id} className="border-b border-line/70 last:border-0 transition-colors hover:bg-mist/60">
+                      <td className="px-6 py-3.5 font-medium text-ink tnum">{d.folio ?? "—"}</td>
+                      <td className="px-6 py-3.5 text-slate">{TIPO_DTE_LABEL[d.tipoDte]}</td>
+                      <td className="px-6 py-3.5 text-ink">{d.receptorRazonSocial}</td>
+                      <td className="px-6 py-3.5 text-slate tnum">{formatFecha(d.fechaEmision)}</td>
+                      <td className="px-6 py-3.5"><StatusBadge estado={d.estado} /></td>
+                      <td className="px-6 py-3.5 text-right font-medium text-ink tnum">{formatCLP(d.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Card>
         </div>
       )}
@@ -107,13 +110,15 @@ function BarChart() {
   return (
     <div className="mt-6 flex h-44 items-end gap-3">
       {serieEmisionMock.map((d) => (
-        <div key={d.dia} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-          <div
-            className="w-full rounded-t-md bg-cobalt/85 transition-all hover:bg-cobalt"
-            style={{ height: `${Math.max(6, (d.valor / max) * 88)}%` }}
-            title={d.valor.toLocaleString("es-CL")}
-          />
-          <span className="text-xs text-slate-soft">{d.dia}</span>
+        <div key={d.dia} className="group flex h-full flex-1 flex-col items-center justify-end gap-2">
+          <div className="flex h-full w-full flex-col justify-end overflow-hidden rounded-t-sm bg-mist">
+            <div
+              className="w-full rounded-t-sm bg-cobalt transition-colors group-hover:bg-cobalt-dark"
+              style={{ height: `${Math.max(6, (d.valor / max) * 100)}%` }}
+              title={d.valor.toLocaleString("es-CL")}
+            />
+          </div>
+          <span className="text-xs text-slate-soft tnum">{d.dia}</span>
         </div>
       ))}
     </div>

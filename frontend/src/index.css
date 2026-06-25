@@ -2,30 +2,55 @@
 
 /* ============================================================
    Nexo Factura · sistema de diseño
-   Registro fintech sobrio: lienzo claro, cobalto de marca,
-   tipografía Sora (display) + Inter (datos).
+   "Clean SaaS" (familia Linear / Vercel / Stripe / Mercury / Ramp).
+   Lienzo neutro y calmado · cobalto de marca con moderación ·
+   tipografía Sora (display) + Inter (UI/datos) · solo modo claro.
    ============================================================ */
 @theme {
-  --color-ink: #0b1b2b;
-  --color-ink-soft: #1b2c3d;
-  --color-cobalt: #0e7bd6;
-  --color-cobalt-dark: #0a63ad;
-  --color-azure: #11a7ff;
-  --color-slate: #5b6b7b;
-  --color-slate-soft: #8493a1;
-  --color-mist: #f4f7fa;
-  --color-line: #e3e9f0;
-  --color-paper: #ffffff;
+  /* — Tinta / texto — */
+  --color-ink: #0b1b2b;        /* texto principal, titulos */
+  --color-ink-soft: #1b2c3d;   /* texto secundario fuerte, labels */
 
-  --color-success: #1e9e6a;
-  --color-success-soft: #e7f5ef;
-  --color-warn: #c9881e;
-  --color-warn-soft: #fbf2e1;
+  /* — Marca (cobalto) — */
+  --color-cobalt: #0e7bd6;     /* accion primaria, activo, cifras clave, links */
+  --color-cobalt-dark: #0a63ad;/* hover primario */
+  --color-cobalt-soft: #e7f2fc;/* tinte de marca: badges, fondos sutiles, focus */
+  --color-azure: #11a7ff;      /* acento/foco luminoso */
+
+  /* — Rampa neutra (ligeramente fría) — */
+  --color-slate: #51637a;      /* texto cuerpo apagado */
+  --color-slate-soft: #8492a5; /* texto terciario, micro-mayúsculas, placeholders */
+  --color-mist: #f1f5f9;       /* hover sutil, fondos tintados neutros */
+  --color-canvas: #f8fafc;     /* lienzo de la app (off-white) */
+  --color-line: #e6ebf1;       /* hairline (1px) — separador principal */
+  --color-paper: #ffffff;      /* superficies / cards, blanco puro */
+
+  /* — Estados — */
+  --color-success: #0f9d63;
+  --color-success-soft: #e6f6ee;
+  --color-warn: #b5790f;
+  --color-warn-soft: #fbf2e0;
   --color-danger: #d14343;
   --color-danger-soft: #fbeaea;
 
+  /* — Tipografía — */
   --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* — Escala de radios — */
+  --radius-sm: 8px;    /* inputs, botones, controles */
+  --radius-md: 10px;   /* cards estándar, menús, pills de control */
+  --radius-lg: 12px;   /* cards destacadas */
+  --radius-xl: 16px;   /* cards grandes, modales, artefacto hero */
+
+  /* — Escala de sombras (baja opacidad, suaves, en capas) — */
+  --shadow-xs: 0 1px 2px 0 rgba(11, 27, 43, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(11, 27, 43, 0.05), 0 1px 3px 0 rgba(11, 27, 43, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(11, 27, 43, 0.06), 0 2px 4px -2px rgba(11, 27, 43, 0.04);
+  --shadow-lg: 0 12px 24px -8px rgba(11, 27, 43, 0.10), 0 4px 8px -4px rgba(11, 27, 43, 0.05);
+  --shadow-xl: 0 24px 48px -16px rgba(11, 27, 43, 0.14), 0 8px 16px -8px rgba(11, 27, 43, 0.06);
+  /* — Sombra de foco cobalto (anillo suave) — */
+  --shadow-focus: 0 0 0 3px rgba(14, 123, 214, 0.16);
 }
 
 @layer base {
@@ -33,18 +58,22 @@
   body {
     font-family: var(--font-sans);
     color: var(--color-ink);
-    background: var(--color-paper);
+    background: var(--color-canvas);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    line-height: 1.55;
   }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.022em;
+    line-height: 1.2;
   }
+  p { line-height: 1.6; }
   .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+  /* Anillo de foco accesible global */
   :focus-visible {
     outline: 2px solid var(--color-azure);
     outline-offset: 2px;

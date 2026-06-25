@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { FileText, Plus, Search } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
-import { Card, Spinner, Input, Button } from "../../components/ui";
+import { Card, Input, Button, EmptyState, PageHeader, LoadingState, Th } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import { getDocumentos } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
@@ -34,15 +34,27 @@ export function Documentos() {
 
   return (
     <AppShell titulo="Documentos">
-      <div className="space-y-5">
+      <div className="space-y-6">
+        <PageHeader
+          titulo="Documentos"
+          descripcion="Revisa y gestiona tus DTE emitidos."
+          accion={
+            <Link to="/app/nueva-factura">
+              <Button><Plus size={16} /> Nueva factura</Button>
+            </Link>
+          }
+        />
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {FILTROS.map((f) => (
               <button
                 key={f}
                 onClick={() => setFiltro(f)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  filtro === f ? "bg-ink text-white" : "bg-white text-slate border border-line hover:border-slate-soft"
+                className={`rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  filtro === f
+                    ? "border-cobalt-soft bg-cobalt-soft text-cobalt"
+                    : "border-line bg-white text-slate hover:bg-mist hover:text-ink"
                 }`}
               >
                 {f === "TODOS" ? "Todos" : ESTADO_LABEL[f]}
@@ -62,17 +74,28 @@ export function Documentos() {
 
         <Card className="overflow-hidden">
           {!docs ? (
-            <div className="grid h-64 place-items-center"><Spinner className="h-6 w-6" /></div>
+            <LoadingState mensaje="Cargando documentos…" />
+          ) : visibles.length === 0 ? (
+            <EmptyState
+              icon={<FileText size={22} />}
+              titulo="Sin documentos"
+              descripcion="No hay documentos que coincidan con el filtro. Ajusta la búsqueda o emite tu primer DTE."
+              accion={
+                <Link to="/app/nueva-factura">
+                  <Button><Plus size={16} /> Nueva factura</Button>
+                </Link>
+              }
+            />
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-slate-soft">
-                  <th className="px-6 py-3 font-semibold">Folio</th>
-                  <th className="px-6 py-3 font-semibold">Tipo</th>
-                  <th className="px-6 py-3 font-semibold">Cliente</th>
-                  <th className="px-6 py-3 font-semibold">Fecha</th>
-                  <th className="px-6 py-3 font-semibold">Estado</th>
-                  <th className="px-6 py-3 text-right font-semibold">Total</th>
+                <tr className="border-b border-line">
+                  <Th>Folio</Th>
+                  <Th>Tipo</Th>
+                  <Th>Cliente</Th>
+                  <Th>Fecha</Th>
+                  <Th>Estado</Th>
+                  <Th align="right">Total</Th>
                 </tr>
               </thead>
               <tbody>
@@ -89,33 +112,20 @@ export function Documentos() {
                     tabIndex={0}
                     role="button"
                     aria-label={`Ver documento ${d.folio ?? "borrador"} de ${d.receptorRazonSocial}`}
-                    className="cursor-pointer border-b border-line/70 last:border-0 hover:bg-mist/60 focus:bg-mist/60 focus:outline-none"
+                    className="cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-mist/60 focus:bg-mist/60 focus:outline-none"
                   >
-                    <td className="px-6 py-3.5 font-medium text-ink tnum">{d.folio ?? "—"}</td>
-                    <td className="px-6 py-3.5 text-slate">{TIPO_DTE_LABEL[d.tipoDte]}</td>
-                    <td className="px-6 py-3.5 text-ink">{d.receptorRazonSocial}</td>
-                    <td className="px-6 py-3.5 text-slate tnum">{formatFecha(d.fechaEmision)}</td>
-                    <td className="px-6 py-3.5"><StatusBadge estado={d.estado} /></td>
-                    <td className="px-6 py-3.5 text-right font-medium text-ink tnum">{formatCLP(d.total)}</td>
+                    <td className="px-4 py-3.5 font-medium text-ink tnum">{d.folio ?? "—"}</td>
+                    <td className="px-4 py-3.5 text-slate">{TIPO_DTE_LABEL[d.tipoDte]}</td>
+                    <td className="px-4 py-3.5 text-ink">{d.receptorRazonSocial}</td>
+                    <td className="px-4 py-3.5 text-slate tnum">{formatFecha(d.fechaEmision)}</td>
+                    <td className="px-4 py-3.5"><StatusBadge estado={d.estado} /></td>
+                    <td className="px-4 py-3.5 text-right font-semibold text-ink tnum">{formatCLP(d.total)}</td>
                   </tr>
                 ))}
-                {visibles.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-soft">
-                      No hay documentos que coincidan con el filtro.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           )}
         </Card>
-
-        <div className="flex justify-end">
-          <Link to="/app/nueva-factura">
-            <Button><Plus size={16} /> Nueva factura</Button>
-          </Link>
-        </div>
       </div>
     </AppShell>
   );

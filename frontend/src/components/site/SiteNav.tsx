@@ -2,16 +2,30 @@ import { Link } from "react-router-dom";
 import { Logo } from "../Logo";
 import { Button } from "../ui";
 
+const ENLACES = [
+  { href: "/#producto", label: "Producto" },
+  { href: "/#como-funciona", label: "Cómo funciona" },
+  { href: "/#precios", label: "Precios" },
+  { href: "/#preguntas", label: "Preguntas" },
+];
+
 export function SiteNav() {
   return (
-    <header className="sticky top-0 z-40 border-b border-line/80 bg-white/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-line bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link to="/"><Logo size={30} /></Link>
-        <nav className="hidden items-center gap-8 text-sm font-medium text-slate md:flex">
-          <a href="/#producto" className="hover:text-ink">Producto</a>
-          <a href="/#como-funciona" className="hover:text-ink">Cómo funciona</a>
-          <a href="/#precios" className="hover:text-ink">Precios</a>
-          <a href="/#preguntas" className="hover:text-ink">Preguntas</a>
+        <Link to="/" className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/40 focus-visible:ring-offset-2">
+          <Logo size={30} />
+        </Link>
+        <nav className="hidden items-center gap-1 md:flex">
+          {ENLACES.map((e) => (
+            <a
+              key={e.href}
+              href={e.href}
+              className="rounded-sm px-3 py-2 text-sm font-medium text-slate transition-colors hover:bg-mist hover:text-ink"
+            >
+              {e.label}
+            </a>
+          ))}
         </nav>
         <div className="flex items-center gap-2">
           <Link to="/ingresar" className="hidden sm:block">

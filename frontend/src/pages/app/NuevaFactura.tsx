@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Receipt } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
-import { Card, Field, Select, Input, Button, Spinner, Textarea } from "../../components/ui";
+import {
+  Card, Field, Select, Input, Button, Spinner, Textarea,
+  PageHeader, LoadingState, Alert, IconButton,
+} from "../../components/ui";
 import {
   crearDocumento, getClientes, getDocumento, getDocumentos, getProductos, mensajeError,
   type NuevaLinea,
@@ -187,188 +190,192 @@ export function NuevaFactura() {
   if (cargando) {
     return (
       <AppShell titulo="Nueva factura">
-        <div className="grid h-64 place-items-center"><Spinner className="h-6 w-6" /></div>
+        <LoadingState mensaje="Cargando datos…" />
       </AppShell>
     );
   }
 
   return (
     <AppShell titulo="Nueva factura">
-      <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
-        {/* Formulario */}
-        <div className="space-y-5">
-          <Card className="p-6">
-            <h2 className="mb-4 font-display text-base font-bold text-ink">Documento</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Tipo de documento">
-                <Select value={tipoDte} onChange={(e) => cambiarTipo(e.target.value as TipoDte)}>
-                  {TIPOS_EMISIBLES.map((t) => (
-                    <option key={t} value={t}>{TIPO_DTE_LABEL[t]}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Cliente">
-                <Select value={clienteId} onChange={(e) => setClienteId(Number(e.target.value) || "")}>
-                  <option value="">Selecciona un cliente…</option>
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.razonSocial} · {formatRut(c.rut)}</option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            {cliente && (
-              <p className="mt-3 text-xs text-slate">
-                {formatRut(cliente.rut)} · {cliente.comuna ?? "—"} · {cliente.email ?? "sin correo"}
-              </p>
-            )}
-          </Card>
+      <div className="space-y-6">
+        <PageHeader
+          titulo="Nueva factura"
+          descripcion="Completa el documento y revisa el resumen antes de crearlo."
+        />
 
-          {requiereReferencia && (
+        <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr]">
+          {/* Formulario */}
+          <div className="space-y-6">
             <Card className="p-6">
-              <h2 className="mb-4 font-display text-base font-bold text-ink">
-                Referencia al documento original
-              </h2>
-              <div className="space-y-4">
-                <Field label="Documento de referencia" hint="Solo documentos con folio asignado.">
-                  <Select
-                    value={refDocId}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (v) elegirDocumentoReferenciado(v);
-                      else { setRefDocId(""); setFolioRef(null); setFechaRef(""); setTipoDocumentoRef(null); }
-                    }}
-                  >
-                    <option value="">Selecciona el documento original…</option>
-                    {emisibles.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {TIPO_DTE_LABEL[d.tipoDte]} N° {d.folio} · {d.receptorRazonSocial} · {formatCLP(d.total)}
-                      </option>
+              <h2 className="mb-5 font-display text-base font-semibold text-ink">Documento</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Tipo de documento">
+                  <Select value={tipoDte} onChange={(e) => cambiarTipo(e.target.value as TipoDte)}>
+                    {TIPOS_EMISIBLES.map((t) => (
+                      <option key={t} value={t}>{TIPO_DTE_LABEL[t]}</option>
                     ))}
                   </Select>
                 </Field>
-
-                {folioRef != null && (
-                  <p className="text-xs text-slate tnum">
-                    Referencia: documento {tipoDocumentoRef} · folio {folioRef} · {formatFecha(fechaRef)}
-                  </p>
-                )}
-
-                <Field label="Tipo de referencia">
-                  <Select
-                    value={tipoReferencia}
-                    onChange={(e) => setTipoReferencia(e.target.value as TipoReferencia)}
-                  >
-                    {TIPOS_REFERENCIA.map((t) => (
-                      <option key={t} value={t}>{TIPO_REFERENCIA_LABEL[t]}</option>
+                <Field label="Cliente">
+                  <Select value={clienteId} onChange={(e) => setClienteId(Number(e.target.value) || "")}>
+                    <option value="">Selecciona un cliente…</option>
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.razonSocial} · {formatRut(c.rut)}</option>
                     ))}
                   </Select>
-                </Field>
-
-                <Field label="Motivo (razón)">
-                  <Textarea
-                    rows={2}
-                    value={razon}
-                    placeholder="Ej: Anula factura por error en el monto."
-                    onChange={(e) => setRazon(e.target.value)}
-                  />
                 </Field>
               </div>
+              {cliente && (
+                <div className="mt-4 rounded-sm bg-mist px-3 py-2.5 text-xs text-slate">
+                  <span className="tnum">{formatRut(cliente.rut)}</span> · {cliente.comuna ?? "—"} · {cliente.email ?? "sin correo"}
+                </div>
+              )}
             </Card>
-          )}
 
-          <Card className="p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-base font-bold text-ink">Detalle</h2>
-              <Button variant="secondary" size="sm" onClick={agregarLinea}>
-                <Plus size={15} /> Agregar línea
-              </Button>
-            </div>
+            {requiereReferencia && (
+              <Card className="p-6">
+                <h2 className="mb-5 font-display text-base font-semibold text-ink">
+                  Referencia al documento original
+                </h2>
+                <div className="space-y-4">
+                  <Field label="Documento de referencia" hint="Solo documentos con folio asignado.">
+                    <Select
+                      value={refDocId}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (v) elegirDocumentoReferenciado(v);
+                        else { setRefDocId(""); setFolioRef(null); setFechaRef(""); setTipoDocumentoRef(null); }
+                      }}
+                    >
+                      <option value="">Selecciona el documento original…</option>
+                      {emisibles.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {TIPO_DTE_LABEL[d.tipoDte]} N° {d.folio} · {d.receptorRazonSocial} · {formatCLP(d.total)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
 
-            {lineas.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line py-8 text-center text-sm text-slate-soft">
-                Agrega productos o servicios al documento.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {lineas.map((l) => {
-                  const monto = Math.max(0, Math.round(l.cantidad * l.precioUnitario) - (l.descuentoMonto || 0));
-                  return (
-                    <div key={l.uid} className="rounded-lg border border-line p-3">
-                      <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <Select
-                          value={l.productoId ?? ""}
-                          onChange={(e) => elegirProducto(l.uid, Number(e.target.value))}
-                          className="h-10"
-                        >
-                          <option value="">Producto o servicio…</option>
-                          {productos.map((p) => (
-                            <option key={p.id} value={p.id}>{p.nombre}</option>
-                          ))}
-                        </Select>
-                        <button
-                          onClick={() => quitarLinea(l.uid)}
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-line text-slate-soft hover:border-danger hover:text-danger"
-                          aria-label="Quitar línea"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        <label className="text-xs text-slate-soft">
-                          Cantidad
-                          <Input
-                            type="number" min={0} step="any" value={l.cantidad} className="mt-1 h-9"
-                            onChange={(e) => actualizar(l.uid, "cantidad", Number(e.target.value))}
-                          />
-                        </label>
-                        <label className="text-xs text-slate-soft">
-                          Precio neto
-                          <Input
-                            type="number" min={0} value={l.precioUnitario} className="mt-1 h-9 tnum"
-                            onChange={(e) => actualizar(l.uid, "precioUnitario", Number(e.target.value))}
-                          />
-                        </label>
-                        <div className="text-xs text-slate-soft">
-                          Importe
-                          <div className="mt-1 flex h-9 items-center justify-end rounded-lg bg-mist px-3 font-medium text-ink tnum">
-                            {formatCLP(monto)}
+                  {folioRef != null && (
+                    <div className="rounded-sm bg-mist px-3 py-2.5 text-xs text-slate tnum">
+                      Referencia: documento {tipoDocumentoRef} · folio {folioRef} · {formatFecha(fechaRef)}
+                    </div>
+                  )}
+
+                  <Field label="Tipo de referencia">
+                    <Select
+                      value={tipoReferencia}
+                      onChange={(e) => setTipoReferencia(e.target.value as TipoReferencia)}
+                    >
+                      {TIPOS_REFERENCIA.map((t) => (
+                        <option key={t} value={t}>{TIPO_REFERENCIA_LABEL[t]}</option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  <Field label="Motivo (razón)">
+                    <Textarea
+                      rows={2}
+                      value={razon}
+                      placeholder="Ej: Anula factura por error en el monto."
+                      onChange={(e) => setRazon(e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </Card>
+            )}
+
+            <Card className="p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="font-display text-base font-semibold text-ink">Detalle</h2>
+                <Button variant="secondary" size="sm" onClick={agregarLinea}>
+                  <Plus className="h-4 w-4" /> Agregar línea
+                </Button>
+              </div>
+
+              {lineas.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-line px-6 py-10 text-center">
+                  <p className="text-sm text-slate-soft">Agrega productos o servicios al documento.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {lineas.map((l) => {
+                    const monto = Math.max(0, Math.round(l.cantidad * l.precioUnitario) - (l.descuentoMonto || 0));
+                    return (
+                      <div key={l.uid} className="rounded-lg border border-line p-4">
+                        <div className="grid grid-cols-[1fr_auto] gap-2">
+                          <Select
+                            value={l.productoId ?? ""}
+                            onChange={(e) => elegirProducto(l.uid, Number(e.target.value))}
+                          >
+                            <option value="">Producto o servicio…</option>
+                            {productos.map((p) => (
+                              <option key={p.id} value={p.id}>{p.nombre}</option>
+                            ))}
+                          </Select>
+                          <IconButton
+                            onClick={() => quitarLinea(l.uid)}
+                            className="h-10 w-10 border border-line shadow-xs hover:border-danger hover:bg-danger-soft hover:text-danger"
+                            aria-label="Quitar línea"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </IconButton>
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-3">
+                          <label className="block text-xs font-medium text-slate-soft">
+                            Cantidad
+                            <Input
+                              type="number" min={0} step="any" value={l.cantidad} className="mt-1.5 h-9 tnum"
+                              onChange={(e) => actualizar(l.uid, "cantidad", Number(e.target.value))}
+                            />
+                          </label>
+                          <label className="block text-xs font-medium text-slate-soft">
+                            Precio neto
+                            <Input
+                              type="number" min={0} value={l.precioUnitario} className="mt-1.5 h-9 tnum"
+                              onChange={(e) => actualizar(l.uid, "precioUnitario", Number(e.target.value))}
+                            />
+                          </label>
+                          <div className="text-xs font-medium text-slate-soft">
+                            Importe
+                            <div className="mt-1.5 flex h-9 items-center justify-end rounded-sm bg-mist px-3 text-sm font-medium text-ink tnum">
+                              {formatCLP(monto)}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* Resumen */}
+          <div>
+            <Card className="sticky top-24 p-6">
+              <h2 className="font-display text-base font-semibold text-ink">Resumen</h2>
+              <p className="mt-1 text-xs text-slate-soft">{TIPO_DTE_LABEL[tipoDte]}</p>
+              <div className="mt-5 space-y-2.5 text-sm">
+                <Linea label="Neto" valor={formatCLP(totales.neto)} />
+                {totales.exento > 0 && <Linea label="Exento" valor={formatCLP(totales.exento)} />}
+                <Linea label={`IVA ${TASA_IVA}%`} valor={formatCLP(totales.iva)} />
+                <div className="flex items-center justify-between border-t border-line pt-3">
+                  <span className="font-semibold text-ink">Total</span>
+                  <span className="font-display text-xl font-semibold text-cobalt tnum">{formatCLP(totales.total)}</span>
+                </div>
               </div>
-            )}
-          </Card>
-        </div>
 
-        {/* Resumen */}
-        <div>
-          <Card className="sticky top-24 p-6">
-            <h2 className="font-display text-base font-bold text-ink">Resumen</h2>
-            <p className="mt-1 text-xs text-slate-soft">{TIPO_DTE_LABEL[tipoDte]}</p>
-            <div className="mt-5 space-y-2.5 text-sm">
-              <Linea label="Neto" valor={formatCLP(totales.neto)} />
-              {totales.exento > 0 && <Linea label="Exento" valor={formatCLP(totales.exento)} />}
-              <Linea label={`IVA ${TASA_IVA}%`} valor={formatCLP(totales.iva)} />
-              <div className="flex items-center justify-between border-t border-line pt-3">
-                <span className="font-semibold text-ink">Total</span>
-                <span className="font-display text-xl font-bold text-cobalt tnum">{formatCLP(totales.total)}</span>
-              </div>
-            </div>
+              {error && <Alert className="mt-4">{error}</Alert>}
 
-            {error && (
-              <div className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</div>
-            )}
-
-            <Button className="mt-6 w-full" onClick={emitir} disabled={!puedeEmitir || emitiendo}>
-              {emitiendo ? "Creando…" : <><Receipt size={17} /> Crear documento</>}
-            </Button>
-            <p className="mt-3 text-center text-xs text-slate-soft">
-              Se crea en borrador; podrás emitirlo y enviarlo al SII desde el detalle.
-            </p>
-          </Card>
+              <Button className="mt-6 w-full" onClick={emitir} disabled={!puedeEmitir || emitiendo}>
+                {emitiendo ? <><Spinner className="border-white/40 border-t-white" /> Creando…</> : <><Receipt className="h-4 w-4" /> Crear documento</>}
+              </Button>
+              <p className="mt-3 text-center text-xs text-slate-soft">
+                Se crea en borrador; podrás emitirlo y enviarlo al SII desde el detalle.
+              </p>
+            </Card>
+          </div>
         </div>
       </div>
     </AppShell>

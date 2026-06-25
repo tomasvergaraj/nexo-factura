@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import {
   FileText, Hash, FileCheck2, Building2, BarChart3, Plug,
-  ArrowRight, Check, ShieldCheck,
+  ArrowRight, Check, ShieldCheck, Plus,
 } from "lucide-react";
 import { SiteNav } from "../components/site/SiteNav";
 import { SiteFooter } from "../components/site/SiteFooter";
@@ -27,13 +27,13 @@ export function Landing() {
 /* ------------------------------- Hero ------------------------------- */
 function Hero() {
   return (
-    <section className="relative overflow-hidden">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:py-24">
+    <section className="relative overflow-hidden border-b border-line">
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-mist px-3 py-1 text-xs font-medium text-slate">
+          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-slate shadow-xs">
             <ShieldCheck size={14} className="text-cobalt" /> Conforme al SII de Chile
           </span>
-          <h1 className="mt-5 font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-ink sm:text-5xl">
+          <h1 className="mt-6 font-display text-4xl font-bold leading-[1.08] text-ink sm:text-5xl">
             La facturación electrónica de tu empresa,{" "}
             <span className="text-cobalt">al día con el SII</span>.
           </h1>
@@ -54,8 +54,8 @@ function Hero() {
         </div>
 
         <div className="relative">
-          <div className="absolute -inset-4 -z-10 rounded-[28px] bg-mist" />
-          <FacturaPreview />
+          <div className="absolute -inset-6 -z-10 rounded-xl bg-mist" />
+          <FacturaPreview className="shadow-lg" />
         </div>
       </div>
     </section>
@@ -66,7 +66,7 @@ function Hero() {
 function TrustBar() {
   const items = ["Integrado con el SII", "Webpay · Transbank", "Certificación y producción", "Respaldo en la nube"];
   return (
-    <section className="border-y border-line bg-mist">
+    <section className="border-b border-line bg-canvas">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-5 py-6 text-sm font-medium text-slate">
         {items.map((i) => (
           <span key={i} className="inline-flex items-center gap-2">
@@ -90,23 +90,23 @@ const FEATURES = [
 
 function Features() {
   return (
-    <section id="producto" className="mx-auto max-w-6xl px-5 py-20">
+    <section id="producto" className="mx-auto max-w-6xl px-5 py-24">
       <div className="max-w-2xl">
-        <h2 className="font-display text-3xl font-bold tracking-tight text-ink">
+        <h2 className="font-display text-3xl font-semibold text-ink">
           Todo lo que necesitas para facturar
         </h2>
-        <p className="mt-3 text-lg text-slate">
+        <p className="mt-4 text-lg leading-relaxed text-slate">
           Una herramienta enfocada: emitir bien, cumplir con el SII y mantener tu
           operación ordenada.
         </p>
       </div>
-      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES.map(({ icon: Icon, titulo, desc }) => (
-          <Card key={titulo} className="p-6 transition-colors hover:border-slate-soft/60">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e7f2fc] text-cobalt">
+          <Card key={titulo} className="p-6 transition-shadow hover:shadow-md">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
               <Icon size={22} strokeWidth={2} />
             </span>
-            <h3 className="mt-4 text-base font-semibold text-ink">{titulo}</h3>
+            <h3 className="mt-5 font-display text-base font-semibold text-ink">{titulo}</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate">{desc}</p>
           </Card>
         ))}
@@ -124,16 +124,16 @@ const PASOS = [
 
 function HowItWorks() {
   return (
-    <section id="como-funciona" className="border-y border-line bg-mist">
-      <div className="mx-auto max-w-6xl px-5 py-20">
-        <h2 className="max-w-2xl font-display text-3xl font-bold tracking-tight text-ink">
+    <section id="como-funciona" className="border-y border-line bg-canvas">
+      <div className="mx-auto max-w-6xl px-5 py-24">
+        <h2 className="max-w-2xl font-display text-3xl font-semibold text-ink">
           De la emisión al SII en tres pasos
         </h2>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-14 grid gap-6 md:grid-cols-3">
           {PASOS.map((p) => (
             <div key={p.n} className="relative">
-              <span className="font-display text-5xl font-extrabold text-line">{p.n}</span>
-              <h3 className="mt-2 text-lg font-semibold text-ink">{p.titulo}</h3>
+              <span className="font-display text-5xl font-semibold text-cobalt/30 tnum">{p.n}</span>
+              <h3 className="mt-3 font-display text-lg font-semibold text-ink">{p.titulo}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate">{p.desc}</p>
             </div>
           ))}
@@ -167,36 +167,36 @@ const PLANES = [
 
 function Pricing() {
   return (
-    <section id="precios" className="mx-auto max-w-6xl px-5 py-20">
+    <section id="precios" className="mx-auto max-w-6xl px-5 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-display text-3xl font-bold tracking-tight text-ink">Precios simples y en pesos</h2>
-        <p className="mt-3 text-lg text-slate">Sin costos de instalación. Cambia o cancela tu plan cuando quieras.</p>
+        <h2 className="font-display text-3xl font-semibold text-ink">Precios simples y en pesos</h2>
+        <p className="mt-4 text-lg leading-relaxed text-slate">Sin costos de instalación. Cambia o cancela tu plan cuando quieras.</p>
       </div>
-      <div className="mt-12 grid gap-6 lg:grid-cols-3">
+      <div className="mt-14 grid items-start gap-6 lg:grid-cols-3">
         {PLANES.map((p) => (
           <Card
             key={p.nombre}
-            className={`flex flex-col p-7 ${p.destacado ? "border-cobalt ring-1 ring-cobalt" : ""}`}
+            className={`flex flex-col p-7 ${p.destacado ? "border-cobalt ring-1 ring-cobalt shadow-md" : ""}`}
           >
             {p.destacado && (
-              <span className="mb-3 inline-flex w-fit rounded-full bg-cobalt px-2.5 py-0.5 text-xs font-semibold text-white">
+              <span className="mb-3 inline-flex w-fit rounded-full bg-cobalt-soft px-2.5 py-0.5 text-xs font-medium text-cobalt">
                 Más elegido
               </span>
             )}
-            <h3 className="text-lg font-semibold text-ink">{p.nombre}</h3>
+            <h3 className="font-display text-lg font-semibold text-ink">{p.nombre}</h3>
             <p className="mt-1 text-sm text-slate">{p.desc}</p>
-            <div className="mt-5 flex items-baseline gap-1">
-              <span className="font-display text-4xl font-extrabold tracking-tight text-ink tnum">{p.precio}</span>
+            <div className="mt-6 flex items-baseline gap-1.5">
+              <span className="font-display text-4xl font-bold text-ink tnum">{p.precio}</span>
               <span className="text-sm text-slate-soft">/ {p.periodo}</span>
             </div>
-            <ul className="mt-6 flex-1 space-y-3">
+            <ul className="mt-7 flex-1 space-y-3">
               {p.features.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-ink-soft">
                   <Check size={17} className="mt-0.5 shrink-0 text-cobalt" /> {f}
                 </li>
               ))}
             </ul>
-            <Link to="/ingresar" className="mt-7">
+            <Link to="/ingresar" className="mt-8">
               <Button variant={p.destacado ? "primary" : "secondary"} className="w-full">{p.cta}</Button>
             </Link>
           </Card>
@@ -216,15 +216,18 @@ const PREGUNTAS = [
 
 function Faq() {
   return (
-    <section id="preguntas" className="border-t border-line bg-mist">
-      <div className="mx-auto max-w-3xl px-5 py-20">
-        <h2 className="text-center font-display text-3xl font-bold tracking-tight text-ink">Preguntas frecuentes</h2>
-        <div className="mt-10 space-y-3">
+    <section id="preguntas" className="border-t border-line bg-canvas">
+      <div className="mx-auto max-w-3xl px-5 py-24">
+        <h2 className="text-center font-display text-3xl font-semibold text-ink">Preguntas frecuentes</h2>
+        <div className="mt-12 space-y-3">
           {PREGUNTAS.map((p) => (
-            <details key={p.q} className="group rounded-[14px] border border-line bg-white p-5">
-              <summary className="flex cursor-pointer items-center justify-between text-base font-semibold text-ink">
+            <details key={p.q} className="group rounded-lg border border-line bg-white p-5 shadow-xs">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-base font-semibold text-ink">
                 {p.q}
-                <span className="text-cobalt transition-transform group-open:rotate-45">+</span>
+                <Plus
+                  size={18}
+                  className="shrink-0 text-cobalt transition-transform duration-150 group-open:rotate-45"
+                />
               </summary>
               <p className="mt-3 text-sm leading-relaxed text-slate">{p.a}</p>
             </details>
@@ -239,9 +242,9 @@ function Faq() {
 function CtaBand() {
   return (
     <section className="bg-ink">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-5 py-14 text-center md:flex-row md:text-left">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-5 py-16 text-center md:flex-row md:text-left">
         <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          <h2 className="font-display text-2xl font-semibold text-white sm:text-3xl">
             Empieza a emitir hoy
           </h2>
           <p className="mt-2 text-base text-white/70">
@@ -253,7 +256,7 @@ function CtaBand() {
             <Button size="lg">Probar gratis <ArrowRight size={18} /></Button>
           </Link>
           <a href="https://wa.me/56981964119" target="_blank" rel="noreferrer">
-            <Button variant="secondary" size="lg" className="border-white/20 bg-white/10 text-white hover:bg-white/15">
+            <Button variant="secondary" size="lg" className="border-white/20 bg-white/10 text-white hover:border-white/30 hover:bg-white/15">
               Hablar por WhatsApp
             </Button>
           </a>

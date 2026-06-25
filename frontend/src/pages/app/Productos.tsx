@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Package, Pencil } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import {
-  Card, Spinner, Input, Button, Field, Modal, Checkbox, Badge, EmptyState,
+  Card, Input, Button, Field, Modal, Checkbox, Badge, EmptyState,
+  PageHeader, LoadingState, Alert, Th, IconButton,
 } from "../../components/ui";
 import {
   crearProducto, editarProducto, erroresDeCampo, getProductos, mensajeError,
@@ -108,62 +109,65 @@ export function Productos() {
 
   return (
     <AppShell titulo="Productos">
-      <div className="space-y-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full sm:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-soft" />
-            <Input
-              className="pl-9"
-              placeholder="Buscar por nombre o código…"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-          <Button onClick={abrirNuevo}><Plus size={16} /> Nuevo producto</Button>
+      <div className="space-y-6">
+        <PageHeader
+          titulo="Productos"
+          descripcion="Catálogo de productos y servicios para agilizar la emisión."
+          accion={<Button onClick={abrirNuevo}><Plus className="h-4 w-4" /> Nuevo producto</Button>}
+        />
+
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-soft" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nombre o código…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
         </div>
 
         <Card className="overflow-hidden">
           {!productos ? (
-            <div className="grid h-64 place-items-center"><Spinner className="h-6 w-6" /></div>
+            <LoadingState mensaje="Cargando productos…" />
           ) : visibles.length === 0 ? (
             <EmptyState
-              icon={<Package size={24} />}
+              icon={<Package className="h-6 w-6" />}
               titulo={busqueda ? "Sin coincidencias" : "Aún no hay productos"}
               descripcion={busqueda
                 ? "Ningún producto coincide con la búsqueda."
                 : "Crea productos o servicios para agilizar la emisión."}
-              accion={!busqueda && <Button onClick={abrirNuevo}><Plus size={16} /> Nuevo producto</Button>}
+              accion={!busqueda && <Button onClick={abrirNuevo}><Plus className="h-4 w-4" /> Nuevo producto</Button>}
             />
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-slate-soft">
-                  <th className="px-6 py-3 font-semibold">Código</th>
-                  <th className="px-6 py-3 font-semibold">Nombre</th>
-                  <th className="px-6 py-3 font-semibold">Unidad</th>
-                  <th className="px-6 py-3 font-semibold">Afecto</th>
-                  <th className="px-6 py-3 text-right font-semibold">Precio neto</th>
-                  <th className="px-6 py-3" />
+                <tr className="border-b border-line">
+                  <Th>Código</Th>
+                  <Th>Nombre</Th>
+                  <Th>Unidad</Th>
+                  <Th>Afecto</Th>
+                  <Th align="right">Precio neto</Th>
+                  <Th><span className="sr-only">Acciones</span></Th>
                 </tr>
               </thead>
               <tbody>
                 {visibles.map((p) => (
-                  <tr key={p.id} className="border-b border-line/70 last:border-0 hover:bg-mist/60">
-                    <td className="px-6 py-3.5 text-slate tnum">{p.codigo ?? "—"}</td>
-                    <td className="px-6 py-3.5 text-ink">{p.nombre}</td>
-                    <td className="px-6 py-3.5 text-slate">{p.unidad}</td>
-                    <td className="px-6 py-3.5">
+                  <tr key={p.id} className="border-b border-line last:border-0 transition-colors hover:bg-mist/60">
+                    <td className="px-4 py-3.5 text-slate tnum">{p.codigo ?? "—"}</td>
+                    <td className="px-4 py-3.5 font-medium text-ink">{p.nombre}</td>
+                    <td className="px-4 py-3.5 text-slate">{p.unidad}</td>
+                    <td className="px-4 py-3.5">
                       {p.afecto ? <Badge tone="cobalt">Afecto</Badge> : <Badge>Exento</Badge>}
                     </td>
-                    <td className="px-6 py-3.5 text-right font-medium text-ink tnum">{formatCLP(p.precioNeto)}</td>
-                    <td className="px-6 py-3.5 text-right">
-                      <button
+                    <td className="px-4 py-3.5 text-right font-medium text-ink tnum">{formatCLP(p.precioNeto)}</td>
+                    <td className="px-4 py-3.5 text-right">
+                      <IconButton
                         onClick={() => abrirEdicion(p)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-slate-soft hover:border-cobalt hover:text-cobalt"
+                        className="hover:bg-mist hover:text-cobalt"
                         aria-label={`Editar ${p.nombre}`}
                       >
-                        <Pencil size={15} />
-                      </button>
+                        <Pencil className="h-4 w-4" />
+                      </IconButton>
                     </td>
                   </tr>
                 ))}
@@ -187,9 +191,7 @@ export function Productos() {
         }
       >
         <div className="space-y-4">
-          {errorGeneral && (
-            <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{errorGeneral}</div>
-          )}
+          {errorGeneral && <Alert>{errorGeneral}</Alert>}
           <Field label="Nombre" error={errores.nombre}>
             <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
           </Field>

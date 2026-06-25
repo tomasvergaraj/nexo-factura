@@ -6,7 +6,7 @@ export function Logo({ size = 32, withWordmark = true, light = false }: {
       <img src="/logo.png" alt="Nexo Factura" width={size} height={size} className="shrink-0" />
       {withWordmark && (
         <span
-          className={`font-display font-bold leading-none tracking-tight ${light ? "text-white" : "text-ink"}`}
+          className={`font-display font-semibold leading-none ${light ? "text-white" : "text-ink"}`}
           style={{ fontSize: size * 0.62 }}
         >
           Nexo<span className="text-cobalt">Factura</span>
