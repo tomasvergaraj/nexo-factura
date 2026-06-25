@@ -1,0 +1,7 @@
+# El build del contenedor instala sus propias dependencias (Alpine/Linux).
+# No copiar artefactos locales: rompen esbuild (binarios win32) e inflan el contexto.
+node_modules
+dist
+npm-debug.log*
+.git
+.DS_Store
