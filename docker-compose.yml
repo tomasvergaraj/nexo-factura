@@ -32,7 +32,8 @@ services:
       APP_JWT_SECRET: dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789
       APP_CORS_ORIGINS: http://localhost:5173,http://localhost:8081
     ports:
-      - "8080:8080"
+      # Host 8082 (8080 lo ocupa otra app local); puerto interno del contenedor sigue 8080
+      - "8082:8080"
 
   frontend:
     build: ./frontend
