@@ -29,3 +29,16 @@ export function cerrarSesion() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USUARIO_KEY);
 }
+
+// Ruta del login (única fuente de verdad para redirecciones).
+export const RUTA_LOGIN = "/ingresar";
+
+// Devuelve el empresaId de la sesión actual o lanza un error controlado
+// si no hay sesión o el usuario no tiene empresa asociada.
+export function empresaIdActual(): number {
+  const usuario = obtenerUsuario();
+  if (!usuario || usuario.empresaId == null) {
+    throw new Error("La sesión no tiene una empresa asociada.");
+  }
+  return usuario.empresaId;
+}

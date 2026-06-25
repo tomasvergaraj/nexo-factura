@@ -12,8 +12,14 @@ import java.util.Optional;
 
 public interface DocumentoRepository extends JpaRepository<DocumentoTributario, Long> {
 
-    /** Trae el documento con sus lineas en una sola consulta (evita N+1). */
-    @EntityGraph(attributePaths = {"lineas", "referencias"})
+    /**
+     * Trae el documento con sus lineas en una sola consulta (evita N+1).
+     * Solo se hace fetch de "lineas": incluir ademas "referencias" en el mismo
+     * EntityGraph provoca MultipleBagFetchException (Hibernate no puede hacer
+     * fetch de dos colecciones tipo List/bag a la vez). Las referencias se
+     * cargan de forma perezosa dentro de la transaccion del servicio.
+     */
+    @EntityGraph(attributePaths = {"lineas"})
     Optional<DocumentoTributario> findWithDetalleById(Long id);
 
     Page<DocumentoTributario> findByEmpresaIdOrderByCreadoEnDesc(Long empresaId, Pageable pageable);

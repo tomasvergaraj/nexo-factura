@@ -33,8 +33,9 @@ public class ProductoService {
     }
 
     @Transactional
-    public ProductoResponse actualizar(Long id, ProductoRequest req) {
-        Producto producto = buscar(id);
+    public ProductoResponse actualizar(Long empresaId, Long id, ProductoRequest req) {
+        Producto producto = repository.findByIdAndEmpresaId(id, empresaId)
+                .orElseThrow(() -> RecursoNoEncontradoException.de("Producto", id));
         mapper.actualizar(producto, req);
         return mapper.toResponse(repository.save(producto));
     }

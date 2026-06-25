@@ -5,6 +5,7 @@ import { AppShell } from "../../components/app/AppShell";
 import { Card, Spinner, Input, Button } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import { getDocumentos } from "../../lib/api";
+import { empresaIdActual } from "../../lib/auth";
 import { formatCLP, formatFecha } from "../../lib/format";
 import { ESTADO_LABEL, TIPO_DTE_LABEL, type DocumentoResumen, type EstadoDte } from "../../lib/types";
 
@@ -17,7 +18,7 @@ export function Documentos() {
   const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
-    getDocumentos(1).then(setDocs);
+    getDocumentos(empresaIdActual()).then(setDocs);
   }, []);
 
   const visibles = useMemo(() => {

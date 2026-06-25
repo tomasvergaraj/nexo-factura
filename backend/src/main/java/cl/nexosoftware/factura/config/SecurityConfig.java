@@ -51,6 +51,15 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers(PUBLIC_PATHS).permitAll()
                     .anyRequest().authenticated())
+            // API stateless: una peticion sin token (o con token invalido) debe
+            // responder 401, no el 403 por defecto de Http403ForbiddenEntryPoint.
+            .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authEx) -> {
+                response.setStatus(401);
+                response.setContentType("application/json");
+                response.getWriter().write(
+                        "{\"estado\":401,\"error\":\"Unauthorized\",\"mensaje\":\"No autenticado\",\"ruta\":\""
+                                + request.getRequestURI() + "\",\"detalles\":null}");
+            }))
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

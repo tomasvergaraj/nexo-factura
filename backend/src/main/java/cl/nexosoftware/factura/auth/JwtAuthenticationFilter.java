@@ -40,10 +40,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String email = jwtService.extraerEmail(token);
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                // loadUserByUsername solo valida existencia/activo del usuario.
                 UserDetails userDetails = usuarioDetailsService.loadUserByUsername(email);
                 if (jwtService.esValido(token, userDetails.getUsername())) {
+                    Long empresaId = jwtService.extraerEmpresaId(token); // tolera null
+                    Long uid = jwtService.extraerUid(token);
+                    Rol rol = Rol.valueOf(jwtService.extraerRol(token));
+                    UsuarioPrincipal principal = new UsuarioPrincipal(
+                            uid, email, rol, empresaId, userDetails.getAuthorities());
                     var auth = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
+                            principal, null, principal.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }

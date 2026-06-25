@@ -6,6 +6,11 @@ spring:
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:10}
 
+# APP_JWT_SECRET es OBLIGATORIO en produccion (sin default).
+# Debe tener al menos 32 bytes UTF-8 y no puede ser el secret de desarrollo.
+# JwtSecretValidator (@Profile("prod")) aborta el arranque si no se cumple.
+# El valor se hereda de application.yml -> secret: ${APP_JWT_SECRET}
+
 logging:
   level:
     cl.nexosoftware.factura: INFO

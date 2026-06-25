@@ -12,11 +12,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/empresas/{empresaId}/documentos")
 @RequiredArgsConstructor
+@PreAuthorize("@tenantGuard.checkEmpresa(#empresaId)")
 @Tag(name = "Documentos (DTE)", description = "Emision y gestion de documentos tributarios")
 public class DocumentoController {
 
@@ -44,18 +46,20 @@ public class DocumentoController {
 
     @PostMapping("/{id}/emitir")
     @Operation(summary = "Emitir: asigna folio, genera timbre, XML y firma")
+    @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
     public DocumentoResponse emitir(@PathVariable Long empresaId, @PathVariable Long id) {
         return service.emitir(empresaId, id);
     }
 
     @PostMapping("/{id}/enviar")
     @Operation(summary = "Enviar el documento firmado al SII")
+    @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
     public DocumentoResponse enviar(@PathVariable Long empresaId, @PathVariable Long id) {
         return service.enviarSii(empresaId, id);
     }
 
-    @GetMapping("/{id}/estado-sii")
-    @Operation(summary = "Consultar el estado del envio en el SII")
+    @PostMapping("/{id}/estado-sii")
+    @Operation(summary = "Actualizar el estado del envio consultandolo al SII")
     public DocumentoResponse estadoSii(@PathVariable Long empresaId, @PathVariable Long id) {
         return service.consultarEstadoSii(empresaId, id);
     }

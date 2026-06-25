@@ -8,6 +8,13 @@ spring:
       hibernate:
         format_sql: true
 
+app:
+  jwt:
+    # Solo desarrollo/test/CI: default conocido para levantar sin variables.
+    # En produccion APP_JWT_SECRET es obligatorio (ver application-prod.yml).
+    # Sincronizado con JwtSecretValidator.DEV_SECRET.
+    secret: ${APP_JWT_SECRET:dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789}
+
 logging:
   level:
     cl.nexosoftware.factura: DEBUG

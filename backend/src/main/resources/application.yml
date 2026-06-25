@@ -40,8 +40,9 @@ management:
 
 app:
   jwt:
-    # En produccion definir APP_JWT_SECRET con al menos 32 bytes.
-    secret: ${APP_JWT_SECRET:dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789}
+    # APP_JWT_SECRET es obligatorio (al menos 32 bytes UTF-8). Sin default aqui:
+    # el default de desarrollo vive solo en application-dev.yml.
+    secret: ${APP_JWT_SECRET}
     expiration-minutes: ${APP_JWT_EXPIRATION_MINUTES:480}
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:4173}

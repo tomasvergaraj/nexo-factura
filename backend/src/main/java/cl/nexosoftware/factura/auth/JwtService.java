@@ -45,6 +45,23 @@ public class JwtService {
         return extraerClaim(token, Claims::getSubject);
     }
 
+    /** Empresa del usuario (claim {@code empresaId}); puede ser null. */
+    public Long extraerEmpresaId(String token) {
+        Number empresaId = parse(token).get("empresaId", Number.class);
+        return empresaId != null ? empresaId.longValue() : null;
+    }
+
+    /** Rol del usuario (claim {@code rol}); puede ser null. */
+    public String extraerRol(String token) {
+        return parse(token).get("rol", String.class);
+    }
+
+    /** Id del usuario (claim {@code uid}); puede ser null. */
+    public Long extraerUid(String token) {
+        Number uid = parse(token).get("uid", Number.class);
+        return uid != null ? uid.longValue() : null;
+    }
+
     public boolean esValido(String token, String email) {
         try {
             Claims claims = parse(token);

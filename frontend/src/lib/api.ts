@@ -1,9 +1,9 @@
-// Cliente HTTP de la API. Con USE_MOCK = true la app funciona de forma autónoma
-// con datos de demostración (ideal para revisar la interfaz sin levantar el
-// backend). Cámbielo a false para consumir la API real en /api.
+// Cliente HTTP de la API. Con VITE_USE_MOCK="true" la app funciona de forma
+// autónoma con datos de demostración (ideal para revisar la interfaz sin
+// levantar el backend). Por defecto (false) consume la API real en /api.
 
 import axios from "axios";
-import { obtenerToken } from "./auth";
+import { cerrarSesion, obtenerToken, RUTA_LOGIN } from "./auth";
 import {
   clientesMock, dashboardMock, documentoDetalleMock, documentosMock, productosMock,
 } from "./mock";
@@ -11,15 +11,34 @@ import type {
   Cliente, DocumentoResponse, DocumentoResumen, Producto, ResumenDashboard,
 } from "./types";
 
-export const USE_MOCK = true;
+// Opt-in a datos mock: solo con VITE_USE_MOCK="true" (default false).
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
-const http = axios.create({ baseURL: "/api" });
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+const http = axios.create({ baseURL: BASE_URL });
 
 http.interceptors.request.use((config) => {
   const token = obtenerToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+// Ante 401/403 la sesión dejó de ser válida: limpiamos y volvemos al login.
+// Evitamos el bucle si ya estamos en la pantalla de login.
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) {
+      cerrarSesion();
+      if (window.location.pathname !== RUTA_LOGIN) {
+        window.location.assign(RUTA_LOGIN);
+      }
+    }
+    return Promise.reject(error);
+  },
+);
 
 const demora = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 

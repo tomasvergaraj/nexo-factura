@@ -4,7 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { Button, Field, Input } from "../components/ui";
 import { FacturaPreview } from "../components/FacturaPreview";
-import { USE_MOCK } from "../lib/api";
+import axios from "axios";
+import http, { USE_MOCK } from "../lib/api";
 import { guardarSesion } from "../lib/auth";
 
 export function Login() {
@@ -26,17 +27,17 @@ export function Login() {
         return;
       }
       // Integración real: POST /api/auth/login -> { token, usuario }
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) throw new Error("Credenciales inválidas");
-      const data = await res.json();
+      const { data } = await http.post("/auth/login", { email, password });
       guardarSesion(data.token, data.usuario);
       navigate("/app");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo iniciar sesión");
+      // El 401 de credenciales se maneja aquí (mensaje local) para que el
+      // interceptor de respuesta no dispare la redirección/cierre de sesión.
+      if (axios.isAxiosError(e) && e.response?.status === 401) {
+        setError("Credenciales inválidas");
+      } else {
+        setError(e instanceof Error ? e.message : "No se pudo iniciar sesión");
+      }
     } finally {
       setCargando(false);
     }

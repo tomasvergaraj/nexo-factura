@@ -33,8 +33,9 @@ public class ClienteService {
     }
 
     @Transactional
-    public ClienteResponse actualizar(Long id, ClienteRequest req) {
-        Cliente cliente = buscar(id);
+    public ClienteResponse actualizar(Long empresaId, Long id, ClienteRequest req) {
+        Cliente cliente = repository.findByIdAndEmpresaId(id, empresaId)
+                .orElseThrow(() -> RecursoNoEncontradoException.de("Cliente", id));
         mapper.actualizar(cliente, req);
         return mapper.toResponse(repository.save(cliente));
     }

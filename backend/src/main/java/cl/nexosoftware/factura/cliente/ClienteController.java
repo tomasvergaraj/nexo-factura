@@ -9,11 +9,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/empresas/{empresaId}/clientes")
 @RequiredArgsConstructor
+@PreAuthorize("@tenantGuard.checkEmpresa(#empresaId)")
 @Tag(name = "Clientes", description = "Receptores de documentos")
 public class ClienteController {
 
@@ -35,6 +37,6 @@ public class ClienteController {
     @PutMapping("/{id}")
     public ClienteResponse actualizar(@PathVariable Long empresaId, @PathVariable Long id,
                                       @Valid @RequestBody ClienteRequest req) {
-        return service.actualizar(id, req);
+        return service.actualizar(empresaId, id, req);
     }
 }

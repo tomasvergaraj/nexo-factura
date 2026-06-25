@@ -4,6 +4,7 @@ import { Plus, Trash2, Receipt } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import { Card, Field, Select, Input, Button, Spinner } from "../../components/ui";
 import { crearDocumento, getClientes, getProductos, type NuevaLinea } from "../../lib/api";
+import { empresaIdActual } from "../../lib/auth";
 import { formatCLP, formatRut } from "../../lib/format";
 import type { Cliente, Producto } from "../../lib/types";
 
@@ -22,8 +23,9 @@ export function NuevaFactura() {
   const [emitiendo, setEmitiendo] = useState(false);
 
   useEffect(() => {
-    getClientes(1).then(setClientes);
-    getProductos(1).then(setProductos);
+    const empresaId = empresaIdActual();
+    getClientes(empresaId).then(setClientes);
+    getProductos(empresaId).then(setProductos);
   }, []);
 
   const cliente = clientes.find((c) => c.id === clienteId);
@@ -74,7 +76,7 @@ export function NuevaFactura() {
     if (!puedeEmitir) return;
     setEmitiendo(true);
     try {
-      await crearDocumento(1, {
+      await crearDocumento(empresaIdActual(), {
         tipoDte: "FACTURA_AFECTA",
         clienteId: clienteId as number,
         lineas: lineas.map(({ uid: _uid, ...l }) => l),

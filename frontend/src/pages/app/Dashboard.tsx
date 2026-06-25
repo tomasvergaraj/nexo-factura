@@ -6,6 +6,7 @@ import { Kpi } from "../../components/app/Kpi";
 import { Card, Spinner } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import { getDashboard } from "../../lib/api";
+import { empresaIdActual } from "../../lib/auth";
 import { serieEmisionMock } from "../../lib/mock";
 import { formatCLP, formatFecha } from "../../lib/format";
 import { TIPO_DTE_LABEL, type ResumenDashboard } from "../../lib/types";
@@ -14,7 +15,7 @@ export function Dashboard() {
   const [data, setData] = useState<ResumenDashboard | null>(null);
 
   useEffect(() => {
-    getDashboard(1).then(setData);
+    getDashboard(empresaIdActual()).then(setData);
   }, []);
 
   return (
