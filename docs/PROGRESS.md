@@ -1,7 +1,9 @@
-# Progreso — Sprint 1
+# Progreso
 
-> Fecha: 2026-06-25. Estado: **completado y verificado**.
-> Ver el plan en [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md) y el backlog en [ROADMAP.md](ROADMAP.md).
+> Fecha: 2026-06-25. Sprints 1 y 2 **completados y verificados**.
+> Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
+
+# Sprint 1
 
 ## Resumen
 
@@ -77,5 +79,49 @@ docker run --rm -v "$PWD/backend:/app" -v nexo_m2:/root/.m2 -w /app \
 docker compose up -d
 ```
 
-## Pendiente (Sprint 2)
-Ver [ROADMAP.md](ROADMAP.md): firma XMLDSig real (PKCS#12), firma del TED + PDF417 con CAF real, integración real con el SII. Requieren un certificado y un CAF reales para implementarse y verificarse.
+# Sprint 2
+
+## Resumen
+Completitud tributaria y de producto, todo verificable sin certificado/CAF reales: **notas de crédito/débito** con anulación del documento referenciado, **validación de RUT (módulo 11)** en el backend, **timbre PDF417 real** en el PDF, **frontend completo** (CRUD + detalle de DTE + notas) y cierre del **riesgo de arquitectura** (perfil de producción).
+
+## Qué se implementó
+
+### Notas de crédito/débito (56/61) — P1-1
+- `DocumentoService.crear` exige referencias para NC/ND y valida coherencia con el documento original (existe, mismo tipo/folio/fecha, no borrador).
+- `DocumentoService.emitir`: al emitir una **NOTA_CREDITO con `ANULA_DOCUMENTO`**, transiciona el documento original **ACEPTADO → ANULADO** en la misma transacción (atómico con la reserva de folio).
+- `DocumentoResponse` ahora incluye `referencias[]` (`ReferenciaResponse`); `DocumentoRepository.findByEmpresaIdAndTipoDteAndFolio`.
+
+### Validación de RUT (módulo 11) — P1-3
+- `common/validation/Rut` (algoritmo módulo 11, espejo de `format.ts`), anotación `@RutValido` + validador; aplicada en `ClienteRequest`/`EmpresaRequest`. RUT con DV inválido → **400** con error de campo.
+
+### Timbre PDF417 real — (parte de P0-5, verificable)
+- `Pdf417Generator` (zxing) genera el código de barras del **TED real** (ISO-8859-1); `TedGenerator.aXml` marshalla el `<TED>`; `PdfDteServiceImpl` lo embebe en el PDF (escalado para caber). La firma FRMT del TED sigue siendo placeholder hasta integrar el CAF real.
+
+### Cierre del riesgo de arquitectura — (perfil de producción)
+- Perfil de producción estandarizado a **`prod`**; stubs → `@Profile("!prod")`; nuevos `FirmaElectronicaProd`/`SiiGatewayProd` (`@Profile("prod")`) que **fallan fail-fast** (`UnsupportedOperationException`) en vez de faltar. El contexto **levanta** en perfil prod.
+
+### Frontend completo — P1-5
+- Pantallas reales de **Clientes**, **Productos** y **Folios** (CRUD + carga de CAF), nueva **vista de detalle de DTE** (`/app/documentos/:id`) con acciones por estado y descarga de PDF, **selector de tipo de DTE** y referencias para NC/ND en NuevaFactura, filas de Documentos navegables. El interceptor axios ya **no cierra sesión ante 403** (permiso/negocio).
+
+## Bug detectado y corregido (PDF417 no se embebía)
+El timbre agregaba la imagen como `Chunk` inline con `scalePercent(220%)`; al ser más ancha que la línea, OpenPDF la **descartaba en silencio** (PDF de ~1.8 KB sin imagen). Se corrigió agregando la imagen como elemento de bloque con `scaleToFit`, más **logging** del fallback (antes silencioso). PDF resultante ~6.6 KB con `/Image` embebida.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| `docker compose build` (backend + frontend `tsc`) | ✅ |
+| Tests unitarios (RUT, cálculo, estados, PDF417) | ✅ **57/57** |
+| Tests con Testcontainers (NC/ND, perfil prod, aislamiento) | ⚠️ compilan; no ejecutables en este host (igual que Sprint 1) |
+| E2E — RUT inválido / válido | 400 / 201 ✅ |
+| E2E — carga de CAF (NOTA_CREDITO) por ADMIN | 201 ✅ |
+| E2E — NC anulatoria → factura original | **ANULADO** ✅ |
+| E2E — NC sin referencias | 409 ✅ |
+| E2E — PDF con PDF417 embebido | 200, ~6.6 KB, `/Image` ✅ |
+| E2E — frontend sirve + proxy `/api` | 200 ✅ |
+| Smoke — arranque con perfil `prod` | **Started en 5.6s** con beans Prod ✅ |
+
+> Nota: actualizar el seed `V2__seed_dev.sql` (se corrigieron los DV de los RUT demo) cambia su checksum de Flyway. En una BD de dev ya migrada hay que **resetear el volumen** (`docker compose down -v && docker compose up -d`); un clon nuevo aplica las migraciones limpias.
+
+# Pendiente (Sprint 3)
+Ver [ROADMAP.md](ROADMAP.md): **firma XMLDSig real** (PKCS#12), **firma del TED (FRMT)** y validación del **CAF real**, **integración real con el SII** (semilla/token/EnvioDTE/estado). Requieren un certificado y un CAF reales para implementarse y verificarse. Los esqueletos de perfil `prod` ya dejan el punto de extensión listo.

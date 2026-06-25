@@ -40,11 +40,11 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 | P0-6 | **Integración SII real**: semilla→token→EnvioDTE→consulta por TrackID | backend | 2 |
 
 ### P1 — Completitud tributaria y producto
-- P1-1 Notas de crédito/débito (56/61) con referencias obligatorias y anulación del documento referenciado.
+- ✅ **P1-1** Notas de crédito/débito (56/61) con referencias obligatorias y anulación del documento referenciado. *(Sprint 2)*
 - P1-2 Boletas (39/41): monto bruto (IVA incluido) y RCOF diario.
-- P1-3 Validación de dígito verificador (módulo 11) en el backend.
+- ✅ **P1-3** Validación de dígito verificador (módulo 11) en el backend. *(Sprint 2)*
 - P1-4 Completar el modelo JAXB al XSD oficial y validar antes de firmar.
-- P1-5 CRUD real en el front (Clientes/Productos/Folios) + pantalla de detalle de DTE.
+- ✅ **P1-5** CRUD real en el front (Clientes/Productos/Folios) + pantalla de detalle de DTE. *(Sprint 2)*
 - P1-6 Impuestos adicionales y retenciones.
 
 ### P2 — Robustez, calidad y operación
@@ -70,3 +70,7 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 - Documentación del progreso y de los esqueletos de perfil producción para el Sprint 2.
 
 El Sprint 2 (P0-4/5/6) queda **diseñado y documentado**; requiere un certificado PKCS#12 y un CAF reales para implementarse y verificarse.
+
+## 5. Hecho en el Sprint 2
+
+Completado y verificado (ver [PROGRESS.md](PROGRESS.md)): **P1-1** (notas de crédito/débito con anulación), **P1-3** (módulo 11), **P1-5** (frontend completo: CRUD + detalle de DTE + notas), el **timbre PDF417 real** (parte de P0-5) y el **cierre del riesgo de arquitectura** con los esqueletos de perfil `prod` (firma/SII fallan fail-fast en vez de faltar). Queda pendiente para el **Sprint 3** la integración tributaria real (firma XMLDSig con PKCS#12, FRMT + CAF real, SII real), gateada por activos externos.
