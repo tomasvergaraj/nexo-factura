@@ -62,8 +62,10 @@ docker compose up --build
 ```
 
 - Frontend: http://localhost:8081
-- API + Swagger: http://localhost:8080/swagger-ui.html
+- API + Swagger: http://localhost:8082/swagger-ui.html
 - PostgreSQL: localhost:5432
+
+> El backend se publica en el host **8082** (el puerto interno del contenedor sigue siendo 8080). Si el 8080 está libre en tu equipo puedes volver a `"8080:8080"` en `docker-compose.yml`.
 
 ### Opción B — Manual
 
@@ -82,7 +84,7 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-> El frontend trae `USE_MOCK = true` en `src/lib/api.ts`, así que **funciona de forma autónoma con datos de demostración** sin necesidad del backend. Cámbialo a `false` para consumir la API real.
+> Por defecto el frontend **consume la API real** (`VITE_USE_MOCK=false` en `frontend/.env`). Para revisar la interfaz de forma autónoma con datos de demostración, sin levantar el backend, pon `VITE_USE_MOCK=true`.
 
 ### Credenciales de demostración
 
@@ -104,6 +106,16 @@ Para que el flujo completo sea ejecutable sin trámites externos, tres piezas so
 Estas decisiones están comentadas en el código donde corresponde.
 
 ---
+
+## Seguridad y multi-empresa
+
+La API es **stateless con JWT** y está aislada por empresa: cada recurso cuelga de `/api/empresas/{empresaId}/...` y un *tenant guard* valida que el `empresaId` de la ruta coincida con el del token (responde **403** si no, **404** si se intenta acceder a una fila de otra empresa). Las mutaciones sensibles (emitir, enviar, cargar CAF) exigen rol `ADMIN`/`EMISOR`. En producción, el secret JWT es obligatorio (el arranque falla si no se define).
+
+## Documentación
+
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — estado real del sistema (implementado vs simulado vs mock) y backlog priorizado (P0/P1/P2).
+- [`docs/SPRINT-1-PLAN.md`](docs/SPRINT-1-PLAN.md) — plan de implementación a nivel de archivo.
+- [`docs/PROGRESS.md`](docs/PROGRESS.md) — lo entregado en el Sprint 1 y su verificación.
 
 ## Stack
 
