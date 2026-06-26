@@ -51,3 +51,7 @@ app:
     ambiente: ${APP_SII_AMBIENTE:CERTIFICACION}
     certificado-path: ${APP_SII_CERT_PATH:}
     certificado-password: ${APP_SII_CERT_PASSWORD:}
+  dte:
+    # Validacion XSD del XML del DTE antes de firmar. Mantener en true salvo
+    # diagnostico puntual; en false se emiten DTE sin validar el esquema.
+    validar-xsd: ${APP_DTE_VALIDAR_XSD:true}

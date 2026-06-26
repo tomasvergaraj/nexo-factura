@@ -44,6 +44,7 @@ public class DocumentoService {
     private final FolioService folioService;
     private final CalculadoraImpuestos calculadora;
     private final XmlDteGenerator xmlGenerator;
+    private final DteXmlValidator dteXmlValidator;
     private final TedGenerator tedGenerator;
     private final FirmaElectronica firmaElectronica;
     private final SiiGateway siiGateway;
@@ -128,6 +129,10 @@ public class DocumentoService {
         // 2. Timbre electronico (TED) + XML + firma.
         ModeloDte.Ted ted = tedGenerator.generar(doc, emisor.getRut());
         String xml = xmlGenerator.generar(doc, emisor, ted);
+        // Validacion XSD pre-firma: si el XML generado no cumple el esquema,
+        // DteInvalidoException (RuntimeException) propaga y revierte la reserva de
+        // folio (todo emitir() es una sola @Transactional).
+        dteXmlValidator.validar(xml);
         String xmlFirmado = firmaElectronica.firmar(xml);
 
         doc.setXmlDte(xmlFirmado);

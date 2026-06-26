@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Esquema REPRESENTATIVO del DTE para validacion pre-firma (Nexo Factura).
+
+  NO es el XSD oficial del SII: captura las reglas estructurales reales del
+  subconjunto que hoy emitimos (Documento -> Encabezado + Detalle + Referencia +
+  TED). El XSD oficial exige <Signature>/<FRMT> reales y el namespace
+  http://www.sii.cl/SiiDte; ese alineamiento es un FOLLOW-UP atado al trabajo de
+  firma/TED/CAF y NO forma parte de esta tarea (P1-4).
+
+  Sin targetNamespace y elementFormDefault="unqualified" para coincidir EXACTO con
+  lo que marshalla XmlDteGenerator (ModeloDte sin namespace, @XmlAccessorType FIELD,
+  orden de elementos = orden de declaracion de campos).
+
+  XSD 1.0 (javax.xml.validation, W3C XML Schema): sin xs:assert / xs:assertion.
+  La regla "Referencia obligatoria si TipoDTE in (56,61)" NO es expresable en
+  XSD 1.0 y permanece como regla de negocio en DocumentoService.validarReferenciasDeNota.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           elementFormDefault="unqualified"
+           attributeFormDefault="unqualified">
+
+  <!-- ===================== Tipos simples reutilizables ===================== -->
+
+  <!-- RUT chileno: 1-8 digitos, guion, digito verificador (0-9 o K/k). -->
+  <xs:simpleType name="RutType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{1,8}-[0-9Kk]"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Tipos de DTE soportados por este subconjunto. -->
+  <xs:simpleType name="TipoDteType">
+    <xs:restriction base="xs:int">
+      <xs:enumeration value="33"/>
+      <xs:enumeration value="34"/>
+      <xs:enumeration value="39"/>
+      <xs:enumeration value="41"/>
+      <xs:enumeration value="56"/>
+      <xs:enumeration value="61"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Indicador de exencion: el generador solo emite "1" (linea exenta);
+       las lineas afectas omiten el elemento (indicadorExento == null). -->
+  <xs:simpleType name="IndExeType">
+    <xs:restriction base="xs:int">
+      <xs:enumeration value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Codigo de referencia (CodRef): 1 anula, 2 corrige texto, 3 corrige monto. -->
+  <xs:simpleType name="CodRefType">
+    <xs:restriction base="xs:int">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ===================== Elemento raiz: DTE ===================== -->
+
+  <xs:element name="DTE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Documento" type="DocumentoType"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="DocumentoType">
+    <xs:sequence>
+      <xs:element name="Encabezado" type="EncabezadoType"/>
+      <!-- Un documento siempre tiene al menos una linea de detalle. -->
+      <xs:element name="Detalle" type="DetalleType" minOccurs="1" maxOccurs="unbounded"/>
+      <!-- Referencia: opcional y repetible, EMITIDA DESPUES DE Detalle y ANTES DE TED.
+           La obligatoriedad para 56/61 es regla de negocio
+           (DocumentoService.validarReferenciasDeNota), NO del XSD. -->
+      <xs:element name="Referencia" type="ReferenciaType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="TED" type="TedType"/>
+    </xs:sequence>
+    <!-- ID del documento, formato "T<tipo>F<folio>", ej: T33F12. -->
+    <xs:attribute name="ID" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:pattern value="T[0-9]+F[0-9]+"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <!-- ===================== Encabezado ===================== -->
+
+  <xs:complexType name="EncabezadoType">
+    <xs:sequence>
+      <xs:element name="IdDoc" type="IdDocType"/>
+      <xs:element name="Emisor" type="EmisorType"/>
+      <xs:element name="Receptor" type="ReceptorType"/>
+      <xs:element name="Totales" type="TotalesType"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="IdDocType">
+    <xs:sequence>
+      <xs:element name="TipoDTE" type="TipoDteType"/>
+      <xs:element name="Folio" type="xs:long"/>
+      <xs:element name="FchEmis" type="xs:date"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Emisor: siempre completo (la Empresa emisora trae los 5 campos). -->
+  <xs:complexType name="EmisorType">
+    <xs:sequence>
+      <xs:element name="RUTEmisor" type="RutType"/>
+      <xs:element name="RznSoc" type="xs:string"/>
+      <xs:element name="GiroEmis" type="xs:string"/>
+      <xs:element name="DirOrigen" type="xs:string"/>
+      <xs:element name="CmnaOrigen" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Receptor: en boletas a consumidor final el generador omite
+       GiroRecep/DirRecep/CmnaRecep (son null) -> minOccurs=0. -->
+  <xs:complexType name="ReceptorType">
+    <xs:sequence>
+      <xs:element name="RUTRecep" type="RutType"/>
+      <xs:element name="RznSocRecep" type="xs:string"/>
+      <xs:element name="GiroRecep" type="xs:string" minOccurs="0"/>
+      <xs:element name="DirRecep" type="xs:string" minOccurs="0"/>
+      <xs:element name="CmnaRecep" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Montos como xs:long (no nonNegativeInteger): una nota de credito/correccion
+       puede arrojar montos negativos validos a nivel SII. TasaIVA es xs:decimal
+       (JAXB marshalla el double como "19.0"). -->
+  <xs:complexType name="TotalesType">
+    <xs:sequence>
+      <xs:element name="MntNeto" type="xs:long"/>
+      <xs:element name="MntExe" type="xs:long"/>
+      <xs:element name="TasaIVA" type="xs:decimal"/>
+      <xs:element name="IVA" type="xs:long"/>
+      <xs:element name="MntTotal" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===================== Detalle ===================== -->
+
+  <xs:complexType name="DetalleType">
+    <xs:sequence>
+      <xs:element name="NroLinDet" type="xs:int"/>
+      <xs:element name="NmbItem" type="xs:string"/>
+      <xs:element name="QtyItem" type="xs:decimal"/>
+      <xs:element name="UnmdItem" type="xs:string"/>
+      <xs:element name="PrcItem" type="xs:long"/>
+      <xs:element name="DescuentoMonto" type="xs:long"/>
+      <!-- IndExe: presente solo en lineas exentas (valor 1); omitido en afectas. -->
+      <xs:element name="IndExe" type="IndExeType" minOccurs="0"/>
+      <xs:element name="MontoItem" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===================== Referencia (NUEVO en P1-4) ===================== -->
+
+  <xs:complexType name="ReferenciaType">
+    <xs:sequence>
+      <xs:element name="NroLinRef" type="xs:int"/>
+      <!-- TpoDocRef es xs:int (no el enum): el documento referenciado puede ser de
+           un tipo fuera de nuestro subconjunto sin invalidar la referencia. -->
+      <xs:element name="TpoDocRef" type="xs:int"/>
+      <xs:element name="FolioRef" type="xs:long"/>
+      <xs:element name="FchRef" type="xs:date"/>
+      <xs:element name="CodRef" type="CodRefType"/>
+      <xs:element name="RazonRef" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===================== TED ===================== -->
+
+  <xs:complexType name="TedType">
+    <xs:sequence>
+      <xs:element name="DD" type="DdType"/>
+      <xs:element name="FRMT" type="FrmtType"/>
+    </xs:sequence>
+    <xs:attribute name="version" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="DdType">
+    <xs:sequence>
+      <xs:element name="RE" type="RutType"/>
+      <xs:element name="TD" type="TipoDteType"/>
+      <xs:element name="F" type="xs:long"/>
+      <xs:element name="FE" type="xs:date"/>
+      <xs:element name="RR" type="RutType"/>
+      <xs:element name="RSR" type="xs:string"/>
+      <xs:element name="MNT" type="xs:long"/>
+      <!-- IT1 puede ir vacio (primer item sin nombre / sin lineas): no minLength. -->
+      <xs:element name="IT1" type="xs:string"/>
+      <!-- TSTED = LocalDateTime.toString() (precision variable). xs:string, NO xs:dateTime. -->
+      <xs:element name="TSTED" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- FRMT: firma placeholder (Base64) con atributo algoritmo. xs:string, sin
+       patron RSA/512-mod: el valor actual es un placeholder, no una firma real. -->
+  <xs:complexType name="FrmtType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="algoritmo" type="xs:string" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+</xs:schema>

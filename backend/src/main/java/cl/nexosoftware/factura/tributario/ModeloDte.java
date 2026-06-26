@@ -1,6 +1,7 @@
 package cl.nexosoftware.factura.tributario;
 
 import jakarta.xml.bind.annotation.*;
+import jakarta.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 import java.util.List;
 
@@ -28,6 +29,8 @@ public final class ModeloDte {
         @XmlAttribute(name = "ID") public String id;
         @XmlElement(name = "Encabezado") public Encabezado encabezado;
         @XmlElement(name = "Detalle") public List<Detalle> detalle;
+        // El orden de los campos es el orden de marshalling: Detalle*, Referencia*, TED.
+        @XmlElement(name = "Referencia") public List<Referencia> referencias;
         @XmlElement(name = "TED") public Ted ted;
     }
 
@@ -68,7 +71,8 @@ public final class ModeloDte {
     public static class Totales {
         @XmlElement(name = "MntNeto") public long neto;
         @XmlElement(name = "MntExe") public long exento;
-        @XmlElement(name = "TasaIVA") public double tasaIva;
+        // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
+        @XmlElement(name = "TasaIVA") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double tasaIva;
         @XmlElement(name = "IVA") public long iva;
         @XmlElement(name = "MntTotal") public long total;
     }
@@ -77,12 +81,24 @@ public final class ModeloDte {
     public static class Detalle {
         @XmlElement(name = "NroLinDet") public int numeroLinea;
         @XmlElement(name = "NmbItem") public String nombre;
-        @XmlElement(name = "QtyItem") public double cantidad;
+        // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
+        @XmlElement(name = "QtyItem") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double cantidad;
         @XmlElement(name = "UnmdItem") public String unidad;
         @XmlElement(name = "PrcItem") public long precioUnitario;
         @XmlElement(name = "DescuentoMonto") public long descuento;
         @XmlElement(name = "IndExe") public Integer indicadorExento;
         @XmlElement(name = "MontoItem") public long montoItem;
+    }
+
+    /** Referencia a otro documento (obligatoria en notas 56/61). */
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class Referencia {
+        @XmlElement(name = "NroLinRef") public int numeroLinea;
+        @XmlElement(name = "TpoDocRef") public int tipoDocumentoRef;
+        @XmlElement(name = "FolioRef") public long folioRef;
+        @XmlElement(name = "FchRef") public String fechaRef;
+        @XmlElement(name = "CodRef") public int codigoReferencia;
+        @XmlElement(name = "RazonRef") public String razon;
     }
 
     /** Timbre Electronico (TED). En produccion el campo FRMT se firma con la llave del CAF. */

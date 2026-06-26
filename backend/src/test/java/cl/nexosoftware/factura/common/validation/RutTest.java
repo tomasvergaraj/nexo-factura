@@ -3,6 +3,7 @@ package cl.nexosoftware.factura.common.validation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -51,5 +52,24 @@ class RutTest {
     void restoOnceEsCero() {
         // cuerpo 10000004 -> suma multiplo de 11 -> resto 11 -> DV '0'
         assertThat(Rut.esValido("10000004-0")).isTrue();
+    }
+
+    @ParameterizedTest
+    @DisplayName("normalizar deja el RUT en forma canonica NNNNNNNN-D (sin puntos)")
+    @CsvSource({
+            "76.543.210-3, 76543210-3",
+            "76543210-3,   76543210-3",
+            "765432103,    76543210-3",
+            "78222333-k,   78222333-K",
+            "66666666-6,   66666666-6"
+    })
+    void normalizaACanonico(String entrada, String esperado) {
+        assertThat(Rut.normalizar(entrada)).isEqualTo(esperado);
+    }
+
+    @Test
+    @DisplayName("normalizar de null devuelve null")
+    void normalizaNull() {
+        assertThat(Rut.normalizar(null)).isNull();
     }
 }

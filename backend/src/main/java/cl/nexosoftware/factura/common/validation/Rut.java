@@ -37,4 +37,23 @@ public final class Rut {
         String dvEsperado = resto == 11 ? "0" : resto == 10 ? "K" : String.valueOf(resto);
         return dv.equals(dvEsperado);
     }
+
+    /**
+     * Devuelve el RUT en forma canonica {@code NNNNNNNN-D} (sin puntos, DV en
+     * mayuscula). Asi se almacena siempre normalizado, de modo que la emision del
+     * DTE (cuyo XSD exige el formato sin puntos) y la deduplicacion por la
+     * restriccion unica no dependan del formato con el que el usuario lo escribio.
+     * Para entradas demasiado cortas devuelve el valor tal cual (lo rechazara
+     * {@code @RutValido} con un 400 antes de llegar aqui).
+     */
+    public static String normalizar(String rut) {
+        if (rut == null) {
+            return null;
+        }
+        String limpio = rut.replaceAll("[^0-9kK]", "").toUpperCase();
+        if (limpio.length() < 2) {
+            return rut;
+        }
+        return limpio.substring(0, limpio.length() - 1) + "-" + limpio.substring(limpio.length() - 1);
+    }
 }

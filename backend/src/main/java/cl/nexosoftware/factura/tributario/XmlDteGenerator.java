@@ -73,6 +73,23 @@ public class XmlDteGenerator {
             detalles.add(d);
         }
         documento.detalle = detalles;
+
+        // Bloque <Referencia> (obligatorio en notas 56/61): se emite despues del
+        // detalle y antes del TED, en el orden de insercion del documento.
+        List<ModeloDte.Referencia> referencias = new ArrayList<>();
+        int nroRef = 1;
+        for (cl.nexosoftware.factura.documento.Referencia r : doc.getReferencias()) {
+            ModeloDte.Referencia ref = new ModeloDte.Referencia();
+            ref.numeroLinea = nroRef++;
+            ref.tipoDocumentoRef = r.getTipoDocumentoRef();
+            ref.folioRef = r.getFolioRef();
+            ref.fechaRef = r.getFechaRef().format(FECHA);
+            ref.codigoReferencia = r.getTipoReferencia().getCodigo();
+            ref.razon = r.getRazon();
+            referencias.add(ref);
+        }
+        documento.referencias = referencias;
+
         documento.ted = ted;
 
         dte.documento = documento;

@@ -43,6 +43,9 @@ class DocumentoServiceTransicionesIT extends AbstractIntegrationTest {
     @MockBean private FirmaElectronica firmaElectronica;
     @MockBean private TedGenerator tedGenerator;
     @MockBean private XmlDteGenerator xmlDteGenerator;
+    // El XML mockeado ("<DTE/>") no cumple el XSD: se mockea el validador para
+    // que no falle (este IT aisla la maquina de estados, no la validacion).
+    @MockBean private DteXmlValidator dteXmlValidator;
 
     private Long empresaId;
     private Long clienteId;

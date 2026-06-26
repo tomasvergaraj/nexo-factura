@@ -32,6 +32,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req, null);
     }
 
+    @ExceptionHandler(DteInvalidoException.class)
+    public ResponseEntity<ApiError> dteInvalido(DteInvalidoException ex, HttpServletRequest req) {
+        // El XML lo genera el servidor: un fallo de esquema es un bug del
+        // modelo/generador, no del cliente. Se registra y se devuelve 422 con el
+        // detalle de cada error de esquema para diagnostico.
+        log.error("DTE genera XML invalido contra el XSD en {} {}: {}",
+                req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), req, ex.getErrores());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> credenciales(BadCredentialsException ex, HttpServletRequest req) {
         return build(HttpStatus.UNAUTHORIZED, "Credenciales invalidas", req, null);
