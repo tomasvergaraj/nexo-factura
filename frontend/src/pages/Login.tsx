@@ -20,21 +20,23 @@ export function Login() {
     setError(null);
     try {
       if (USE_MOCK) {
-        guardarSesion("demo-token", {
+        guardarSesion("demo-token", "demo-refresh", {
           id: 1, nombre: "Administrador Demo", email, rol: "ADMIN", empresaId: 1,
         });
         navigate("/app");
         return;
       }
-      // Integración real: POST /api/auth/login -> { token, usuario }
+      // Integración real: POST /api/auth/login -> { token, refreshToken, usuario }
       const { data } = await http.post("/auth/login", { email, password });
-      guardarSesion(data.token, data.usuario);
+      guardarSesion(data.token, data.refreshToken, data.usuario);
       navigate("/app");
     } catch (e) {
       // El 401 de credenciales se maneja aquí (mensaje local) para que el
       // interceptor de respuesta no dispare la redirección/cierre de sesión.
       if (axios.isAxiosError(e) && e.response?.status === 401) {
         setError("Credenciales inválidas");
+      } else if (axios.isAxiosError(e) && e.response?.status === 429) {
+        setError("Demasiados intentos. Espera unos minutos e inténtalo de nuevo.");
       } else {
         setError(e instanceof Error ? e.message : "No se pudo iniciar sesión");
       }

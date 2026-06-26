@@ -65,6 +65,21 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "Credenciales invalidas", req, null);
     }
 
+    @ExceptionHandler(TokenInvalidoException.class)
+    public ResponseEntity<ApiError> tokenInvalido(TokenInvalidoException ex, HttpServletRequest req) {
+        // Mensaje generico al cliente (anti-enumeracion); el motivo real queda en el servidor.
+        return build(HttpStatus.UNAUTHORIZED, "Sesion invalida o expirada", req, null);
+    }
+
+    @ExceptionHandler(DemasiadasPeticionesException.class)
+    public ResponseEntity<ApiError> demasiadasPeticiones(DemasiadasPeticionesException ex, HttpServletRequest req) {
+        log.warn("Rate limit excedido en {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        ApiError body = build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), req, null).getBody();
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSegundos()))
+                .body(body);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> accesoDenegado(AccessDeniedException ex, HttpServletRequest req) {
         return build(HttpStatus.FORBIDDEN, "No tiene permisos para esta operacion", req, null);

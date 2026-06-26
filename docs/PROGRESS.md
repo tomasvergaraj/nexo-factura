@@ -155,17 +155,24 @@ La integración tributaria real (firma XMLDSig, FRMT + CAF, SII) sigue **gateada
 - **Duplicados → 409**: `GlobalExceptionHandler` mapea `DataIntegrityViolationException` a **409** (antes caía al genérico 500). Un RUT/código duplicado ahora responde 409 con mensaje claro.
 - **Bloqueo optimista**: `@Version` en `Empresa`/`Cliente`/`Producto` (CAF ya lo tenía); una escritura sobre una versión obsoleta lanza `OptimisticLockingFailureException`, también mapeada a **409**. Migración `V3__robustez_version_sello.sql` (aditiva: `version BIGINT NOT NULL DEFAULT 0` + `sello VARCHAR(64)`).
 
+### Sesión y seguridad — P2-3
+- **Refresh tokens**: token opaco de 256 bits (`SecureRandom`, base64url); en la BD vive **solo su hash SHA-256** (`RefreshTokenService` + `RefreshToken` + migración `V4`). Login y registro entregan access JWT (ahora corto, **60 min**) + refresh (**14 días**).
+- **Rotación + detección de reuso**: cada `/refresh` revoca el token presentado y emite uno nuevo. Si llega un token cuyo hash ya está revocado se asume robo y se **revoca toda la cadena** del usuario. La revocación va en una transacción `REQUIRES_NEW` para que persista aunque la transacción principal aborte al rechazar (401). Orden de validación: existe → no-revocado(reuso) → no-expirado → activo.
+- **Revocación**: `POST /api/auth/logout` revoca el refresh (idempotente); `POST /api/auth/refresh` lo rota. Errores de token → **401** con mensaje genérico (anti-enumeración). *(Gap documentado: el access JWT viejo sigue válido hasta su expiración de 60 min; la revocación dura es de refresh tokens.)*
+- **Rate limiting**: `RateLimiter` en memoria (thread-safe, `Clock` inyectable, barrido + tope), cuenta intentos fallidos por **email** y por **IP**; al superar el límite → **429** con `Retry-After`. Aplicado a login (reset en éxito) y registro (por IP). Config `app.security.rate-limit.*`.
+- **Frontend**: el interceptor axios hace **auto-refresh transparente** en 401 (single-flight, un reintento por petición, nunca sobre rutas `/auth/*`); `cerrarSesión` revoca el refresh en el servidor (best-effort). Login maneja el 429.
+
 ## Verificación
 
 | Gate | Resultado |
 |---|---|
-| `mvn test` (compila main + tests en Docker `maven`) | ✅ 86 fuentes main + 17 test |
-| Tests unitarios (cálculo, XSD, marshaller→XSD, RUT, sello) | ✅ **50/50** (`Calculadora` 10, `DteXmlValidator` 12, `XmlDteGeneratorXsd` 3, `Rut` 21, `SelloDte` 4) |
+| `mvn test` (compila main + tests en Docker `maven`) | ✅ 93 fuentes main + 20 test |
+| Tests unitarios (cálculo, XSD, marshaller→XSD, RUT, sello, rate limiter) | ✅ **59/59** (`Calculadora` 10, `DteXmlValidator` 12, `XmlDteGeneratorXsd` 3, `Rut` 21, `SelloDte` 4, `RateLimiter` 9) |
 | `tsc --noEmit` (frontend) | ✅ sin errores |
-| Review adversarial del diff (P1-2: 5 dim; P1-4: 4 dim; P2-4: 3 dim) | ✅ P1-2 y P2-4 sin defectos; P1-4 detectó y **corrigió 2 bugs** (decimal/double y RUT con puntos) |
-| Tests con Testcontainers (`BoletaConsumidorFinalIT`, `RcofServiceIT`, `EmisionXsdIT`, `RobustezIT`) | ⚠️ compilan; no ejecutables en este host (igual que Sprints 1–2; corren en CI) |
+| Review adversarial del diff (P1-2/P1-4/P2-4/P2-3) | ✅ P1-2, P2-4 y P2-3 sin defectos; P1-4 corrigió 2 bugs; en P2-3 se detectó y **corrigió en código** que la revocación de cadena (reuso) requería `REQUIRES_NEW` para no perderse al abortar la transacción |
+| Tests con Testcontainers (`...IT`: boleta, RCOF, emisión XSD, robustez, **AuthRefreshIT**, **LoginRateLimitIT**) | ⚠️ compilan; no ejecutables en este host (corren en CI) |
 
 > Casos de redondeo clave cubiertos: `11900→10000/1900`, `100→84/16`, `999→839/160`, `9999→8403/1596` (donde el re-redondeo ingenuo daría 159/1597), boleta mixta afecto+exento y la equivalencia de la sobrecarga sin flag con el cálculo neto.
 
 # Pendiente
-Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P1-6 (impuestos adicionales/retenciones), P2-3 (refresh/revocación de token, rate limiting) y P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).
+Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P1-6 (impuestos adicionales/retenciones) y P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).

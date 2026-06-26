@@ -5,7 +5,8 @@ import {
 } from "lucide-react";
 import { Logo } from "../Logo";
 import { Button } from "../ui";
-import { cerrarSesion, obtenerUsuario } from "../../lib/auth";
+import { obtenerUsuario } from "../../lib/auth";
+import { cerrarSesion } from "../../lib/api";
 
 const NAV = [
   { to: "/app", label: "Resumen", icon: LayoutDashboard, exact: true },

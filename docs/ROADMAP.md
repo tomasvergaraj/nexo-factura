@@ -50,7 +50,7 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 ### P2 — Robustez, calidad y operación
 - P2-1 `estado-sii`: pasar de GET (con efectos de escritura) a POST idempotente. **Sprint 1.**
 - P2-2 Tests: extender a máquina de estados y aislamiento multi-tenant. **Sprint 1.**
-- P2-3 Sesión: refresh/revocación de token, rate limiting en login.
+- ✅ **P2-3** Sesión: **refresh tokens** rotatorios con detección de reuso, **revocación** (logout), access token corto (60 min) y **rate limiting** en login/registro (por email e IP → 429). *(Sprint 3)*
 - ✅ **P2-4** Inmutabilidad del DTE (campos tributarios congelados con `updatable=false` + **sello de integridad** SHA-256 del XML firmado), manejo de **duplicados → 409** y **`@Version`** (bloqueo optimista) en datos maestros. *(Sprint 3)*. Un log de auditoría completo (quién/cuándo) queda como mejora opcional.
 - P2-5 Contingencia, reenvío de rechazados, libros de compra/venta.
 
@@ -81,5 +81,6 @@ La integración tributaria real (P0-4/5/6: firma XMLDSig con PKCS#12, FRMT + CAF
 - **P1-2** — **boletas 39/41** con precio bruto (IVA incluido) y desglose del neto, **receptor "Consumidor final"** (cliente opcional, solo en boletas) y el **RCOF** (Reporte de Consumo de Folios) diario con su endpoint y XML `ConsumoFolios` (sin firmar/enviar).
 - **P1-4** — **bloque `Referencia`** agregado al XML del DTE (antes las notas 56/61 no lo emitían) y **validación XSD pre-firma** (`DteXmlValidator`) contra un esquema representativo; una emisión cuyo XML no cumple el esquema falla con **422** y revierte el folio.
 - **P2-4** — **inmutabilidad del DTE** (`updatable=false` en los campos tributarios + **sello de integridad** SHA-256 fijado al emitir), **duplicados → 409** (`DataIntegrityViolationException`) y **`@Version`** en Empresa/Cliente/Producto (conflicto → 409). Migración `V3`.
+- **P2-3** — **sesión y seguridad**: refresh tokens opacos (solo el hash SHA-256 se guarda) rotados en cada `/refresh` con detección de reuso (revoca toda la cadena), `/logout` revoca, access token corto (60 min) y **rate limiting** en memoria por email + IP (login y registro → 429 con `Retry-After`). Frontend con auto-refresh transparente. Migración `V4`.
 
-Pendiente para cuando lleguen los activos: P0-4/5/6 (y el alineamiento al XSD oficial + namespace `SiiDte`). Sin gatear: P1-6 (impuestos adicionales/retenciones), P2-3 (refresh/rate-limiting) y P2-5 (contingencia/libros).
+Pendiente para cuando lleguen los activos: P0-4/5/6 (y el alineamiento al XSD oficial + namespace `SiiDte`). Sin gatear: P1-6 (impuestos adicionales/retenciones) y P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).

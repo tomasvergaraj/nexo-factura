@@ -10,7 +10,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "app")
 public record AppProperties(Jwt jwt, Cors cors, Sii sii) {
 
-    public record Jwt(String secret, long expirationMinutes) {}
+    public record Jwt(String secret, long expirationMinutes, long refreshExpirationDays) {}
 
     public record Cors(List<String> allowedOrigins) {}
 

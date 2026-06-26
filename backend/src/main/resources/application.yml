@@ -43,7 +43,18 @@ app:
     # APP_JWT_SECRET es obligatorio (al menos 32 bytes UTF-8). Sin default aqui:
     # el default de desarrollo vive solo en application-dev.yml.
     secret: ${APP_JWT_SECRET}
-    expiration-minutes: ${APP_JWT_EXPIRATION_MINUTES:480}
+    # Access token corto (con refresh token se renueva sin re-login).
+    expiration-minutes: ${APP_JWT_EXPIRATION_MINUTES:60}
+    refresh-expiration-days: ${APP_JWT_REFRESH_EXPIRATION_DAYS:14}
+  security:
+    # Rate limiting de autenticacion: cuenta intentos fallidos por email y por IP.
+    rate-limit:
+      enabled: ${APP_RATE_LIMIT_ENABLED:true}
+      max-intentos-email: ${APP_RATE_LIMIT_MAX_EMAIL:5}
+      max-intentos-ip: ${APP_RATE_LIMIT_MAX_IP:20}
+      ventana-segundos: ${APP_RATE_LIMIT_VENTANA_SEG:900}
+      bloqueo-segundos: ${APP_RATE_LIMIT_BLOQUEO_SEG:900}
+      max-entradas: ${APP_RATE_LIMIT_MAX_ENTRADAS:50000}
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
   sii:

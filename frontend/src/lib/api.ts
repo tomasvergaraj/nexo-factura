@@ -3,7 +3,7 @@
 // levantar el backend). Por defecto (false) consume la API real en /api.
 
 import axios from "axios";
-import { cerrarSesion, obtenerToken, RUTA_LOGIN } from "./auth";
+import { guardarTokens, limpiarSesion, obtenerRefreshToken, obtenerToken, RUTA_LOGIN } from "./auth";
 import {
   clientesMock, dashboardMock, documentoDetalleMock, documentosMock, foliosMock, productosMock,
   rcofMock,
@@ -26,23 +26,78 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-// Solo el 401 invalida la sesión: limpiamos y volvemos al login (evitando el
-// bucle si ya estamos ahí). Un 403 con token válido es un problema de permiso o
-// de negocio que debe manejar la página (ocultando botones por rol o mostrando
-// el error), no un motivo para cerrar sesión.
+// Rutas de auth que NUNCA deben disparar un refresh (evita recursión).
+const RUTAS_SIN_REFRESH = ["/auth/login", "/auth/refresh", "/auth/logout"];
+function esRutaAuth(url?: string): boolean {
+  return !!url && RUTAS_SIN_REFRESH.some((r) => url.includes(r));
+}
+
+// Single-flight: aunque varias peticiones reciban 401 a la vez, se hace UN solo
+// /refresh y todas reutilizan su resultado.
+let refreshEnVuelo: Promise<string> | null = null;
+
+async function refrescarToken(): Promise<string> {
+  const refreshToken = obtenerRefreshToken();
+  if (!refreshToken) throw new Error("Sin refresh token");
+  // axios "pelado" (sin estos interceptores) para que un 401 del refresh no recurse.
+  const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+  guardarTokens(data.token, data.refreshToken);
+  return data.token as string;
+}
+
+function forzarLogin() {
+  limpiarSesion();
+  if (window.location.pathname !== RUTA_LOGIN) {
+    window.location.assign(RUTA_LOGIN);
+  }
+}
+
+// 401: intentamos UN refresh y reintentamos la petición original. Si el refresh
+// falla (o ya reintentamos, o es una ruta de auth), cerramos la sesión local y
+// volvemos al login. Un 403 con token válido NO cierra sesión (lo maneja la página).
 http.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error?.response?.status;
-    if (status === 401) {
-      cerrarSesion();
-      if (window.location.pathname !== RUTA_LOGIN) {
-        window.location.assign(RUTA_LOGIN);
+    const original = error?.config;
+    const puedeRefrescar =
+      status === 401 &&
+      original &&
+      !original._retry &&
+      !esRutaAuth(original.url) &&
+      obtenerRefreshToken() != null;
+
+    if (puedeRefrescar) {
+      try {
+        refreshEnVuelo = refreshEnVuelo ?? refrescarToken();
+        const nuevoToken = await refreshEnVuelo;
+        original._retry = true;
+        original.headers = original.headers ?? {};
+        original.headers.Authorization = `Bearer ${nuevoToken}`;
+        return http(original);
+      } catch {
+        forzarLogin();
+        return Promise.reject(error);
+      } finally {
+        refreshEnVuelo = null;
       }
+    }
+
+    if (status === 401) {
+      forzarLogin();
     }
     return Promise.reject(error);
   },
 );
+
+/** Cierra sesión: revoca el refresh token en el servidor (best-effort) y limpia el estado local. */
+export function cerrarSesion() {
+  const refreshToken = obtenerRefreshToken();
+  if (refreshToken) {
+    void axios.post(`${BASE_URL}/auth/logout`, { refreshToken }).catch(() => {});
+  }
+  limpiarSesion();
+}
 
 const demora = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 

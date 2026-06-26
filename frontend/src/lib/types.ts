@@ -1,5 +1,17 @@
 // Tipos compartidos con la API (espejo de los DTOs del backend).
 
+import type { UsuarioSesion } from "./auth";
+
+/** Espejo de AuthResponse del backend (login / refresh). */
+export interface AuthResponse {
+  token: string;           // access JWT (corto)
+  tipo: string;            // "Bearer"
+  expiraEnMinutos: number; // vigencia del access
+  refreshToken: string;    // opaco, rotado en cada /refresh
+  refreshExpiraEn: string; // ISO-8601 (OffsetDateTime serializado)
+  usuario: UsuarioSesion;
+}
+
 export type EstadoDte =
   | "BORRADOR"
   | "FIRMADO"

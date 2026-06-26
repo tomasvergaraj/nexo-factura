@@ -4,6 +4,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.time.OffsetDateTime;
+
 /** DTOs del flujo de autenticacion. */
 public final class AuthDtos {
 
@@ -20,10 +22,16 @@ public final class AuthDtos {
             @NotBlank @Size(min = 8, message = "La contrasena debe tener al menos 8 caracteres") String password
     ) {}
 
+    public record RefrescarRequest(@NotBlank String refreshToken) {}
+
+    public record LogoutRequest(@NotBlank String refreshToken) {}
+
     public record AuthResponse(
             String token,
             String tipo,
             long expiraEnMinutos,
+            String refreshToken,
+            OffsetDateTime refreshExpiraEn,
             UsuarioResponse usuario
     ) {}
 
