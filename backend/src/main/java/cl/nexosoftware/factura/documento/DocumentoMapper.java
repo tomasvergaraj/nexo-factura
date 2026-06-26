@@ -1,6 +1,7 @@
 package cl.nexosoftware.factura.documento;
 
 import cl.nexosoftware.factura.documento.DocumentoDtos.*;
+import cl.nexosoftware.factura.tributario.CalculadoraImpuestos;
 
 import java.util.List;
 
@@ -20,11 +21,17 @@ public final class DocumentoMapper {
         List<ReferenciaResponse> referencias = d.getReferencias().stream()
                 .map(DocumentoMapper::toReferencia)
                 .toList();
+        // Desglose de otros impuestos: derivado del MISMO calculo determinista que el
+        // XML y los montos agregados (impuestosAdicionales/ivaRetenido) del documento.
+        List<ImpuestoResponse> impuestos = CalculadoraImpuestos.desglosarImpuestos(d.getLineas()).stream()
+                .map(i -> new ImpuestoResponse(i.codigo(), i.nombre(), i.tasa(), i.esRetencion(), i.base(), i.monto()))
+                .toList();
         return new DocumentoResponse(
                 d.getId(), d.getTipoDte(), d.getTipoDte().getCodigo(), d.getFolio(), d.getEstado(),
                 d.getFechaEmision(), d.getReceptorRut(), d.getReceptorRazonSocial(),
-                d.getNeto(), d.getExento(), d.getTasaIva(), d.getIva(), d.getTotal(),
-                d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn(), referencias, d.getSello());
+                d.getNeto(), d.getExento(), d.getTasaIva(), d.getIva(),
+                d.getImpuestosAdicionales(), d.getIvaRetenido(), d.getTotal(),
+                d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn(), referencias, impuestos, d.getSello());
     }
 
     public static DocumentoResumen toResumen(DocumentoTributario d) {
@@ -36,7 +43,7 @@ public final class DocumentoMapper {
     private static LineaResponse toLinea(LineaDetalle l) {
         return new LineaResponse(
                 l.getNumeroLinea(), l.getNombre(), l.getCantidad(), l.getUnidad(),
-                l.getPrecioUnitario(), l.getDescuentoMonto(), l.isAfecto(), l.getMontoLinea());
+                l.getPrecioUnitario(), l.getDescuentoMonto(), l.isAfecto(), l.getCodImpAdic(), l.getMontoLinea());
     }
 
     private static ReferenciaResponse toReferencia(Referencia r) {

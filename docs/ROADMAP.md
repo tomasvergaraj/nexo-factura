@@ -2,7 +2,7 @@
 
 > Documento de ingeniería derivado de una auditoría del código (no del README).
 > Distingue lo **real** de lo **simulado** y prioriza el trabajo pendiente.
-> Última actualización: 2026-06-25.
+> Última actualización: 2026-06-26.
 
 ## 1. Estado actual del sistema
 
@@ -45,7 +45,7 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 - ✅ **P1-3** Validación de dígito verificador (módulo 11) en el backend. *(Sprint 2)*
 - ✅ **P1-4** Modelo JAXB completado (bloque `Referencia` en el XML) y **validación XSD pre-firma** contra un esquema representativo (`sii/DTE.xsd`). El alineamiento al XSD oficial completo + namespace `SiiDte` queda como follow-up atado a la firma/CAF reales. *(Sprint 3)*
 - ✅ **P1-5** CRUD real en el front (Clientes/Productos/Folios) + pantalla de detalle de DTE. *(Sprint 2)*
-- P1-6 Impuestos adicionales y retenciones.
+- ✅ **P1-6** Impuestos adicionales (ILA bebidas, suntuarios) y **retención de IVA** (cambio de sujeto), modelados como bloques `ImptoReten` del DTE; catálogo representativo (`TipoImpuesto`), cálculo con agregación por código, validación XSD y solo en documentos de precios netos afectos (33/56/61). *(Sprint 4)*
 
 ### P2 — Robustez, calidad y operación
 - P2-1 `estado-sii`: pasar de GET (con efectos de escritura) a POST idempotente. **Sprint 1.**
@@ -83,4 +83,11 @@ La integración tributaria real (P0-4/5/6: firma XMLDSig con PKCS#12, FRMT + CAF
 - **P2-4** — **inmutabilidad del DTE** (`updatable=false` en los campos tributarios + **sello de integridad** SHA-256 fijado al emitir), **duplicados → 409** (`DataIntegrityViolationException`) y **`@Version`** en Empresa/Cliente/Producto (conflicto → 409). Migración `V3`.
 - **P2-3** — **sesión y seguridad**: refresh tokens opacos (solo el hash SHA-256 se guarda) rotados en cada `/refresh` con detección de reuso (revoca toda la cadena), `/logout` revoca, access token corto (60 min) y **rate limiting** en memoria por email + IP (login y registro → 429 con `Retry-After`). Frontend con auto-refresh transparente. Migración `V4`.
 
-Pendiente para cuando lleguen los activos: P0-4/5/6 (y el alineamiento al XSD oficial + namespace `SiiDte`). Sin gatear: P1-6 (impuestos adicionales/retenciones) y P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).
+Pendiente para cuando lleguen los activos: P0-4/5/6 (y el alineamiento al XSD oficial + namespace `SiiDte`). Sin gatear: P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).
+
+## 7. Hecho en el Sprint 4 (sin activos SII)
+
+Completado y verificado (ver [PROGRESS.md](PROGRESS.md)):
+- **P1-6** — **impuestos adicionales y retenciones**. Catálogo representativo (`TipoImpuesto`: ILA de bebidas alcohólicas/analcohólicas, azucaradas, suntuarios y la retención de IVA por cambio de sujeto), cálculo con base agregada por código y redondeo half-up único por código, total = neto + exento + IVA + Σ(adicionales) − Σ(retenido), emisión en el XML como bloques `ImptoReten` (después de `IVA`, antes de `MntTotal`) y `CodImpAdic` en el detalle (antes de `MontoItem`), validados contra el XSD pre-firma. Solo en documentos de precios netos afectos (33/56/61); boletas/exentos/código desconocido → 409. Migración `V5` aditiva. La verificación de fidelidad SII del workflow de diseño corrigió tres errores antes de implementar (no existe `IVARetTotal` en el DTE; `CodImpAdic` precede a `MontoItem`; códigos/tasas del catálogo).
+
+Follow-ups de P1-6: impuesto por defecto en el producto, retención parcial (`IVANoRet`) y adicionales en boletas (requiere el desglose IVA+ILA dentro del bruto y extender el RCOF); la retención de cambio de sujeto fiel requiere incorporar el tipo Factura de Compra (45).

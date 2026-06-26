@@ -71,6 +71,14 @@ public class DocumentoTributario {
     @Column(nullable = false, updatable = false)
     private long iva;
 
+    /** Suma de los impuestos adicionales (otros impuestos que SUBEN el total). */
+    @Column(name = "impuestos_adicionales", nullable = false, updatable = false)
+    private long impuestosAdicionales;
+
+    /** IVA retenido por cambio de sujeto (RESTA del total que recibe el emisor). */
+    @Column(name = "iva_retenido", nullable = false, updatable = false)
+    private long ivaRetenido;
+
     @Column(nullable = false, updatable = false)
     private long total;
 

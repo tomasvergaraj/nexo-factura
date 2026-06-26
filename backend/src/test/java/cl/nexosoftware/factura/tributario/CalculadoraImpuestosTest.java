@@ -17,6 +17,10 @@ class CalculadoraImpuestosTest {
         return LineaDetalle.builder().montoLinea(monto).afecto(afecto).build();
     }
 
+    private LineaDetalle linea(long monto, boolean afecto, Integer codImpAdic) {
+        return LineaDetalle.builder().montoLinea(monto).afecto(afecto).codImpAdic(codImpAdic).build();
+    }
+
     @Test
     @DisplayName("IVA 19% se calcula sobre el neto y se redondea al peso")
     void calculaIvaSobreNeto() {
@@ -122,5 +126,123 @@ class CalculadoraImpuestosTest {
         assertThat(tresArg.neto()).isEqualTo(10000);
         assertThat(tresArg.iva()).isEqualTo(1900);
         assertThat(tresArg.total()).isEqualTo(11900);
+    }
+
+    // ---- Otros impuestos (P1-6): adicionales y retencion de IVA ----
+
+    private static final int COD_ILA_ANALCOHOLICAS = 27; // adicional 10%
+    private static final int COD_IVA_RETENIDO = 15;      // retencion 19%
+
+    @Test
+    @DisplayName("Un impuesto adicional (ILA 10%) suma su sobretasa al total")
+    void impuestoAdicionalSumaAlTotal() {
+        var t = calculadora.calcular(List.of(linea(100000, true, COD_ILA_ANALCOHOLICAS)), 19.0);
+        assertThat(t.neto()).isEqualTo(100000);
+        assertThat(t.iva()).isEqualTo(19000);
+        assertThat(t.impuestosAdicionales()).isEqualTo(10000); // 100000 * 10%
+        assertThat(t.ivaRetenido()).isZero();
+        assertThat(t.total()).isEqualTo(129000); // 100000 + 19000 + 10000
+        assertThat(t.impuestos()).singleElement().satisfies(i -> {
+            assertThat(i.codigo()).isEqualTo(27);
+            assertThat(i.tasa()).isEqualTo(10.0);
+            assertThat(i.esRetencion()).isFalse();
+            assertThat(i.base()).isEqualTo(100000);
+            assertThat(i.monto()).isEqualTo(10000);
+        });
+    }
+
+    @Test
+    @DisplayName("La base de un mismo codigo se agrega ANTES de redondear (una sola vez)")
+    void agregaBasePorCodigoAntesDeRedondear() {
+        // Dos lineas con el mismo codigo: base = 3333 + 3334 = 6667; 10% = 666,7 -> 667.
+        // Redondear por linea daria round(333,3)+round(333,4)=333+333=666 (mal).
+        var t = calculadora.calcular(
+                List.of(linea(3333, true, COD_ILA_ANALCOHOLICAS), linea(3334, true, COD_ILA_ANALCOHOLICAS)), 19.0);
+        assertThat(t.impuestos()).singleElement().satisfies(i -> {
+            assertThat(i.base()).isEqualTo(6667);
+            assertThat(i.monto()).isEqualTo(667);
+        });
+        assertThat(t.impuestosAdicionales()).isEqualTo(667);
+    }
+
+    @Test
+    @DisplayName("El monto del adicional se redondea half-up al peso")
+    void redondeaAdicionalHalfUp() {
+        // 1995 * 10% = 199,5 -> 200 (half-up)
+        assertThat(calculadora.calcular(List.of(linea(1995, true, COD_ILA_ANALCOHOLICAS)), 19.0)
+                .impuestosAdicionales()).isEqualTo(200);
+        // 1994 * 10% = 199,4 -> 199
+        assertThat(calculadora.calcular(List.of(linea(1994, true, COD_ILA_ANALCOHOLICAS)), 19.0)
+                .impuestosAdicionales()).isEqualTo(199);
+    }
+
+    @Test
+    @DisplayName("La retencion total de IVA (cambio de sujeto) resta el IVA del total")
+    void retencionDeIvaRestaDelTotal() {
+        var t = calculadora.calcular(List.of(linea(50000, true, COD_IVA_RETENIDO)), 19.0);
+        assertThat(t.neto()).isEqualTo(50000);
+        assertThat(t.iva()).isEqualTo(9500);
+        assertThat(t.ivaRetenido()).isEqualTo(9500); // = IVA de la linea marcada (50000 * 19%)
+        assertThat(t.impuestosAdicionales()).isZero();
+        assertThat(t.total()).isEqualTo(50000); // 50000 + 9500 - 9500: el emisor no recibe el IVA
+    }
+
+    @Test
+    @DisplayName("Adicional y retencion en el mismo documento: uno suma y el otro resta")
+    void adicionalYRetencionCombinados() {
+        var t = calculadora.calcular(
+                List.of(linea(100000, true, COD_ILA_ANALCOHOLICAS), linea(50000, true, COD_IVA_RETENIDO)), 19.0);
+        assertThat(t.neto()).isEqualTo(150000);
+        assertThat(t.iva()).isEqualTo(28500); // 150000 * 19%
+        assertThat(t.impuestosAdicionales()).isEqualTo(10000); // 100000 * 10%
+        assertThat(t.ivaRetenido()).isEqualTo(9500);           // 50000 * 19%
+        assertThat(t.total()).isEqualTo(179000); // 150000 + 28500 + 10000 - 9500
+        assertThat(t.impuestos()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("Solo las lineas marcadas (y afectas) entran a la base del impuesto")
+    void soloLineasMarcadasYAfectas() {
+        // Una afecta con codigo, una afecta sin codigo, una exenta: la base es solo la primera.
+        var t = calculadora.calcular(
+                List.of(linea(100000, true, COD_ILA_ANALCOHOLICAS), linea(40000, true), linea(50000, false)), 19.0);
+        assertThat(t.neto()).isEqualTo(140000);
+        assertThat(t.exento()).isEqualTo(50000);
+        assertThat(t.impuestos()).singleElement().satisfies(i -> assertThat(i.base()).isEqualTo(100000));
+        assertThat(t.impuestosAdicionales()).isEqualTo(10000);
+        assertThat(t.total()).isEqualTo(140000 + 26600 + 50000 + 10000); // iva = 140000*19% = 26600
+    }
+
+    @Test
+    @DisplayName("Sin codigos de impuesto: agregados en cero y total igual al actual (regresion)")
+    void sinCodigosNoCambiaNada() {
+        var t = calculadora.calcular(List.of(linea(10000, true)), 19.0);
+        assertThat(t.impuestosAdicionales()).isZero();
+        assertThat(t.ivaRetenido()).isZero();
+        assertThat(t.impuestos()).isEmpty();
+        assertThat(t.total()).isEqualTo(11900);
+    }
+
+    @Test
+    @DisplayName("En precios brutos (boletas) los codigos se ignoran (defensa en profundidad)")
+    void preciosBrutosIgnoraImpuestos() {
+        // El servicio ya rechaza codigos en boletas; aqui se verifica que la calculadora
+        // no aplica adicionales en la rama bruta aunque la linea traiga un codigo.
+        var t = calculadora.calcular(List.of(linea(11900, true, COD_ILA_ANALCOHOLICAS)), 19.0, true);
+        assertThat(t.neto()).isEqualTo(10000);
+        assertThat(t.iva()).isEqualTo(1900);
+        assertThat(t.impuestosAdicionales()).isZero();
+        assertThat(t.impuestos()).isEmpty();
+        assertThat(t.total()).isEqualTo(11900);
+    }
+
+    @Test
+    @DisplayName("desglosarImpuestos es determinista y ordena por codigo ascendente")
+    void desgloseOrdenadoPorCodigo() {
+        var desglose = CalculadoraImpuestos.desglosarImpuestos(List.of(
+                linea(50000, true, COD_IVA_RETENIDO),            // 15
+                linea(100000, true, COD_ILA_ANALCOHOLICAS)));    // 27
+        assertThat(desglose).extracting(CalculadoraImpuestos.ImpuestoCalculado::codigo)
+                .containsExactly(15, 27); // orden ascendente por codigo
     }
 }

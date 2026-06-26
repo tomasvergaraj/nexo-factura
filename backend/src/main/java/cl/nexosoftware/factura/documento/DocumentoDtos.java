@@ -26,7 +26,11 @@ public final class DocumentoDtos {
             @NotNull @Positive Double cantidad,
             Long precioUnitario,
             @PositiveOrZero Long descuentoMonto,
-            Boolean afecto
+            Boolean afecto,
+            // Codigo de otro impuesto (catalogo TipoImpuesto); null = solo IVA. La
+            // validez del codigo y su compatibilidad con el tipo/linea se chequean
+            // en DocumentoService (regla de negocio, no Bean Validation).
+            Integer codImpAdic
     ) {}
 
     public record ReferenciaRequest(
@@ -45,7 +49,18 @@ public final class DocumentoDtos {
             long precioUnitario,
             long descuentoMonto,
             boolean afecto,
+            Integer codImpAdic,
             long montoLinea
+    ) {}
+
+    /** Desglose de un otro-impuesto del documento (bloque ImptoReten del XML). */
+    public record ImpuestoResponse(
+            int codigo,
+            String nombre,
+            double tasa,
+            boolean esRetencion,
+            long base,
+            long monto
     ) {}
 
     public record ReferenciaResponse(
@@ -70,12 +85,15 @@ public final class DocumentoDtos {
             long exento,
             double tasaIva,
             long iva,
+            long impuestosAdicionales,
+            long ivaRetenido,
             long total,
             String trackId,
             String observacion,
             List<LineaResponse> lineas,
             OffsetDateTime creadoEn,
             List<ReferenciaResponse> referencias,
+            List<ImpuestoResponse> impuestos,
             String sello
     ) {}
 

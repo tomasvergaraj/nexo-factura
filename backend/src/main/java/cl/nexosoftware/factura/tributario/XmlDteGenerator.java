@@ -54,6 +54,17 @@ public class XmlDteGenerator {
         tot.exento = doc.getExento();
         tot.tasaIva = doc.getTasaIva();
         tot.iva = doc.getIva();
+        // Bloque ImptoReten (otros impuestos): derivado del MISMO desglose que usa la
+        // calculadora, para que la suma de los MontoImp reconcilie con MntTotal.
+        List<ModeloDte.ImptoReten> impuestos = new ArrayList<>();
+        for (var imp : CalculadoraImpuestos.desglosarImpuestos(doc.getLineas())) {
+            ModeloDte.ImptoReten ir = new ModeloDte.ImptoReten();
+            ir.tipoImp = imp.codigo();
+            ir.tasaImp = imp.tasa();
+            ir.montoImp = imp.monto();
+            impuestos.add(ir);
+        }
+        tot.imptoReten = impuestos.isEmpty() ? null : impuestos;
         tot.total = doc.getTotal();
         enc.totales = tot;
 
@@ -69,6 +80,7 @@ public class XmlDteGenerator {
             d.precioUnitario = l.getPrecioUnitario();
             d.descuento = l.getDescuentoMonto();
             d.indicadorExento = l.isAfecto() ? null : 1;
+            d.codImpAdic = l.getCodImpAdic();
             d.montoItem = l.getMontoLinea();
             detalles.add(d);
         }

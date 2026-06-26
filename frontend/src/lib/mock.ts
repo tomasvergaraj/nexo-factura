@@ -45,15 +45,18 @@ export const documentoDetalleMock: DocumentoResponse = {
   exento: 0,
   tasaIva: 19,
   iva: 266000,
+  impuestosAdicionales: 0,
+  ivaRetenido: 0,
   trackId: "5829134",
   observacion: null,
   creadoEn: "2026-06-23T10:24:00Z",
   lineas: [
-    { numeroLinea: 1, nombre: "Desarrollo de landing page", cantidad: 1, unidad: "UN", precioUnitario: 450000, descuentoMonto: 0, afecto: true, montoLinea: 450000 },
-    { numeroLinea: 2, nombre: "Plan de soporte mensual", cantidad: 3, unidad: "MES", precioUnitario: 120000, descuentoMonto: 0, afecto: true, montoLinea: 360000 },
-    { numeroLinea: 3, nombre: "Hora de desarrollo", cantidad: 23.6, unidad: "HRA", precioUnitario: 25000, descuentoMonto: 0, afecto: true, montoLinea: 590000 },
+    { numeroLinea: 1, nombre: "Desarrollo de landing page", cantidad: 1, unidad: "UN", precioUnitario: 450000, descuentoMonto: 0, afecto: true, codImpAdic: null, montoLinea: 450000 },
+    { numeroLinea: 2, nombre: "Plan de soporte mensual", cantidad: 3, unidad: "MES", precioUnitario: 120000, descuentoMonto: 0, afecto: true, codImpAdic: null, montoLinea: 360000 },
+    { numeroLinea: 3, nombre: "Hora de desarrollo", cantidad: 23.6, unidad: "HRA", precioUnitario: 25000, descuentoMonto: 0, afecto: true, codImpAdic: null, montoLinea: 590000 },
   ],
   referencias: [],
+  impuestos: [],
   sello: "3a7bd3e2360a3d5f1f2e4b8c9d0e1a2b3c4d5e6f70819a2b3c4d5e6f7a8b9c0d1",
 };
 

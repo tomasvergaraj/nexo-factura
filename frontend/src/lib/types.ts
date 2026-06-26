@@ -48,7 +48,19 @@ export interface LineaResponse {
   precioUnitario: number;
   descuentoMonto: number;
   afecto: boolean;
+  /** Código del otro impuesto de la línea (catálogo CATALOGO_IMPUESTOS); null = solo IVA. */
+  codImpAdic: number | null;
   montoLinea: number;
+}
+
+/** Desglose de un otro-impuesto del documento (espejo de ImpuestoResponse del backend). */
+export interface ImpuestoResponse {
+  codigo: number;
+  nombre: string;
+  tasa: number;
+  esRetencion: boolean;
+  base: number;
+  monto: number;
 }
 
 export type TipoReferencia = "ANULA_DOCUMENTO" | "CORRIGE_TEXTO" | "CORRIGE_MONTO";
@@ -82,11 +94,17 @@ export interface DocumentoResponse extends DocumentoResumen {
   exento: number;
   tasaIva: number;
   iva: number;
+  /** Suma de impuestos adicionales (suben el total). */
+  impuestosAdicionales: number;
+  /** IVA retenido por cambio de sujeto (resta del total). */
+  ivaRetenido: number;
   trackId: string | null;
   observacion: string | null;
   lineas: LineaResponse[];
   creadoEn: string;
   referencias: ReferenciaResponse[];
+  /** Desglose de otros impuestos (bloques ImptoReten del XML). */
+  impuestos: ImpuestoResponse[];
   /** Sello de integridad (SHA-256 del XML firmado); null mientras es borrador. */
   sello: string | null;
 }
@@ -198,6 +216,46 @@ export const ES_BOLETA: Record<TipoDte, boolean> = {
 
 export const RUT_CONSUMIDOR_FINAL = "66666666-6";
 export const RAZON_CONSUMIDOR_FINAL = "Consumidor final";
+
+// ---- Otros impuestos (P1-6): adicionales y retención de IVA ----
+
+export interface ImpuestoCatalogo {
+  codigo: number;
+  nombre: string;
+  tasa: number;
+  esRetencion: boolean;
+}
+
+/**
+ * Catálogo REPRESENTATIVO de otros impuestos, espejo EXACTO del enum TipoImpuesto
+ * del backend (mismos códigos/tasas). Fuente del selector y del cálculo en vivo.
+ */
+export const CATALOGO_IMPUESTOS: ImpuestoCatalogo[] = [
+  { codigo: 23, nombre: "Impuesto adicional artículos suntuarios", tasa: 15, esRetencion: false },
+  { codigo: 24, nombre: "ILA licores, piscos, whisky y destilados", tasa: 31.5, esRetencion: false },
+  { codigo: 25, nombre: "ILA vinos, espumosos y sidras", tasa: 20.5, esRetencion: false },
+  { codigo: 26, nombre: "ILA cervezas y otras bebidas alcohólicas", tasa: 20.5, esRetencion: false },
+  { codigo: 27, nombre: "ILA bebidas analcohólicas y minerales", tasa: 10, esRetencion: false },
+  { codigo: 271, nombre: "ILA bebidas analcohólicas azucaradas", tasa: 18, esRetencion: false },
+  { codigo: 15, nombre: "IVA retenido total (cambio de sujeto)", tasa: 19, esRetencion: true },
+];
+
+export const IMPUESTO_POR_CODIGO: Record<number, ImpuestoCatalogo> = Object.fromEntries(
+  CATALOGO_IMPUESTOS.map((i) => [i.codigo, i]),
+);
+
+/**
+ * Tipos que admiten otros impuestos: solo precios netos y afectos (33/56/61),
+ * espejo de `!preciosBrutos() && esAfecto()` del backend.
+ */
+export const PERMITE_IMPUESTOS: Record<TipoDte, boolean> = {
+  FACTURA_AFECTA: true,
+  FACTURA_EXENTA: false,
+  BOLETA_AFECTA: false,
+  BOLETA_EXENTA: false,
+  NOTA_DEBITO: true,
+  NOTA_CREDITO: true,
+};
 
 /** Reverse lookup: código SII → TipoDte (el RCOF entrega el tipo como código numérico). */
 export const TIPO_DTE_POR_CODIGO: Record<number, TipoDte> = Object.fromEntries(

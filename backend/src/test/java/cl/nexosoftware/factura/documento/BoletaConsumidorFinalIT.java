@@ -56,7 +56,7 @@ class BoletaConsumidorFinalIT extends AbstractIntegrationTest {
     void boletaSinClienteUsaConsumidorFinal() {
         DocumentoResponse boleta = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.BOLETA_AFECTA, null, null, "Boleta consumidor final",
-                List.of(new LineaRequest(null, "Cafe", 1.0, 11900L, null, true)),
+                List.of(new LineaRequest(null, "Cafe", 1.0, 11900L, null, true, null)),
                 null));
 
         assertThat(boleta.receptorRut()).isEqualTo("66666666-6");
@@ -72,7 +72,7 @@ class BoletaConsumidorFinalIT extends AbstractIntegrationTest {
     void boletaAfectaDesglosaBruto() {
         DocumentoResponse boleta = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.BOLETA_AFECTA, null, null, null,
-                List.of(new LineaRequest(null, "Producto bruto", 1.0, 11900L, null, true)),
+                List.of(new LineaRequest(null, "Producto bruto", 1.0, 11900L, null, true, null)),
                 null));
 
         assertThat(boleta.neto()).isEqualTo(10000);
@@ -86,7 +86,7 @@ class BoletaConsumidorFinalIT extends AbstractIntegrationTest {
     void boletaExentaSoloExento() {
         DocumentoResponse boleta = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.BOLETA_EXENTA, null, null, null,
-                List.of(new LineaRequest(null, "Servicio exento", 1.0, 8000L, null, false)),
+                List.of(new LineaRequest(null, "Servicio exento", 1.0, 8000L, null, false, null)),
                 null));
 
         assertThat(boleta.neto()).isZero();
@@ -101,7 +101,7 @@ class BoletaConsumidorFinalIT extends AbstractIntegrationTest {
     void facturaSinClienteFalla() {
         CrearDocumentoRequest req = new CrearDocumentoRequest(
                 TipoDte.FACTURA_AFECTA, null, null, null,
-                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, null)),
                 null);
 
         assertThatThrownBy(() -> documentoService.crear(empresaId, req))
@@ -113,7 +113,7 @@ class BoletaConsumidorFinalIT extends AbstractIntegrationTest {
     void facturaConClienteOk() {
         DocumentoResponse factura = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.FACTURA_AFECTA, clienteId, null, null,
-                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, null)),
                 null));
 
         assertThat(factura.receptorRut()).isEqualTo("77111222-3");

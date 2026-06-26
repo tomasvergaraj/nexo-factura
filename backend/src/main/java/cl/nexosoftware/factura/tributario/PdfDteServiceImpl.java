@@ -160,6 +160,15 @@ public class PdfDteServiceImpl implements PdfDteService {
         if (doc.getExento() > 0) fila(montos, "Exento", doc.getExento(), false);
         fila(montos, "Neto", doc.getNeto(), false);
         fila(montos, "IVA " + (int) doc.getTasaIva() + "%", doc.getIva(), false);
+        // Otros impuestos (P1-6): un renglon por codigo. Los adicionales suman (+),
+        // la retencion de IVA resta (-), para que el TOTAL cuadre con lo visible.
+        for (var imp : CalculadoraImpuestos.desglosarImpuestos(doc.getLineas())) {
+            if (imp.esRetencion()) {
+                filaTexto(montos, "IVA retenido", "-$" + CLP.format(imp.monto()), false);
+            } else {
+                fila(montos, "Imp. adicional " + imp.codigo() + " (" + fmt(imp.tasa()) + "%)", imp.monto(), false);
+            }
+        }
         fila(montos, "TOTAL", doc.getTotal(), true);
         PdfPCell cont = new PdfPCell(montos);
         cont.setBorder(Rectangle.NO_BORDER);
@@ -205,12 +214,16 @@ public class PdfDteServiceImpl implements PdfDteService {
 
     // ---- helpers ----
     private void fila(PdfPTable t, String etiqueta, long valor, boolean destacado) {
+        filaTexto(t, etiqueta, "$" + CLP.format(valor), destacado);
+    }
+
+    private void filaTexto(PdfPTable t, String etiqueta, String valorTexto, boolean destacado) {
         Font f = destacado ? font(11, Font.BOLD, COBALTO) : font(9, Font.NORMAL, Color.BLACK);
         PdfPCell e = new PdfPCell(new Phrase(etiqueta, f));
         e.setHorizontalAlignment(Element.ALIGN_LEFT);
         e.setBorder(destacado ? Rectangle.TOP : Rectangle.NO_BORDER);
         e.setPadding(4f);
-        PdfPCell v = new PdfPCell(new Phrase("$" + CLP.format(valor), f));
+        PdfPCell v = new PdfPCell(new Phrase(valorTexto, f));
         v.setHorizontalAlignment(Element.ALIGN_RIGHT);
         v.setBorder(destacado ? Rectangle.TOP : Rectangle.NO_BORDER);
         v.setPadding(4f);

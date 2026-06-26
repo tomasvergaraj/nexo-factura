@@ -44,6 +44,14 @@ public class LineaDetalle {
     @Column(nullable = false)
     private boolean afecto;
 
+    /**
+     * Codigo del otro impuesto que afecta a la linea (catalogo {@link
+     * cl.nexosoftware.factura.tributario.TipoImpuesto}); null = solo IVA estandar.
+     * Solo aplica a lineas afectas de documentos de precios netos (facturas/notas).
+     */
+    @Column(name = "cod_imp_adic")
+    private Integer codImpAdic;
+
     /** Monto de la linea = cantidad * precioUnitario - descuento. */
     @Column(name = "monto_linea", nullable = false)
     private long montoLinea;

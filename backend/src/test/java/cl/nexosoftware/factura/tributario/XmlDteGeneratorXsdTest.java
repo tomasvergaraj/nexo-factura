@@ -38,6 +38,53 @@ class XmlDteGeneratorXsdTest {
 
         assertThatCode(() -> validator.validar(xml)).doesNotThrowAnyException();
         assertThat(xml).contains("<QtyItem>1.0</QtyItem>").contains("<TasaIVA>19.0</TasaIVA>");
+        // Regresion: una factura sin otros impuestos no emite ImptoReten ni CodImpAdic.
+        assertThat(xml).doesNotContain("<ImptoReten>").doesNotContain("<CodImpAdic>");
+    }
+
+    @Test
+    @DisplayName("una factura con impuesto adicional marshalla ImptoReten/CodImpAdic en orden y cumple el XSD")
+    void facturaConImpuestoAdicionalEsValida() {
+        Empresa emisor = emisor();
+        DocumentoTributario doc = factura(emisor, 1.0, 100000L, true);
+        doc.getLineas().get(0).setCodImpAdic(27); // ILA analcoholicas 10%
+        doc.setImpuestosAdicionales(10000);
+        doc.setTotal(doc.getNeto() + doc.getIva() + 10000); // 100000 + 19000 + 10000
+        String xml = generar(doc, emisor);
+
+        assertThatCode(() -> validator.validar(xml)).doesNotThrowAnyException();
+        assertThat(xml)
+                .contains("<CodImpAdic>27</CodImpAdic>")
+                .contains("<TipoImp>27</TipoImp>")
+                .contains("<TasaImp>10.0</TasaImp>")
+                .contains("<MontoImp>10000</MontoImp>");
+        // Orden en Totales: IVA < ImptoReten < MntTotal.
+        assertThat(xml.indexOf("<IVA>")).isLessThan(xml.indexOf("<ImptoReten>"));
+        assertThat(xml.indexOf("<ImptoReten>")).isLessThan(xml.indexOf("<MntTotal>"));
+        // Orden interno del bloque: TipoImp < TasaImp < MontoImp.
+        assertThat(xml.indexOf("<TipoImp>")).isLessThan(xml.indexOf("<TasaImp>"));
+        assertThat(xml.indexOf("<TasaImp>")).isLessThan(xml.indexOf("<MontoImp>"));
+        // Orden en Detalle: DescuentoMonto < CodImpAdic < MontoItem.
+        assertThat(xml.indexOf("<DescuentoMonto>")).isLessThan(xml.indexOf("<CodImpAdic>"));
+        assertThat(xml.indexOf("<CodImpAdic>")).isLessThan(xml.indexOf("<MontoItem>"));
+    }
+
+    @Test
+    @DisplayName("una factura con retencion de IVA emite ImptoReten (TipoImp 15) y cumple el XSD")
+    void facturaConRetencionEsValida() {
+        Empresa emisor = emisor();
+        DocumentoTributario doc = factura(emisor, 1.0, 50000L, true);
+        doc.getLineas().get(0).setCodImpAdic(15); // IVA retenido total 19%
+        doc.setIvaRetenido(9500);
+        doc.setTotal(doc.getNeto()); // 50000 + 9500 - 9500
+        String xml = generar(doc, emisor);
+
+        assertThatCode(() -> validator.validar(xml)).doesNotThrowAnyException();
+        assertThat(xml)
+                .contains("<TipoImp>15</TipoImp>")
+                .contains("<TasaImp>19.0</TasaImp>")
+                .contains("<MontoImp>9500</MontoImp>")
+                .contains("<CodImpAdic>15</CodImpAdic>");
     }
 
     @Test

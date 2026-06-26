@@ -167,6 +167,8 @@ export interface NuevaLinea {
   precioUnitario: number;
   descuentoMonto: number;
   afecto: boolean;
+  /** Código del otro impuesto (catálogo CATALOGO_IMPUESTOS); omitido = solo IVA. */
+  codImpAdic?: number;
 }
 
 export async function crearDocumento(

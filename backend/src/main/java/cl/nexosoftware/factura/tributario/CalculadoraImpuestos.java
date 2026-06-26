@@ -3,7 +3,9 @@ package cl.nexosoftware.factura.tributario;
 import cl.nexosoftware.factura.documento.LineaDetalle;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 
 /**
  * Calculo de totales de un DTE en pesos chilenos (enteros).
@@ -15,8 +17,14 @@ import java.util.List;
  * Para boletas (precios brutos, IVA incluido): las lineas afectas ya traen el IVA
  * dentro, asi que el neto se desglosa del total afecto (neto = total/(1+tasa)) y el
  * IVA es la diferencia (iva = totalAfecto - neto), garantizando neto+iva == bruto
- * exactamente sin un segundo redondeo. Es deterministico y sin estado para poder
- * cubrirlo con tests unitarios.
+ * exactamente sin un segundo redondeo.
+ *
+ * Otros impuestos (P1-6, solo precios netos): cada linea afecta puede referenciar
+ * un codigo del catalogo {@link TipoImpuesto}. La base de cada impuesto se AGREGA
+ * por codigo (suma del monto neto de las lineas marcadas) y se redondea UNA sola
+ * vez (half-up) para casar 1:1 con el bloque ImptoReten del XML. Los adicionales
+ * suman al total; la retencion de IVA lo resta. Es deterministico y sin estado
+ * para poder cubrirlo con tests unitarios.
  */
 @Component
 public class CalculadoraImpuestos {
@@ -46,8 +54,49 @@ public class CalculadoraImpuestos {
             neto = afecto;
             iva = Math.round(neto * (tasaIva / 100.0));
         }
-        long total = neto + iva + exento;
-        return new Totales(neto, exento, tasaIva, iva, total);
+
+        // Otros impuestos: solo en documentos de precios netos (facturas/notas). En
+        // boletas el desglose es vacio (la regla de negocio ya rechaza codigos alli).
+        List<ImpuestoCalculado> impuestos = preciosBrutos ? List.of() : desglosarImpuestos(lineas);
+        long adicionales = 0;
+        long retenido = 0;
+        for (ImpuestoCalculado imp : impuestos) {
+            if (imp.esRetencion()) {
+                retenido += imp.monto();
+            } else {
+                adicionales += imp.monto();
+            }
+        }
+
+        long total = neto + iva + exento + adicionales - retenido;
+        return new Totales(neto, exento, tasaIva, iva, adicionales, retenido, total, impuestos);
+    }
+
+    /**
+     * Desglosa los otros impuestos de un conjunto de lineas: agrega la base (monto
+     * neto) por codigo de impuesto sobre las lineas AFECTAS marcadas y redondea el
+     * monto una sola vez por codigo (half-up). Devuelve la lista ordenada por codigo
+     * (determinista). Es {@code static} y puro para que el generador de XML y el
+     * mapper de respuesta deriven exactamente el mismo desglose sin recalcular logica.
+     */
+    public static List<ImpuestoCalculado> desglosarImpuestos(List<LineaDetalle> lineas) {
+        // TreeMap: orden por codigo ascendente -> XML/tests deterministas.
+        TreeMap<Integer, Long> basePorCodigo = new TreeMap<>();
+        for (LineaDetalle l : lineas) {
+            Integer cod = l.getCodImpAdic();
+            if (cod == null || !l.isAfecto()) {
+                continue;
+            }
+            basePorCodigo.merge(cod, l.getMontoLinea(), Long::sum);
+        }
+        List<ImpuestoCalculado> out = new ArrayList<>();
+        for (var e : basePorCodigo.entrySet()) {
+            TipoImpuesto t = TipoImpuesto.desdeCodigo(e.getKey());
+            long base = e.getValue();
+            long monto = Math.round(base * (t.getTasa() / 100.0));
+            out.add(new ImpuestoCalculado(t.getCodigo(), t.getNombre(), t.getTasa(), t.esRetencion(), base, monto));
+        }
+        return out;
     }
 
     /** Monto de una linea = cantidad * precioUnitario - descuento (>= 0). */
@@ -56,5 +105,11 @@ public class CalculadoraImpuestos {
         return Math.max(0, bruto - descuento);
     }
 
-    public record Totales(long neto, long exento, double tasaIva, long iva, long total) {}
+    public record Totales(long neto, long exento, double tasaIva, long iva,
+                          long impuestosAdicionales, long ivaRetenido, long total,
+                          List<ImpuestoCalculado> impuestos) {}
+
+    /** Desglose de un otro-impuesto por codigo: base agregada y monto redondeado. */
+    public record ImpuestoCalculado(int codigo, String nombre, double tasa, boolean esRetencion,
+                                    long base, long monto) {}
 }

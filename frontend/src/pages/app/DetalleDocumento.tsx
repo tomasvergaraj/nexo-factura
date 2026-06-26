@@ -210,6 +210,9 @@ export function DetalleDocumento() {
                   <td className="px-4 py-3.5 text-ink">
                     {l.nombre}
                     {!l.afecto && <span className="ml-2 text-xs text-slate-soft">(exento)</span>}
+                    {l.codImpAdic != null && (
+                      <span className="ml-2 text-xs text-slate-soft">· imp. {l.codImpAdic}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 text-right text-slate tnum">{l.cantidad} {l.unidad}</td>
                   <td className="px-4 py-3.5 text-right text-slate tnum">{formatCLP(l.precioUnitario)}</td>
@@ -224,6 +227,13 @@ export function DetalleDocumento() {
               <Total label="Neto" valor={formatCLP(doc.neto)} />
               {doc.exento > 0 && <Total label="Exento" valor={formatCLP(doc.exento)} />}
               <Total label={`IVA ${doc.tasaIva}%`} valor={formatCLP(doc.iva)} />
+              {doc.impuestos.map((imp) =>
+                imp.esRetencion ? (
+                  <Total key={imp.codigo} label="IVA retenido" valor={`-${formatCLP(imp.monto)}`} />
+                ) : (
+                  <Total key={imp.codigo} label={`Imp. adicional ${imp.codigo} (${imp.tasa}%)`} valor={formatCLP(imp.monto)} />
+                ),
+              )}
               <div className="flex items-center justify-between border-t border-line pt-2.5">
                 <span className="font-semibold text-ink">Total</span>
                 <span className="font-display text-lg font-semibold text-cobalt tnum">{formatCLP(doc.total)}</span>

@@ -3,6 +3,7 @@ package cl.nexosoftware.factura.documento;
 import cl.nexosoftware.factura.AbstractIntegrationTest;
 import cl.nexosoftware.factura.cliente.Cliente;
 import cl.nexosoftware.factura.cliente.ClienteRepository;
+import cl.nexosoftware.factura.common.exception.ReglaNegocioException;
 import cl.nexosoftware.factura.documento.DocumentoDtos.*;
 import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaRepository;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -93,7 +95,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     void emitirBoletaConsumidorFinalProduceXmlValido() {
         DocumentoResponse boleta = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.BOLETA_AFECTA, null, null, null,
-                List.of(new LineaRequest(null, "Cafe", 1.0, 11900L, null, true)),
+                List.of(new LineaRequest(null, "Cafe", 1.0, 11900L, null, true, null)),
                 null));
         documentoService.emitir(empresaId, boleta.id());
 
@@ -107,7 +109,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     void emitirBoletaExentaProduceXmlValido() {
         DocumentoResponse boleta = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.BOLETA_EXENTA, null, null, null,
-                List.of(new LineaRequest(null, "Servicio exento", 1.0, 8000L, null, false)),
+                List.of(new LineaRequest(null, "Servicio exento", 1.0, 8000L, null, false, null)),
                 null));
         documentoService.emitir(empresaId, boleta.id());
 
@@ -125,7 +127,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
 
         CrearDocumentoRequest ncReq = new CrearDocumentoRequest(
                 TipoDte.NOTA_CREDITO, clienteId, aceptado.fechaEmision(), "Anula factura",
-                List.of(new LineaRequest(null, "Anula factura", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Anula factura", 1.0, 10000L, null, true, null)),
                 List.of(new ReferenciaRequest(
                         TipoDte.FACTURA_AFECTA.getCodigo(),
                         aceptado.folio(),
@@ -139,6 +141,67 @@ class EmisionXsdIT extends AbstractIntegrationTest {
         assertThat(xml).contains("<Referencia>")
                 .contains("<TpoDocRef>33</TpoDocRef>")
                 .contains("<CodRef>1</CodRef>");
+    }
+
+    @Test
+    @DisplayName("emitir una factura con impuesto adicional y retencion produce ImptoReten valido")
+    void emitirFacturaConOtrosImpuestosProduceXmlValido() {
+        DocumentoResponse factura = documentoService.crear(empresaId, new CrearDocumentoRequest(
+                TipoDte.FACTURA_AFECTA, clienteId, null, "Factura con otros impuestos",
+                List.of(
+                        new LineaRequest(null, "Cerveza", 1.0, 100000L, null, true, 26),   // ILA 20,5%
+                        new LineaRequest(null, "Servicio cambio sujeto", 1.0, 50000L, null, true, 15)), // retencion 19%
+                null));
+
+        // neto=150000, iva=28500, adicional=round(100000*20,5%)=20500, retenido=round(50000*19%)=9500
+        assertThat(factura.impuestosAdicionales()).isEqualTo(20500);
+        assertThat(factura.ivaRetenido()).isEqualTo(9500);
+        assertThat(factura.total()).isEqualTo(150000 + 28500 + 20500 - 9500); // 189500
+        assertThat(factura.impuestos()).hasSize(2);
+
+        documentoService.emitir(empresaId, factura.id());
+        String xml = xmlDe(factura.id());
+        assertThat(xml)
+                .contains("<ImptoReten>")
+                .contains("<TipoImp>26</TipoImp>").contains("<TipoImp>15</TipoImp>")
+                .contains("<CodImpAdic>26</CodImpAdic>").contains("<CodImpAdic>15</CodImpAdic>");
+
+        // El total persistido (y por ende el MNT del TED) refleja adicionales y retencion.
+        DocumentoTributario emitido = documentoRepository.findById(factura.id()).orElseThrow();
+        assertThat(emitido.getTotal()).isEqualTo(189500);
+    }
+
+    @Test
+    @DisplayName("una boleta con codigo de otro impuesto es rechazada (solo facturas/notas)")
+    void boletaConOtroImpuestoEsRechazada() {
+        CrearDocumentoRequest req = new CrearDocumentoRequest(
+                TipoDte.BOLETA_AFECTA, null, null, null,
+                List.of(new LineaRequest(null, "Cerveza", 1.0, 11900L, null, true, 26)),
+                null);
+        assertThatThrownBy(() -> documentoService.crear(empresaId, req))
+                .isInstanceOf(ReglaNegocioException.class);
+    }
+
+    @Test
+    @DisplayName("un otro impuesto en una linea exenta es rechazado")
+    void otroImpuestoEnLineaExentaEsRechazado() {
+        CrearDocumentoRequest req = new CrearDocumentoRequest(
+                TipoDte.FACTURA_AFECTA, clienteId, null, null,
+                List.of(new LineaRequest(null, "Exento", 1.0, 10000L, null, false, 26)),
+                null);
+        assertThatThrownBy(() -> documentoService.crear(empresaId, req))
+                .isInstanceOf(ReglaNegocioException.class);
+    }
+
+    @Test
+    @DisplayName("un codigo de otro impuesto desconocido es rechazado")
+    void codigoDeImpuestoDesconocidoEsRechazado() {
+        CrearDocumentoRequest req = new CrearDocumentoRequest(
+                TipoDte.FACTURA_AFECTA, clienteId, null, null,
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, 999)),
+                null);
+        assertThatThrownBy(() -> documentoService.crear(empresaId, req))
+                .isInstanceOf(ReglaNegocioException.class);
     }
 
     @Test
@@ -171,7 +234,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     private DocumentoResponse crearFactura() {
         return documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.FACTURA_AFECTA, clienteId, null, "Factura de prueba",
-                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, null)),
                 null));
     }
 

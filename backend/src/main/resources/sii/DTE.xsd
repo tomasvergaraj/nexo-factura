@@ -134,14 +134,29 @@
 
   <!-- Montos como xs:long (no nonNegativeInteger): una nota de credito/correccion
        puede arrojar montos negativos validos a nivel SII. TasaIVA es xs:decimal
-       (JAXB marshalla el double como "19.0"). -->
+       (JAXB marshalla el double como "19.0"). ImptoReten (P1-6): bloque repetible
+       de otros impuestos, DESPUES de IVA y ANTES de MntTotal. minOccurs=0 preserva
+       la validez de los DTE actuales (sin otros impuestos). El DTE NO tiene
+       IVARetTotal: tanto adicionales como retenciones viajan como ImptoReten. -->
   <xs:complexType name="TotalesType">
     <xs:sequence>
       <xs:element name="MntNeto" type="xs:long"/>
       <xs:element name="MntExe" type="xs:long"/>
       <xs:element name="TasaIVA" type="xs:decimal"/>
       <xs:element name="IVA" type="xs:long"/>
+      <xs:element name="ImptoReten" type="ImptoRetenType" minOccurs="0" maxOccurs="unbounded"/>
       <xs:element name="MntTotal" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ImptoReten (NUEVO en P1-6). TipoImp es xs:int (no enum): el codigo se valida
+       en la capa de negocio contra el catalogo TipoImpuesto, igual criterio que
+       TpoDocRef. TasaImp es xs:decimal (PlainDecimalAdapter -> "10.0", "20.5"...). -->
+  <xs:complexType name="ImptoRetenType">
+    <xs:sequence>
+      <xs:element name="TipoImp" type="xs:int"/>
+      <xs:element name="TasaImp" type="xs:decimal"/>
+      <xs:element name="MontoImp" type="xs:long"/>
     </xs:sequence>
   </xs:complexType>
 
@@ -157,6 +172,10 @@
       <xs:element name="DescuentoMonto" type="xs:long"/>
       <!-- IndExe: presente solo en lineas exentas (valor 1); omitido en afectas. -->
       <xs:element name="IndExe" type="IndExeType" minOccurs="0"/>
+      <!-- CodImpAdic (P1-6): codigo del otro impuesto de la linea. Va ANTES de
+           MontoItem (campo 37 vs 38 del esquema oficial). minOccurs=0: las lineas
+           sin otro impuesto (todo el corpus actual) lo omiten. -->
+      <xs:element name="CodImpAdic" type="xs:int" minOccurs="0"/>
       <xs:element name="MontoItem" type="xs:long"/>
     </xs:sequence>
   </xs:complexType>

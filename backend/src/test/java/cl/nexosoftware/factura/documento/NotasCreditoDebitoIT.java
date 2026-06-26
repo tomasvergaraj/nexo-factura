@@ -87,7 +87,7 @@ class NotasCreditoDebitoIT extends AbstractIntegrationTest {
                 clienteId,
                 null,
                 "NC sin referencia",
-                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, null)),
                 null);
 
         assertThatThrownBy(() -> documentoService.crear(empresaId, req))
@@ -111,7 +111,7 @@ class NotasCreditoDebitoIT extends AbstractIntegrationTest {
                 clienteId,
                 aceptado.fechaEmision(),
                 "Anulacion de factura",
-                List.of(new LineaRequest(null, "Anula factura", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Anula factura", 1.0, 10000L, null, true, null)),
                 List.of(new ReferenciaRequest(
                         TipoDte.FACTURA_AFECTA.getCodigo(),
                         folioOriginal,
@@ -134,7 +134,7 @@ class NotasCreditoDebitoIT extends AbstractIntegrationTest {
                 clienteId,
                 null,
                 "Factura de prueba",
-                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, null)),
                 null);
         return documentoService.crear(empresaId, req);
     }

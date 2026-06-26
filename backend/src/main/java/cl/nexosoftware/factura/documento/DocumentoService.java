@@ -109,6 +109,7 @@ public class DocumentoService {
         }
 
         validarReferenciasDeNota(doc);
+        validarImpuestos(doc);
 
         aplicarTotales(doc);
         documentoRepository.save(doc);
@@ -240,8 +241,36 @@ public class DocumentoService {
                 .precioUnitario(precio)
                 .descuentoMonto(descuento)
                 .afecto(afecto)
+                .codImpAdic(lr.codImpAdic())
                 .montoLinea(monto)
                 .build();
+    }
+
+    /**
+     * Valida los otros impuestos (P1-6). Solo se admiten en documentos de precios
+     * netos y afectos (factura afecta 33, notas 56/61), sobre lineas afectas, y con
+     * un codigo presente en el catalogo {@link TipoImpuesto}. Cualquier otro caso es
+     * regla de negocio violada (-&gt; 409).
+     */
+    private void validarImpuestos(DocumentoTributario doc) {
+        boolean permitido = !doc.getTipoDte().preciosBrutos() && doc.getTipoDte().esAfecto();
+        for (LineaDetalle l : doc.getLineas()) {
+            Integer cod = l.getCodImpAdic();
+            if (cod == null) {
+                continue;
+            }
+            if (!permitido) {
+                throw new ReglaNegocioException(
+                        "Los impuestos adicionales/retenciones no se admiten en "
+                                + doc.getTipoDte().getDescripcion());
+            }
+            if (!l.isAfecto()) {
+                throw new ReglaNegocioException("Un impuesto adicional solo aplica a lineas afectas");
+            }
+            if (!TipoImpuesto.existe(cod)) {
+                throw new ReglaNegocioException("Codigo de impuesto desconocido: " + cod);
+            }
+        }
     }
 
     /**
@@ -306,6 +335,8 @@ public class DocumentoService {
         doc.setNeto(t.neto());
         doc.setExento(t.exento());
         doc.setIva(t.iva());
+        doc.setImpuestosAdicionales(t.impuestosAdicionales());
+        doc.setIvaRetenido(t.ivaRetenido());
         doc.setTotal(t.total());
     }
 

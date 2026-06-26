@@ -74,7 +74,23 @@ public final class ModeloDte {
         // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
         @XmlElement(name = "TasaIVA") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double tasaIva;
         @XmlElement(name = "IVA") public long iva;
+        // Otros impuestos (adicionales y retenciones): bloque repetible, DESPUES de
+        // IVA y ANTES de MntTotal. Null/vacio -> JAXB no emite ningun nodo.
+        @XmlElement(name = "ImptoReten") public List<ImptoReten> imptoReten;
         @XmlElement(name = "MntTotal") public long total;
+    }
+
+    /**
+     * Bloque de otro impuesto en Totales (TipoImp/TasaImp/MontoImp). Representa tanto
+     * impuestos adicionales como la retencion de IVA; el signo en MntTotal lo decide
+     * el catalogo, no el XML (el DTE no tiene IVARetTotal).
+     */
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class ImptoReten {
+        @XmlElement(name = "TipoImp") public int tipoImp;
+        // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
+        @XmlElement(name = "TasaImp") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double tasaImp;
+        @XmlElement(name = "MontoImp") public long montoImp;
     }
 
     @XmlAccessorType(XmlAccessType.FIELD)
@@ -87,6 +103,9 @@ public final class ModeloDte {
         @XmlElement(name = "PrcItem") public long precioUnitario;
         @XmlElement(name = "DescuentoMonto") public long descuento;
         @XmlElement(name = "IndExe") public Integer indicadorExento;
+        // Codigo del otro impuesto de la linea: va ANTES de MontoItem (campo 37 vs 38
+        // del esquema oficial). Null -> JAXB lo omite.
+        @XmlElement(name = "CodImpAdic") public Integer codImpAdic;
         @XmlElement(name = "MontoItem") public long montoItem;
     }
 

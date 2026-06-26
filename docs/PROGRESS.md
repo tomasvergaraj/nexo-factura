@@ -1,6 +1,6 @@
 # Progreso
 
-> Fecha: 2026-06-26. Sprints 1, 2 y 3 **completados y verificados** (el Sprint 3 cubre lo que no depende de certificado/CAF reales).
+> Fecha: 2026-06-26. Sprints 1, 2, 3 y 4 **completados y verificados** (todo lo que no depende de certificado/CAF reales).
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -174,5 +174,40 @@ La integración tributaria real (firma XMLDSig, FRMT + CAF, SII) sigue **gateada
 
 > Casos de redondeo clave cubiertos: `11900→10000/1900`, `100→84/16`, `999→839/160`, `9999→8403/1596` (donde el re-redondeo ingenuo daría 159/1597), boleta mixta afecto+exento y la equivalencia de la sobrecarga sin flag con el cálculo neto.
 
+# Sprint 4 (P1-6, sin activos SII)
+
+## Resumen
+Se completó **P1-6 — impuestos adicionales y retenciones**, verificable sin certificado/CAF reales: un catálogo representativo de otros impuestos (ILA de bebidas, suntuarios) y la **retención de IVA por cambio de sujeto**, calculados, persistidos, emitidos en el XML como bloques `ImptoReten` (igual que el SII real, **sin** el inexistente `IVARetTotal`) y validados contra el XSD pre-firma. Se usó el método de los sprints anteriores: **workflow de diseño** (3 propuestas + verificación de fidelidad SII + síntesis) → implementación → **review adversarial** → gate de build en Docker → commit.
+
+## Qué se implementó
+
+### Catálogo de otros impuestos — P1-6
+- Nuevo enum `TipoImpuesto` (representativo, espejo de `CATALOGO_IMPUESTOS` del front): suntuarios (23, 15%), ILA destilados (24, 31,5%), vinos (25, 20,5%), cervezas (26, 20,5%), analcohólicas (27, 10%), azucaradas (271, 18%) como **adicionales**; e **IVA retenido total / cambio de sujeto** (15, 19%) como **retención**. Documentado como subconjunto curado, no la tabla oficial.
+
+### Cálculo — P1-6
+- `CalculadoraImpuestos`: cada línea afecta puede llevar un `codImpAdic`. La base se **agrega por código** (suma del neto de las líneas marcadas) y el monto se redondea **una sola vez por código** (half-up), para casar 1:1 con el bloque `ImptoReten` del XML. `Totales` se extiende con `impuestosAdicionales`, `ivaRetenido` y el desglose `impuestos[]`. **Total = neto + exento + IVA + Σ(adicionales) − Σ(retenido)**. El desglose lo expone un método `static desglosarImpuestos(...)` que consumen la calculadora, el generador de XML y el mapper (**fuente única de verdad**).
+- Alcance: solo en documentos de **precios netos y afectos** — factura afecta (33) y notas (56/61). Boletas (39/41), factura exenta (34) y líneas exentas se **rechazan (409)** si traen un código; código desconocido → 409. (La retención de IVA real opera sobre Factura de Compra (45), fuera del enum `TipoDte`; aquí se modela de forma representativa.)
+
+### XML + XSD — P1-6
+- `ModeloDte`: bloque repetible `ImptoReten` (`TipoImp`/`TasaImp`/`MontoImp`) en `Totales` **después de `IVA` y antes de `MntTotal`**; `CodImpAdic` en `Detalle` **entre `IndExe` y `MontoItem`** (posiciones del esquema oficial). Tanto adicionales como la retención viajan como `ImptoReten` — el DTE **no tiene `IVARetTotal`** (lo confirmó la verificación SII del workflow). `DTE.xsd` extendido con elementos `minOccurs=0` → el corpus sin impuestos sigue válido.
+
+### Persistencia, PDF y frontend — P1-6
+- Migración **V5** aditiva: `linea_detalle.cod_imp_adic` (nullable) y `documento_tributario.impuestos_adicionales`/`iva_retenido` (NOT NULL DEFAULT 0, **inmutables** `updatable=false` como el resto de los totales). Sin tabla de catálogo (es un enum).
+- PDF: filas por impuesto adicional (+) y retención (−) entre IVA y TOTAL, para que el total cuadre con lo visible.
+- Frontend: selector de impuesto por línea (solo en tipos/líneas afectas; se resetea al cambiar tipo o producto), **cálculo en vivo espejo exacto del backend** (mismo orden de operaciones de redondeo) y desglose en el detalle del DTE.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| `mvn test` (compila main + tests en Docker `maven`) | ✅ |
+| Tests unitarios | ✅ **108** (`CalculadoraImpuestos` 19, `XmlDteGeneratorXsd` 5, + resto) |
+| `tsc --noEmit` + `vite build` (frontend) | ✅ |
+| Workflow de diseño (3 propuestas + verificación SII + síntesis) | ✅ — corrigió **3 errores de semántica SII** antes de implementar: `IVARetTotal` no existe en el DTE, `CodImpAdic` va **antes** de `MontoItem`, y los códigos/tasas del catálogo |
+| Review adversarial del diff | ✅ — 1 hallazgo confirmado (desfase de $1 en el preview a 20,5% por orden de operaciones del redondeo), **corregido**; se alineó también el orden latente del IVA |
+| Tests con Testcontainers (`EmisionXsdIT`: emisión con `ImptoReten`, rechazos de scope) | ⚠️ compilan; no ejecutables en este host (corren en CI) |
+
+> Casos clave cubiertos: adicional suma (ILA 10% sobre 100000 → +10000), agregación de base por código antes de redondear (3333+3334 → 6667 → 667, no 666), retención total resta el IVA (50000 → total 50000), combinado adicional+retención, exento/sin-código fuera de la base, boleta ignora códigos, y orden de `ImptoReten`/`CodImpAdic` en el XML que cumple el XSD.
+
 # Pendiente
-Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P1-6 (impuestos adicionales/retenciones) y P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).
+Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P2-5 (contingencia, reenvío de rechazados, libros de compra/venta). *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45).

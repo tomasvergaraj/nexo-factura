@@ -136,7 +136,7 @@ class DocumentoServiceTransicionesIT extends AbstractIntegrationTest {
                 clienteId,
                 null,
                 "Documento de prueba",
-                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true)),
+                List.of(new LineaRequest(null, "Servicio", 1.0, 10000L, null, true, null)),
                 null);
         return documentoService.crear(empresaId, req);
     }
