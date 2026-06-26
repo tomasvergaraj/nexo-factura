@@ -3,6 +3,8 @@ package cl.nexosoftware.factura.common.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -40,6 +42,22 @@ public class GlobalExceptionHandler {
         log.error("DTE genera XML invalido contra el XSD en {} {}: {}",
                 req.getMethod(), req.getRequestURI(), ex.getMessage());
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), req, ex.getErrores());
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> conflictoDeVersion(OptimisticLockingFailureException ex, HttpServletRequest req) {
+        // El registro fue modificado por otra operacion concurrente (lost update evitado).
+        return build(HttpStatus.CONFLICT,
+                "El registro fue modificado por otra operacion; recargue y reintente", req, null);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> integridad(DataIntegrityViolationException ex, HttpServletRequest req) {
+        // Violacion de restriccion (tipicamente unicidad: RUT o codigo duplicado).
+        log.warn("Violacion de integridad en {} {}: {}",
+                req.getMethod(), req.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        return build(HttpStatus.CONFLICT,
+                "El registro infringe una restriccion de unicidad o integridad (posible duplicado)", req, null);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

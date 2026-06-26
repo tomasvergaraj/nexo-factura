@@ -39,6 +39,10 @@ public class Cliente {
     @Column(nullable = false)
     private boolean activo;
 
+    /** Control de concurrencia optimista (evita el lost update en edicion). */
+    @Version
+    private Long version;
+
     @Column(name = "creado_en", nullable = false, updatable = false)
     private OffsetDateTime creadoEn;
 

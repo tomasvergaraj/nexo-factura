@@ -35,6 +35,10 @@ public class Producto {
     @Column(nullable = false)
     private boolean activo;
 
+    /** Control de concurrencia optimista (evita el lost update en edicion). */
+    @Version
+    private Long version;
+
     @PrePersist
     void onCreate() {
         this.activo = true;

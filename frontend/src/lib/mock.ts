@@ -54,6 +54,7 @@ export const documentoDetalleMock: DocumentoResponse = {
     { numeroLinea: 3, nombre: "Hora de desarrollo", cantidad: 23.6, unidad: "HRA", precioUnitario: 25000, descuentoMonto: 0, afecto: true, montoLinea: 590000 },
   ],
   referencias: [],
+  sello: "3a7bd3e2360a3d5f1f2e4b8c9d0e1a2b3c4d5e6f70819a2b3c4d5e6f7a8b9c0d1",
 };
 
 export const foliosMock: Caf[] = [

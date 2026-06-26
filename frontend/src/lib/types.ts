@@ -75,6 +75,8 @@ export interface DocumentoResponse extends DocumentoResumen {
   lineas: LineaResponse[];
   creadoEn: string;
   referencias: ReferenciaResponse[];
+  /** Sello de integridad (SHA-256 del XML firmado); null mientras es borrador. */
+  sello: string | null;
 }
 
 export interface Cliente {

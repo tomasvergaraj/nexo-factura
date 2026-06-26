@@ -75,7 +75,8 @@ public final class DocumentoDtos {
             String observacion,
             List<LineaResponse> lineas,
             OffsetDateTime creadoEn,
-            List<ReferenciaResponse> referencias
+            List<ReferenciaResponse> referencias,
+            String sello
     ) {}
 
     /** Vista compacta para listados. */

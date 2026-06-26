@@ -150,6 +150,11 @@ export function DetalleDocumento() {
               {doc.trackId && (
                 <p className="mt-1 text-xs text-slate-soft tnum">Track ID SII: {doc.trackId}</p>
               )}
+              {doc.sello && (
+                <p className="mt-1 break-all text-xs text-slate-soft tnum" title="SHA-256 del XML firmado">
+                  Sello: {doc.sello}
+                </p>
+              )}
             </div>
             {acciones.length > 0 && (
               <div className="flex flex-wrap gap-2">{acciones}</div>

@@ -9,6 +9,7 @@ import cl.nexosoftware.factura.empresa.EmpresaRepository;
 import cl.nexosoftware.factura.folio.Caf;
 import cl.nexosoftware.factura.folio.CafRepository;
 import cl.nexosoftware.factura.tributario.FirmaElectronica;
+import cl.nexosoftware.factura.tributario.SelloDte;
 import cl.nexosoftware.factura.tributario.SiiGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -138,6 +139,33 @@ class EmisionXsdIT extends AbstractIntegrationTest {
         assertThat(xml).contains("<Referencia>")
                 .contains("<TpoDocRef>33</TpoDocRef>")
                 .contains("<CodRef>1</CodRef>");
+    }
+
+    @Test
+    @DisplayName("emitir fija un sello de integridad que corresponde al XML firmado")
+    void emitirFijaSelloDeIntegridad() {
+        DocumentoResponse factura = crearFactura();
+        documentoService.emitir(empresaId, factura.id());
+
+        DocumentoTributario emitido = documentoRepository.findById(factura.id()).orElseThrow();
+        assertThat(emitido.getSello()).hasSize(64);
+        assertThat(emitido.getSello()).isEqualTo(SelloDte.calcular(emitido.getXmlDte()));
+    }
+
+    @Test
+    @DisplayName("los montos de un DTE son inmutables (updatable=false los congela)")
+    void montosDelDteSonInmutables() {
+        DocumentoResponse factura = crearFactura();
+        documentoService.emitir(empresaId, factura.id());
+
+        // Intentar mutar el neto y persistir: updatable=false lo excluye del UPDATE.
+        DocumentoTributario emitido = documentoRepository.findById(factura.id()).orElseThrow();
+        long netoOriginal = emitido.getNeto();
+        emitido.setNeto(netoOriginal + 999_999);
+        documentoRepository.save(emitido);
+
+        DocumentoTributario recargado = documentoRepository.findById(factura.id()).orElseThrow();
+        assertThat(recargado.getNeto()).isEqualTo(netoOriginal);
     }
 
     private DocumentoResponse crearFactura() {

@@ -51,7 +51,7 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 - P2-1 `estado-sii`: pasar de GET (con efectos de escritura) a POST idempotente. **Sprint 1.**
 - P2-2 Tests: extender a máquina de estados y aislamiento multi-tenant. **Sprint 1.**
 - P2-3 Sesión: refresh/revocación de token, rate limiting en login.
-- P2-4 Auditoría/inmutabilidad del DTE, manejo de duplicados → 409, `@Version` en datos maestros.
+- ✅ **P2-4** Inmutabilidad del DTE (campos tributarios congelados con `updatable=false` + **sello de integridad** SHA-256 del XML firmado), manejo de **duplicados → 409** y **`@Version`** (bloqueo optimista) en datos maestros. *(Sprint 3)*. Un log de auditoría completo (quién/cuándo) queda como mejora opcional.
 - P2-5 Contingencia, reenvío de rechazados, libros de compra/venta.
 
 ## 3. Notas de arquitectura / riesgos
@@ -80,5 +80,6 @@ Completado y verificado (ver [PROGRESS.md](PROGRESS.md)): **P1-1** (notas de cr�
 La integración tributaria real (P0-4/5/6: firma XMLDSig con PKCS#12, FRMT + CAF real, SII real) sigue **gateada por un certificado y un CAF reales** que aún no están disponibles. Mientras tanto se completaron, verificables sin esos activos (ver [PROGRESS.md](PROGRESS.md)):
 - **P1-2** — **boletas 39/41** con precio bruto (IVA incluido) y desglose del neto, **receptor "Consumidor final"** (cliente opcional, solo en boletas) y el **RCOF** (Reporte de Consumo de Folios) diario con su endpoint y XML `ConsumoFolios` (sin firmar/enviar).
 - **P1-4** — **bloque `Referencia`** agregado al XML del DTE (antes las notas 56/61 no lo emitían) y **validación XSD pre-firma** (`DteXmlValidator`) contra un esquema representativo; una emisión cuyo XML no cumple el esquema falla con **422** y revierte el folio.
+- **P2-4** — **inmutabilidad del DTE** (`updatable=false` en los campos tributarios + **sello de integridad** SHA-256 fijado al emitir), **duplicados → 409** (`DataIntegrityViolationException`) y **`@Version`** en Empresa/Cliente/Producto (conflicto → 409). Migración `V3`.
 
-Pendiente para cuando lleguen los activos: P0-4/5/6 (y el alineamiento al XSD oficial + namespace `SiiDte`). Sin gatear: P1-6 (impuestos adicionales/retenciones), P2-3/4/5 (refresh/rate-limiting, auditoría/duplicados, contingencia/libros).
+Pendiente para cuando lleguen los activos: P0-4/5/6 (y el alineamiento al XSD oficial + namespace `SiiDte`). Sin gatear: P1-6 (impuestos adicionales/retenciones), P2-3 (refresh/rate-limiting) y P2-5 (contingencia/libros).

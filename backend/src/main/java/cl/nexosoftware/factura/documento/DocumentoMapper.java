@@ -24,7 +24,7 @@ public final class DocumentoMapper {
                 d.getId(), d.getTipoDte(), d.getTipoDte().getCodigo(), d.getFolio(), d.getEstado(),
                 d.getFechaEmision(), d.getReceptorRut(), d.getReceptorRazonSocial(),
                 d.getNeto(), d.getExento(), d.getTasaIva(), d.getIva(), d.getTotal(),
-                d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn(), referencias);
+                d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn(), referencias, d.getSello());
     }
 
     public static DocumentoResumen toResumen(DocumentoTributario d) {

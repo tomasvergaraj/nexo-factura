@@ -24,11 +24,11 @@ public class DocumentoTributario {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "empresa_id", nullable = false)
+    @Column(name = "empresa_id", nullable = false, updatable = false)
     private Long empresaId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tipo_dte", nullable = false, length = 20)
+    @Column(name = "tipo_dte", nullable = false, length = 20, updatable = false)
     private TipoDte tipoDte;
 
     /** Folio asignado al emitir. Null mientras el documento es BORRADOR. */
@@ -38,40 +38,40 @@ public class DocumentoTributario {
     @Column(nullable = false, length = 20)
     private EstadoDte estado;
 
-    @Column(name = "fecha_emision", nullable = false)
+    @Column(name = "fecha_emision", nullable = false, updatable = false)
     private LocalDate fechaEmision;
 
-    // --- Snapshot del receptor (se congela al emitir) ---
-    @Column(name = "receptor_rut", nullable = false, length = 12)
+    // --- Snapshot del receptor (inmutable: updatable=false lo congela tras crear) ---
+    @Column(name = "receptor_rut", nullable = false, length = 12, updatable = false)
     private String receptorRut;
 
-    @Column(name = "receptor_razon_social", nullable = false)
+    @Column(name = "receptor_razon_social", nullable = false, updatable = false)
     private String receptorRazonSocial;
 
-    @Column(name = "receptor_giro")
+    @Column(name = "receptor_giro", updatable = false)
     private String receptorGiro;
 
-    @Column(name = "receptor_direccion")
+    @Column(name = "receptor_direccion", updatable = false)
     private String receptorDireccion;
 
-    @Column(name = "receptor_comuna")
+    @Column(name = "receptor_comuna", updatable = false)
     private String receptorComuna;
 
-    // --- Totales ---
-    @Column(nullable = false)
+    // --- Totales (inmutables: se calculan al crear y nunca cambian) ---
+    @Column(nullable = false, updatable = false)
     private long neto;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private long exento;
 
     /** Tasa de IVA vigente al emitir (ej: 19.0). */
-    @Column(name = "tasa_iva", nullable = false)
+    @Column(name = "tasa_iva", nullable = false, updatable = false)
     private double tasaIva;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private long iva;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private long total;
 
     // --- Trazas del proceso tributario ---
@@ -81,7 +81,11 @@ public class DocumentoTributario {
     @Column(name = "track_id")
     private String trackId;
 
-    @Column(columnDefinition = "text")
+    /** Sello de integridad: SHA-256 (hex) del XML firmado, fijado al emitir. */
+    @Column(length = 64)
+    private String sello;
+
+    @Column(columnDefinition = "text", updatable = false)
     private String observacion;
 
     @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, orphanRemoval = true)

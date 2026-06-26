@@ -136,6 +136,8 @@ public class DocumentoService {
         String xmlFirmado = firmaElectronica.firmar(xml);
 
         doc.setXmlDte(xmlFirmado);
+        // Sello de integridad (tamper-evidence) sobre el XML firmado.
+        doc.setSello(SelloDte.calcular(xmlFirmado));
         doc.setEstado(EstadoDte.FIRMADO);
 
         // 3. Si es una nota de credito que anula, transicionar el original ACEPTADO -> ANULADO

@@ -149,20 +149,23 @@ La integración tributaria real (firma XMLDSig, FRMT + CAF, SII) sigue **gateada
 - **`DteXmlValidator`**: valida el XML contra un esquema **representativo** (`resources/sii/DTE.xsd`) en `emitir`, **entre generar y firmar**. Si no cumple, lanza `DteInvalidoException` → **422** con el detalle de cada error de esquema, y revierte la reserva de folio (misma `@Transactional`). Endurecido contra XXE; valida vía `StringReader` para no chocar con la declaración ISO-8859-1. Conmutable con `app.dte.validar-xsd` (default `true`). El XSD es representativo (sin namespace `SiiDte`, sin `Signature` real): el alineamiento al oficial es follow-up gated por firma/CAF.
 - **Dos bugs detectados por el review adversarial y corregidos** (ambos del tipo "el XSD rechazaría un DTE legítimo"): (1) `QtyItem`/`TasaIVA` se marshallaban desde `double` y JAXB emite notación científica (`1.0E7`) para cantidades ≥1e7, inválida como `xs:decimal` → se agregó `PlainDecimalAdapter` que fuerza la forma decimal plana (`10000000`); (2) `@RutValido` aceptaba RUT con puntos (`76.543.210-9`) pero el XSD los rechaza → `Rut.normalizar` ahora canoniza el RUT en los mappers de Empresa/Cliente (también cierra el duplicado con/sin puntos).
 
+### Robustez del DTE — P2-4
+- **Inmutabilidad**: los campos tributarios de `DocumentoTributario` (emisor implícito, receptor, montos, tipo, fecha, observación) pasan a `@Column(updatable=false)` → Hibernate los excluye del `UPDATE`, así que una vez creado el DTE su contenido tributario no puede mutar (folio/estado/xmlDte/trackId/sello siguen mutables por el ciclo de vida).
+- **Sello de integridad**: `SelloDte` calcula el SHA-256 (hex) del XML firmado; se fija al emitir, se guarda en la columna `sello` y se expone en `DocumentoResponse` (y en el detalle del front). Permite detectar manipulación posterior del XML almacenado.
+- **Duplicados → 409**: `GlobalExceptionHandler` mapea `DataIntegrityViolationException` a **409** (antes caía al genérico 500). Un RUT/código duplicado ahora responde 409 con mensaje claro.
+- **Bloqueo optimista**: `@Version` en `Empresa`/`Cliente`/`Producto` (CAF ya lo tenía); una escritura sobre una versión obsoleta lanza `OptimisticLockingFailureException`, también mapeada a **409**. Migración `V3__robustez_version_sello.sql` (aditiva: `version BIGINT NOT NULL DEFAULT 0` + `sello VARCHAR(64)`).
+
 ## Verificación
 
 | Gate | Resultado |
 |---|---|
-| `mvn test` (compila main + tests en Docker `maven`) | ✅ 85 fuentes main + 15 test |
-| Tests unitarios de cálculo (incl. back-out bruto) | ✅ **10/10** (`CalculadoraImpuestosTest`) |
-| Validación XSD: fixturas válidas + malformadas + orden | ✅ **12/12** (`DteXmlValidatorTest`) |
-| Marshaller real → XSD (incl. cantidad 1e7 plana) | ✅ **3/3** (`XmlDteGeneratorXsdTest`) |
-| RUT módulo 11 + normalización canónica | ✅ **21/21** (`RutTest`) |
+| `mvn test` (compila main + tests en Docker `maven`) | ✅ 86 fuentes main + 17 test |
+| Tests unitarios (cálculo, XSD, marshaller→XSD, RUT, sello) | ✅ **50/50** (`Calculadora` 10, `DteXmlValidator` 12, `XmlDteGeneratorXsd` 3, `Rut` 21, `SelloDte` 4) |
 | `tsc --noEmit` (frontend) | ✅ sin errores |
-| Review adversarial del diff (P1-2: 5 dim; P1-4: 4 dim) | ✅ P1-2 sin defectos; P1-4 detectó y **corrigió 2 bugs** (decimal/double y RUT con puntos) |
-| Tests con Testcontainers (`BoletaConsumidorFinalIT`, `RcofServiceIT`, `EmisionXsdIT`) | ⚠️ compilan; no ejecutables en este host (igual que Sprints 1–2; corren en CI) |
+| Review adversarial del diff (P1-2: 5 dim; P1-4: 4 dim; P2-4: 3 dim) | ✅ P1-2 y P2-4 sin defectos; P1-4 detectó y **corrigió 2 bugs** (decimal/double y RUT con puntos) |
+| Tests con Testcontainers (`BoletaConsumidorFinalIT`, `RcofServiceIT`, `EmisionXsdIT`, `RobustezIT`) | ⚠️ compilan; no ejecutables en este host (igual que Sprints 1–2; corren en CI) |
 
 > Casos de redondeo clave cubiertos: `11900→10000/1900`, `100→84/16`, `999→839/160`, `9999→8403/1596` (donde el re-redondeo ingenuo daría 159/1597), boleta mixta afecto+exento y la equivalencia de la sobrecarga sin flag con el cálculo neto.
 
 # Pendiente
-Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P1-6 (impuestos adicionales/retenciones), P2-3/4/5 (refresh/rate-limiting, auditoría/duplicados, contingencia/libros).
+Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P1-6 (impuestos adicionales/retenciones), P2-3 (refresh/revocación de token, rate limiting) y P2-5 (contingencia, reenvío de rechazados, libros de compra/venta).
