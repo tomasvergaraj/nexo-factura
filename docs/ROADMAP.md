@@ -41,7 +41,7 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 
 ### P1 — Completitud tributaria y producto
 - ✅ **P1-1** Notas de crédito/débito (56/61) con referencias obligatorias y anulación del documento referenciado. *(Sprint 2)*
-- P1-2 Boletas (39/41): monto bruto (IVA incluido) y RCOF diario.
+- ✅ **P1-2** Boletas (39/41): monto bruto (IVA incluido) con desglose del neto, receptor "Consumidor final" (cliente opcional) y RCOF diario (reporte + XML `ConsumoFolios` sin firmar). *(Sprint 3)*
 - ✅ **P1-3** Validación de dígito verificador (módulo 11) en el backend. *(Sprint 2)*
 - P1-4 Completar el modelo JAXB al XSD oficial y validar antes de firmar.
 - ✅ **P1-5** CRUD real en el front (Clientes/Productos/Folios) + pantalla de detalle de DTE. *(Sprint 2)*
@@ -73,4 +73,8 @@ El Sprint 2 (P0-4/5/6) queda **diseñado y documentado**; requiere un certificad
 
 ## 5. Hecho en el Sprint 2
 
-Completado y verificado (ver [PROGRESS.md](PROGRESS.md)): **P1-1** (notas de crédito/débito con anulación), **P1-3** (módulo 11), **P1-5** (frontend completo: CRUD + detalle de DTE + notas), el **timbre PDF417 real** (parte de P0-5) y el **cierre del riesgo de arquitectura** con los esqueletos de perfil `prod` (firma/SII fallan fail-fast en vez de faltar). Queda pendiente para el **Sprint 3** la integración tributaria real (firma XMLDSig con PKCS#12, FRMT + CAF real, SII real), gateada por activos externos.
+Completado y verificado (ver [PROGRESS.md](PROGRESS.md)): **P1-1** (notas de crédito/débito con anulación), **P1-3** (módulo 11), **P1-5** (frontend completo: CRUD + detalle de DTE + notas), el **timbre PDF417 real** (parte de P0-5) y el **cierre del riesgo de arquitectura** con los esqueletos de perfil `prod` (firma/SII fallan fail-fast en vez de faltar).
+
+## 6. Hecho en el Sprint 3 (sin activos SII)
+
+La integración tributaria real (P0-4/5/6: firma XMLDSig con PKCS#12, FRMT + CAF real, SII real) sigue **gateada por un certificado y un CAF reales** que aún no están disponibles. Mientras tanto se completó **P1-2**, verificable sin esos activos (ver [PROGRESS.md](PROGRESS.md)): **boletas 39/41** con precio bruto (IVA incluido) y desglose del neto, **receptor "Consumidor final"** (cliente opcional, solo en boletas) y el **RCOF** (Reporte de Consumo de Folios) diario con su endpoint y XML `ConsumoFolios` (sin firmar/enviar). Pendiente para cuando lleguen los activos: P0-4/5/6; y sin gatear: P1-4 (XSD completo + validación), P1-6 (impuestos adicionales), P2-3/4/5 (robustez/operación).

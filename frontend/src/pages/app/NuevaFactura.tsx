@@ -4,7 +4,7 @@ import { Plus, Trash2, Receipt } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import {
   Card, Field, Select, Input, Button, Spinner, Textarea,
-  PageHeader, LoadingState, Alert, IconButton,
+  PageHeader, LoadingState, Alert, IconButton, Badge,
 } from "../../components/ui";
 import {
   crearDocumento, getClientes, getDocumento, getDocumentos, getProductos, mensajeError,
@@ -13,7 +13,8 @@ import {
 import { empresaIdActual } from "../../lib/auth";
 import { formatCLP, formatFecha, formatRut } from "../../lib/format";
 import {
-  CODIGO_TIPO_DTE, TIPO_DTE_LABEL, TIPO_REFERENCIA_LABEL,
+  CODIGO_TIPO_DTE, ES_BOLETA, RAZON_CONSUMIDOR_FINAL, RUT_CONSUMIDOR_FINAL,
+  TIPO_DTE_LABEL, TIPO_REFERENCIA_LABEL,
   type Cliente, type DocumentoResumen, type Producto, type ReferenciaRequest,
   type TipoDte, type TipoReferencia,
 } from "../../lib/types";
@@ -26,7 +27,7 @@ const TASA_IVA = 19;
 
 // Tipos emisibles desde este formulario.
 const TIPOS_EMISIBLES: TipoDte[] = [
-  "FACTURA_AFECTA", "FACTURA_EXENTA", "NOTA_CREDITO", "NOTA_DEBITO",
+  "FACTURA_AFECTA", "FACTURA_EXENTA", "BOLETA_AFECTA", "BOLETA_EXENTA", "NOTA_CREDITO", "NOTA_DEBITO",
 ];
 
 const TIPOS_REFERENCIA: TipoReferencia[] = ["ANULA_DOCUMENTO", "CORRIGE_TEXTO", "CORRIGE_MONTO"];
@@ -55,7 +56,9 @@ export function NuevaFactura() {
   const [tipoReferencia, setTipoReferencia] = useState<TipoReferencia>("ANULA_DOCUMENTO");
   const [razon, setRazon] = useState("");
 
-  const afectoPorDefecto = tipoDte !== "FACTURA_EXENTA";
+  const esBoleta = ES_BOLETA[tipoDte];
+  const afectoPorDefecto = tipoDte !== "FACTURA_EXENTA" && tipoDte !== "BOLETA_EXENTA";
+  const labelPrecio = esBoleta ? "Precio (IVA incl.)" : "Precio neto";
 
   useEffect(() => {
     const empresaId = empresaIdActual();
@@ -76,7 +79,7 @@ export function NuevaFactura() {
     // Valor por defecto del tipo de referencia según la nota.
     setTipoReferencia(nuevo === "NOTA_DEBITO" ? "CORRIGE_MONTO" : "ANULA_DOCUMENTO");
     // Las líneas exentas no llevan IVA.
-    if (nuevo === "FACTURA_EXENTA") {
+    if (nuevo === "FACTURA_EXENTA" || nuevo === "BOLETA_EXENTA") {
       setLineas((prev) => prev.map((l) => ({ ...l, afecto: false })));
     }
     // Si dejamos de ser nota, limpiamos la referencia.
@@ -133,28 +136,40 @@ export function NuevaFactura() {
     setLineas((prev) => prev.map((l) => (l.uid === uid ? { ...l, [campo]: valor } : l)));
   }
 
-  // Cálculo en vivo (espejo de CalculadoraImpuestos del backend)
+  // Cálculo en vivo (espejo exacto de CalculadoraImpuestos del backend). En boletas
+  // los precios son brutos (IVA incluido): el neto se desglosa una sola vez del
+  // subtotal afecto y el IVA es la diferencia, igual que en el backend.
   const totales = useMemo(() => {
-    let neto = 0;
+    let afecto = 0;
     let exento = 0;
     for (const l of lineas) {
       const monto = Math.max(0, Math.round(l.cantidad * l.precioUnitario) - (l.descuentoMonto || 0));
-      if (l.afecto) neto += monto;
+      if (l.afecto) afecto += monto;
       else exento += monto;
     }
-    const iva = Math.round((neto * TASA_IVA) / 100);
+    let neto: number;
+    let iva: number;
+    if (esBoleta) {
+      neto = Math.round(afecto / (1 + TASA_IVA / 100));
+      iva = afecto - neto;
+    } else {
+      neto = afecto;
+      iva = Math.round((neto * TASA_IVA) / 100);
+    }
     return { neto, exento, iva, total: neto + iva + exento };
-  }, [lineas]);
+  }, [lineas, esBoleta]);
 
   const requiereReferencia = esNota(tipoDte);
   const referenciaCompleta = !requiereReferencia
     || (folioRef != null && tipoDocumentoRef != null && fechaRef !== "" && razon.trim() !== "");
 
-  const puedeEmitir = clienteId !== "" && lineas.length > 0 && totales.total > 0 && referenciaCompleta;
+  // En boletas el cliente es opcional (se emite a Consumidor final).
+  const clienteOk = esBoleta || clienteId !== "";
+  const puedeEmitir = clienteOk && lineas.length > 0 && totales.total > 0 && referenciaCompleta;
 
   async function emitir() {
     setError(null);
-    if (clienteId === "" || lineas.length === 0 || totales.total <= 0) return;
+    if ((!esBoleta && clienteId === "") || lineas.length === 0 || totales.total <= 0) return;
 
     let referencias: ReferenciaRequest[] | undefined;
     if (requiereReferencia) {
@@ -175,7 +190,7 @@ export function NuevaFactura() {
     try {
       const creado = await crearDocumento(empresaIdActual(), {
         tipoDte,
-        clienteId: clienteId as number,
+        clienteId: clienteId === "" ? null : (clienteId as number),
         lineas: lineas.map(({ uid: _uid, ...l }) => l),
         ...(referencias ? { referencias } : {}),
       });
@@ -216,20 +231,30 @@ export function NuevaFactura() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Cliente">
+                <Field
+                  label="Cliente"
+                  hint={esBoleta ? "Opcional en boletas. Sin cliente se emite a Consumidor final." : undefined}
+                >
                   <Select value={clienteId} onChange={(e) => setClienteId(Number(e.target.value) || "")}>
-                    <option value="">Selecciona un cliente…</option>
+                    <option value="">
+                      {esBoleta ? "Consumidor final (sin cliente)" : "Selecciona un cliente…"}
+                    </option>
                     {clientes.map((c) => (
                       <option key={c.id} value={c.id}>{c.razonSocial} · {formatRut(c.rut)}</option>
                     ))}
                   </Select>
                 </Field>
               </div>
-              {cliente && (
+              {cliente ? (
                 <div className="mt-4 rounded-sm bg-mist px-3 py-2.5 text-xs text-slate">
                   <span className="tnum">{formatRut(cliente.rut)}</span> · {cliente.comuna ?? "—"} · {cliente.email ?? "sin correo"}
                 </div>
-              )}
+              ) : esBoleta ? (
+                <div className="mt-4 flex items-center gap-2 rounded-sm bg-mist px-3 py-2.5 text-xs text-slate">
+                  <Badge tone="cobalt">{RAZON_CONSUMIDOR_FINAL}</Badge>
+                  <span className="tnum">{formatRut(RUT_CONSUMIDOR_FINAL)}</span>
+                </div>
+              ) : null}
             </Card>
 
             {requiereReferencia && (
@@ -330,7 +355,7 @@ export function NuevaFactura() {
                             />
                           </label>
                           <label className="block text-xs font-medium text-slate-soft">
-                            Precio neto
+                            {labelPrecio}
                             <Input
                               type="number" min={0} value={l.precioUnitario} className="mt-1.5 h-9 tnum"
                               onChange={(e) => actualizar(l.uid, "precioUnitario", Number(e.target.value))}

@@ -1,6 +1,6 @@
 # Progreso
 
-> Fecha: 2026-06-25. Sprints 1 y 2 **completados y verificados**.
+> Fecha: 2026-06-26. Sprints 1, 2 y 3 **completados y verificados** (el Sprint 3 cubre lo que no depende de certificado/CAF reales).
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -123,5 +123,38 @@ El timbre agregaba la imagen como `Chunk` inline con `scalePercent(220%)`; al se
 
 > Nota: actualizar el seed `V2__seed_dev.sql` (se corrigieron los DV de los RUT demo) cambia su checksum de Flyway. En una BD de dev ya migrada hay que **resetear el volumen** (`docker compose down -v && docker compose up -d`); un clon nuevo aplica las migraciones limpias.
 
-# Pendiente (Sprint 3)
-Ver [ROADMAP.md](ROADMAP.md): **firma XMLDSig real** (PKCS#12), **firma del TED (FRMT)** y validación del **CAF real**, **integración real con el SII** (semilla/token/EnvioDTE/estado). Requieren un certificado y un CAF reales para implementarse y verificarse. Los esqueletos de perfil `prod` ya dejan el punto de extensión listo.
+# Sprint 3 (sin activos SII)
+
+## Resumen
+La integración tributaria real (firma XMLDSig, FRMT + CAF, SII) sigue **gateada por un certificado y un CAF reales** aún no disponibles. Se completó en cambio **P1-2** — boletas y RCOF — todo verificable sin esos activos: **boletas 39/41** con precio bruto (IVA incluido), **receptor "Consumidor final"** (cliente opcional) y el **RCOF** diario con su endpoint y XML.
+
+## Qué se implementó
+
+### Boletas con monto bruto (39/41) — P1-2
+- `TipoDte.preciosBrutos()` (true solo para 39/41). `CalculadoraImpuestos` gana una sobrecarga `calcular(lineas, tasaIva, preciosBrutos)`: cuando los precios son brutos **desglosa el neto del total afecto** (`neto = round(afecto/(1+tasa))`) y el `iva = afecto − neto` (resta, sin segundo redondeo → `neto+iva == bruto` exacto). La sobrecarga de 2 args (facturas/notas) delega sin cambios.
+- `DocumentoService.aplicarTotales` pasa `tipoDte.preciosBrutos()`; ningún otro flujo cambia.
+
+### Receptor "Consumidor final" — P1-2
+- `clienteId` ahora **opcional**. Una boleta sin cliente toma receptor `66666666-6` / "Consumidor final"; factura/NC/ND sin cliente → **409**. Sin cambios de esquema (las columnas NOT NULL siempre se pueblan).
+
+### RCOF — Reporte de Consumo de Folios — P1-2
+- Nuevo paquete `rcof`: `RcofService` agrega por empresa+fecha las boletas foliadas, separando **utilizados** (estado ≠ ANULADO) de **anulados** con sus rangos; los anulados se cuentan pero **no suman monto**. Endpoint `GET /api/empresas/{id}/rcof?fecha=` (+ `/xml`) bajo el `@tenantGuard`.
+- `ModeloConsumoFolios` + `RcofXmlGenerator` materializan el XML `ConsumoFolios` (subconjunto, ISO-8859-1). **No se firma ni se envía al SII** (requiere certificado y secuencia de envío real; `secEnvio` es placeholder), igual que el resto del flujo tributario.
+
+### Frontend — P1-2
+- `NuevaFactura` ofrece boletas en el selector, con **cliente opcional** (badge "Consumidor final"), precio rotulado **"IVA incl."** y un preview con el mismo desglose bruto que el backend. Nueva página **Consumo de folios (RCOF)** con selector de fecha y tabla por tipo (utilizados/anulados/rangos/montos), enlazada en el sidebar.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| `mvn test` (compila main + tests en Docker `maven`) | ✅ 82 fuentes main + 12 test |
+| Tests unitarios de cálculo (incl. back-out bruto) | ✅ **10/10** (`CalculadoraImpuestosTest`) |
+| `tsc --noEmit` (frontend) | ✅ sin errores |
+| Review adversarial del diff (5 dimensiones) | ✅ 0 defectos confirmados |
+| Tests con Testcontainers (`BoletaConsumidorFinalIT`, `RcofServiceIT`) | ⚠️ compilan; no ejecutables en este host (igual que Sprints 1–2; corren en CI) |
+
+> Casos de redondeo clave cubiertos: `11900→10000/1900`, `100→84/16`, `999→839/160`, `9999→8403/1596` (donde el re-redondeo ingenuo daría 159/1597), boleta mixta afecto+exento y la equivalencia de la sobrecarga sin flag con el cálculo neto.
+
+# Pendiente
+Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado); los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P1-4 (modelo JAXB al XSD + validación pre-firma), P1-6 (impuestos adicionales/retenciones), P2-3/4/5 (refresh/rate-limiting, auditoría/duplicados, contingencia/libros).

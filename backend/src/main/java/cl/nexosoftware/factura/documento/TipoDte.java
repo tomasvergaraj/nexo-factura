@@ -26,6 +26,15 @@ public enum TipoDte {
     public String getDescripcion() { return descripcion; }
     public boolean esAfecto() { return afecto; }
 
+    /**
+     * True para boletas (39/41): los precios unitarios vienen con IVA incluido
+     * (brutos), por lo que el neto/IVA se desglosan del total afecto en vez de
+     * sumar el IVA por encima del neto.
+     */
+    public boolean preciosBrutos() {
+        return this == BOLETA_AFECTA || this == BOLETA_EXENTA;
+    }
+
     public static TipoDte desdeCodigo(int codigo) {
         for (TipoDte t : values()) {
             if (t.codigo == codigo) return t;

@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, FileText, Users, Package, Hash, Settings, LogOut, Plus,
+  LayoutDashboard, FileText, Users, Package, Hash, ClipboardList, Settings, LogOut, Plus,
 } from "lucide-react";
 import { Logo } from "../Logo";
 import { Button } from "../ui";
@@ -13,6 +13,7 @@ const NAV = [
   { to: "/app/clientes", label: "Clientes", icon: Users },
   { to: "/app/productos", label: "Productos", icon: Package },
   { to: "/app/folios", label: "Folios (CAF)", icon: Hash },
+  { to: "/app/rcof", label: "Consumo de folios", icon: ClipboardList },
   { to: "/app/configuracion", label: "Configuración", icon: Settings },
 ];
 

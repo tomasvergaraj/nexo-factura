@@ -13,7 +13,7 @@ public final class DocumentoDtos {
 
     public record CrearDocumentoRequest(
             @NotNull TipoDte tipoDte,
-            @NotNull Long clienteId,
+            Long clienteId,
             LocalDate fechaEmision,
             String observacion,
             @NotEmpty(message = "El documento debe tener al menos una linea") @Valid List<LineaRequest> lineas,

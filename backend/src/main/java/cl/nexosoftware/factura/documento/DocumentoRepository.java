@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface DocumentoRepository extends JpaRepository<DocumentoTributario, Long> {
@@ -24,6 +25,12 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
 
     /** Localiza un documento por su identidad tributaria (empresa + tipo + folio). */
     Optional<DocumentoTributario> findByEmpresaIdAndTipoDteAndFolio(Long empresaId, TipoDte tipoDte, Long folio);
+
+    /**
+     * Documentos ya foliados (emitidos) de una empresa en una fecha. Base del RCOF:
+     * el servicio filtra por tipo de boleta y agrega los folios consumidos del dia.
+     */
+    List<DocumentoTributario> findByEmpresaIdAndFechaEmisionAndFolioNotNull(Long empresaId, LocalDate fechaEmision);
 
     Page<DocumentoTributario> findByEmpresaIdOrderByCreadoEnDesc(Long empresaId, Pageable pageable);
 

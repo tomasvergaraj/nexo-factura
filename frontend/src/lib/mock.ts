@@ -2,7 +2,7 @@
 // Cambie USE_MOCK a false en api.ts para consumir la API real.
 
 import type {
-  Caf, Cliente, DocumentoResponse, DocumentoResumen, Producto, ResumenDashboard,
+  Caf, Cliente, DocumentoResponse, DocumentoResumen, Producto, RcofResponse, ResumenDashboard,
 } from "./types";
 
 export const clientesMock: Cliente[] = [
@@ -59,7 +59,56 @@ export const documentoDetalleMock: DocumentoResponse = {
 export const foliosMock: Caf[] = [
   { id: 1, tipoDte: "FACTURA_AFECTA", folioDesde: 1, folioHasta: 200, folioActual: 143, foliosDisponibles: 58, agotado: false, fechaVencimiento: "2026-12-31" },
   { id: 2, tipoDte: "NOTA_CREDITO", folioDesde: 1, folioHasta: 20, folioActual: 21, foliosDisponibles: 0, agotado: true, fechaVencimiento: "2026-12-31" },
+  { id: 3, tipoDte: "BOLETA_AFECTA", folioDesde: 1, folioHasta: 500, folioActual: 87, foliosDisponibles: 414, agotado: false, fechaVencimiento: "2026-12-31" },
+  { id: 4, tipoDte: "BOLETA_EXENTA", folioDesde: 1, folioHasta: 100, folioActual: 12, foliosDisponibles: 89, agotado: false, fechaVencimiento: "2026-12-31" },
 ];
+
+/** RCOF de demostración para la fecha pedida (siempre con movimiento de boletas). */
+export function rcofMock(fecha: string): RcofResponse {
+  const afecta = {
+    tipoDocumento: 39,
+    foliosEmitidos: 14,
+    foliosUtilizados: 13,
+    folioInicial: 75,
+    folioFinal: 87,
+    foliosAnulados: 1,
+    folioAnuladoInicial: 80,
+    folioAnuladoFinal: 80,
+    montoNeto: 546218,
+    montoIva: 103782,
+    montoExento: 0,
+    montoTotal: 650000,
+  };
+  const exenta = {
+    tipoDocumento: 41,
+    foliosEmitidos: 3,
+    foliosUtilizados: 3,
+    folioInicial: 10,
+    folioFinal: 12,
+    foliosAnulados: 0,
+    folioAnuladoInicial: null,
+    folioAnuladoFinal: null,
+    montoNeto: 0,
+    montoIva: 0,
+    montoExento: 84000,
+    montoTotal: 84000,
+  };
+  return {
+    fecha,
+    secEnvio: 1,
+    documentos: [afecta, exenta],
+    totales: {
+      foliosEmitidos: afecta.foliosEmitidos + exenta.foliosEmitidos,
+      foliosUtilizados: afecta.foliosUtilizados + exenta.foliosUtilizados,
+      foliosAnulados: afecta.foliosAnulados + exenta.foliosAnulados,
+      montoNeto: afecta.montoNeto + exenta.montoNeto,
+      montoIva: afecta.montoIva + exenta.montoIva,
+      montoExento: afecta.montoExento + exenta.montoExento,
+      montoTotal: afecta.montoTotal + exenta.montoTotal,
+    },
+    sinMovimiento: false,
+  };
+}
 
 /** Serie de emisión de los últimos 7 días para el gráfico del dashboard. */
 export const serieEmisionMock = [

@@ -6,10 +6,11 @@ import axios from "axios";
 import { cerrarSesion, obtenerToken, RUTA_LOGIN } from "./auth";
 import {
   clientesMock, dashboardMock, documentoDetalleMock, documentosMock, foliosMock, productosMock,
+  rcofMock,
 } from "./mock";
 import type {
   Caf, CafRequest, Cliente, ClienteRequest, DocumentoResponse, DocumentoResumen,
-  Producto, ProductoRequest, ReferenciaRequest, ResumenDashboard,
+  Producto, ProductoRequest, RcofResponse, ReferenciaRequest, ResumenDashboard,
 } from "./types";
 
 // Opt-in a datos mock: solo con VITE_USE_MOCK="true" (default false).
@@ -117,7 +118,7 @@ export async function crearDocumento(
   empresaId: number,
   payload: {
     tipoDte: string;
-    clienteId: number;
+    clienteId: number | null;
     observacion?: string;
     lineas: NuevaLinea[];
     referencias?: ReferenciaRequest[];
@@ -125,7 +126,9 @@ export async function crearDocumento(
 ): Promise<DocumentoResponse> {
   if (USE_MOCK) {
     await demora(400);
-    return documentoDetalleMock;
+    return payload.clienteId == null
+      ? { ...documentoDetalleMock, receptorRut: "66666666-6", receptorRazonSocial: "Consumidor final" }
+      : documentoDetalleMock;
   }
   const { data } = await http.post(`/empresas/${empresaId}/documentos`, payload);
   return data;
@@ -276,6 +279,16 @@ export async function cargarCaf(empresaId: number, payload: CafRequest): Promise
     };
   }
   const { data } = await http.post(`/empresas/${empresaId}/folios`, payload);
+  return data;
+}
+
+// ---- RCOF (Reporte de Consumo de Folios) ----
+export async function getRcof(empresaId: number, fecha: string): Promise<RcofResponse> {
+  if (USE_MOCK) {
+    await demora();
+    return rcofMock(fecha);
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/rcof`, { params: { fecha } });
   return data;
 }
 

@@ -33,6 +33,10 @@ public class DocumentoService {
 
     private static final double TASA_IVA = 19.0;
 
+    // Receptor por defecto de las boletas emitidas sin cliente identificado.
+    private static final String CONSUMIDOR_FINAL_RUT = "66666666-6";
+    private static final String CONSUMIDOR_FINAL_RAZON = "Consumidor final";
+
     private final DocumentoRepository documentoRepository;
     private final ClienteRepository clienteRepository;
     private final ProductoRepository productoRepository;
@@ -48,20 +52,42 @@ public class DocumentoService {
     @Transactional
     public DocumentoResponse crear(Long empresaId, CrearDocumentoRequest req) {
         empresaService.buscar(empresaId);
-        Cliente cliente = clienteRepository.findById(req.clienteId())
-                .filter(c -> c.getEmpresaId().equals(empresaId))
-                .orElseThrow(() -> RecursoNoEncontradoException.de("Cliente", req.clienteId()));
+
+        // Solo las boletas (39/41) pueden emitirse sin cliente: receptor = Consumidor final.
+        if (req.clienteId() == null && !esBoleta(req.tipoDte())) {
+            throw new ReglaNegocioException(
+                    "Solo las boletas (39/41) pueden emitirse sin cliente; "
+                            + req.tipoDte().getDescripcion() + " requiere un cliente");
+        }
+
+        String receptorRut, receptorRazonSocial, receptorGiro, receptorDireccion, receptorComuna;
+        if (req.clienteId() != null) {
+            Cliente cliente = clienteRepository.findById(req.clienteId())
+                    .filter(c -> c.getEmpresaId().equals(empresaId))
+                    .orElseThrow(() -> RecursoNoEncontradoException.de("Cliente", req.clienteId()));
+            receptorRut = cliente.getRut();
+            receptorRazonSocial = cliente.getRazonSocial();
+            receptorGiro = cliente.getGiro();
+            receptorDireccion = cliente.getDireccion();
+            receptorComuna = cliente.getComuna();
+        } else {
+            receptorRut = CONSUMIDOR_FINAL_RUT;
+            receptorRazonSocial = CONSUMIDOR_FINAL_RAZON;
+            receptorGiro = null;
+            receptorDireccion = null;
+            receptorComuna = null;
+        }
 
         DocumentoTributario doc = DocumentoTributario.builder()
                 .empresaId(empresaId)
                 .tipoDte(req.tipoDte())
                 .estado(EstadoDte.BORRADOR)
                 .fechaEmision(req.fechaEmision() != null ? req.fechaEmision() : LocalDate.now())
-                .receptorRut(cliente.getRut())
-                .receptorRazonSocial(cliente.getRazonSocial())
-                .receptorGiro(cliente.getGiro())
-                .receptorDireccion(cliente.getDireccion())
-                .receptorComuna(cliente.getComuna())
+                .receptorRut(receptorRut)
+                .receptorRazonSocial(receptorRazonSocial)
+                .receptorGiro(receptorGiro)
+                .receptorDireccion(receptorDireccion)
+                .receptorComuna(receptorComuna)
                 .observacion(req.observacion())
                 .tasaIva(TASA_IVA)
                 .build();
@@ -171,6 +197,10 @@ public class DocumentoService {
 
     // ---------- helpers de dominio ----------
 
+    private static boolean esBoleta(TipoDte tipo) {
+        return tipo == TipoDte.BOLETA_AFECTA || tipo == TipoDte.BOLETA_EXENTA;
+    }
+
     private LineaDetalle construirLinea(Long empresaId, LineaRequest lr) {
         String nombre = lr.nombre();
         long precio = lr.precioUnitario() != null ? lr.precioUnitario() : 0L;
@@ -264,7 +294,8 @@ public class DocumentoService {
     }
 
     private void aplicarTotales(DocumentoTributario doc) {
-        var t = calculadora.calcular(doc.getLineas(), doc.getTasaIva());
+        var t = calculadora.calcular(
+                doc.getLineas(), doc.getTasaIva(), doc.getTipoDte().preciosBrutos());
         doc.setNeto(t.neto());
         doc.setExento(t.exento());
         doc.setIva(t.iva());

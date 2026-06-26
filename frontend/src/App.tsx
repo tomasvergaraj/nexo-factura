@@ -9,6 +9,7 @@ import { NuevaFactura } from "./pages/app/NuevaFactura";
 import { Clientes } from "./pages/app/Clientes";
 import { Productos } from "./pages/app/Productos";
 import { Folios } from "./pages/app/Folios";
+import { Rcof } from "./pages/app/Rcof";
 import { Placeholder } from "./pages/app/Placeholder";
 import { obtenerToken, RUTA_LOGIN } from "./lib/auth";
 
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/app/clientes" element={<RequireAuth><Clientes /></RequireAuth>} />
         <Route path="/app/productos" element={<RequireAuth><Productos /></RequireAuth>} />
         <Route path="/app/folios" element={<RequireAuth><Folios /></RequireAuth>} />
+        <Route path="/app/rcof" element={<RequireAuth><Rcof /></RequireAuth>} />
         <Route path="/app/configuracion" element={<RequireAuth><Placeholder titulo="Configuración" /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -171,3 +171,55 @@ export const ESTADO_LABEL: Record<EstadoDte, string> = {
   REPARO: "Con reparo",
   ANULADO: "Anulado",
 };
+
+/** Tipos que admiten receptor "Consumidor final" (clienteId opcional) y precio bruto IVA-incluido. */
+export const ES_BOLETA: Record<TipoDte, boolean> = {
+  FACTURA_AFECTA: false,
+  FACTURA_EXENTA: false,
+  BOLETA_AFECTA: true,
+  BOLETA_EXENTA: true,
+  NOTA_DEBITO: false,
+  NOTA_CREDITO: false,
+};
+
+export const RUT_CONSUMIDOR_FINAL = "66666666-6";
+export const RAZON_CONSUMIDOR_FINAL = "Consumidor final";
+
+/** Reverse lookup: código SII → TipoDte (el RCOF entrega el tipo como código numérico). */
+export const TIPO_DTE_POR_CODIGO: Record<number, TipoDte> = Object.fromEntries(
+  Object.entries(CODIGO_TIPO_DTE).map(([k, v]) => [v, k as TipoDte]),
+) as Record<number, TipoDte>;
+
+// ---- RCOF (Reporte de Consumo de Folios) — nombres canónicos del backend ----
+export interface RcofPorTipo {
+  tipoDocumento: number; // 39 | 41
+  foliosEmitidos: number;
+  foliosUtilizados: number;
+  folioInicial: number | null;
+  folioFinal: number | null;
+  foliosAnulados: number;
+  folioAnuladoInicial: number | null;
+  folioAnuladoFinal: number | null;
+  montoNeto: number;
+  montoIva: number;
+  montoExento: number;
+  montoTotal: number;
+}
+
+export interface RcofTotales {
+  foliosEmitidos: number;
+  foliosUtilizados: number;
+  foliosAnulados: number;
+  montoNeto: number;
+  montoIva: number;
+  montoExento: number;
+  montoTotal: number;
+}
+
+export interface RcofResponse {
+  fecha: string; // YYYY-MM-DD
+  secEnvio: number;
+  documentos: RcofPorTipo[];
+  totales: RcofTotales;
+  sinMovimiento: boolean;
+}
