@@ -33,9 +33,9 @@ export function Button({ variant = "primary", size = "md", className = "", ...pr
   );
 }
 
-export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
+export function Card({ className = "", id, children }: { className?: string; id?: string; children: ReactNode }) {
   return (
-    <div className={`rounded-lg border border-line bg-white shadow-xs ${className}`}>{children}</div>
+    <div id={id} className={`rounded-lg border border-line bg-white shadow-xs ${className}`}>{children}</div>
   );
 }
 

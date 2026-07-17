@@ -3,10 +3,10 @@ import { Logo } from "../Logo";
 import { Button } from "../ui";
 
 const ENLACES = [
-  { href: "/#producto", label: "Producto" },
-  { href: "/#como-funciona", label: "Cómo funciona" },
-  { href: "/#precios", label: "Precios" },
-  { href: "/#preguntas", label: "Preguntas" },
+  { to: "/#producto", label: "Producto" },
+  { to: "/#como-funciona", label: "Cómo funciona" },
+  { to: "/#precios", label: "Precios" },
+  { to: "/#preguntas", label: "Preguntas" },
 ];
 
 export function SiteNav() {
@@ -18,13 +18,13 @@ export function SiteNav() {
         </Link>
         <nav className="hidden items-center gap-1 md:flex">
           {ENLACES.map((e) => (
-            <a
-              key={e.href}
-              href={e.href}
+            <Link
+              key={e.to}
+              to={e.to}
               className="rounded-sm px-3 py-2 text-sm font-medium text-slate transition-colors hover:bg-mist hover:text-ink"
             >
               {e.label}
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="flex items-center gap-2">

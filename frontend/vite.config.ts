@@ -7,7 +7,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://localhost:8080",
+      // El backend en Docker quedó mapeado al host 8082 (8080 lo usa otra app).
+      "/api": "http://localhost:8082",
+      // Health público de actuator, para la página /estado.
+      "/actuator/health": "http://localhost:8082",
     },
   },
 });

@@ -5,13 +5,13 @@
 import axios from "axios";
 import { guardarTokens, limpiarSesion, obtenerRefreshToken, obtenerToken, RUTA_LOGIN } from "./auth";
 import {
-  clientesMock, comprasMock, dashboardMock, documentoDetalleMock, documentosMock, foliosMock,
-  libroMock, productosMock, rcofMock,
+  clientesMock, comprasMock, dashboardMock, documentoDetalleMock, documentosMock, empresaMock,
+  foliosMock, libroMock, productosMock, rcofMock,
 } from "./mock";
 import type {
   Caf, CafRequest, Cliente, ClienteRequest, Compra, CompraRequest, DocumentoResponse,
-  DocumentoResumen, LibroResponse, Producto, ProductoRequest, RcofResponse, ReenvioMasivoResponse,
-  ReferenciaRequest, ResumenDashboard, TipoOperacionLibro,
+  DocumentoResumen, Empresa, EmpresaRequest, LibroResponse, Producto, ProductoRequest, RcofResponse,
+  ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard, TipoOperacionLibro,
 } from "./types";
 
 // Opt-in a datos mock: solo con VITE_USE_MOCK="true" (default false).
@@ -120,6 +120,28 @@ export function mensajeError(error: unknown, fallback = "Ocurrió un error inesp
   return fallback;
 }
 
+// ---- Estado del servicio ----
+
+// El health de actuator vive fuera del prefijo /api (p. ej. /actuator/health).
+const HEALTH_URL = `${BASE_URL.replace(/\/api\/?$/, "")}/actuator/health`;
+
+/**
+ * Comprueba la salud de la API (endpoint público, sin token ni interceptores:
+ * un 401 aquí jamás debe redirigir al login). Devuelve true si responde UP.
+ */
+export async function comprobarSalud(): Promise<boolean> {
+  if (USE_MOCK) {
+    await demora();
+    return true;
+  }
+  try {
+    const { data } = await axios.get<{ status?: string }>(HEALTH_URL, { timeout: 8000 });
+    return data?.status === "UP";
+  } catch {
+    return false;
+  }
+}
+
 /** Errores de validación campo a campo (400). Devuelve un mapa campo→mensaje. */
 export function erroresDeCampo(error: unknown): Record<string, string> {
   const mapa: Record<string, string> = {};
@@ -130,6 +152,34 @@ export function erroresDeCampo(error: unknown): Record<string, string> {
     }
   }
   return mapa;
+}
+
+// ---- Empresa (datos del emisor) ----
+export async function getEmpresa(empresaId: number): Promise<Empresa> {
+  if (USE_MOCK) {
+    await demora();
+    return empresaMock;
+  }
+  const { data } = await http.get(`/empresas/${empresaId}`);
+  return data;
+}
+
+/** Actualiza los datos del emisor. Requiere rol ADMIN (403 en caso contrario). */
+export async function actualizarEmpresa(empresaId: number, payload: EmpresaRequest): Promise<Empresa> {
+  if (USE_MOCK) {
+    await demora(400);
+    return {
+      ...empresaMock,
+      ...payload,
+      id: empresaId,
+      actividadEconomica: payload.actividadEconomica ?? null,
+      ciudad: payload.ciudad ?? null,
+      telefono: payload.telefono ?? null,
+      email: payload.email ?? null,
+    };
+  }
+  const { data } = await http.put(`/empresas/${empresaId}`, payload);
+  return data;
 }
 
 // ---- Dashboard ----

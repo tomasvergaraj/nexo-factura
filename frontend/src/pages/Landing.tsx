@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   FileText, Hash, FileCheck2, Building2, BarChart3, Plug,
   ArrowRight, Check, ShieldCheck, Plus,
@@ -9,6 +10,16 @@ import { FacturaPreview } from "../components/FacturaPreview";
 import { Button, Card } from "../components/ui";
 
 export function Landing() {
+  // Scroll a la sección del hash cuando se llega a la Landing con un ancla
+  // (p. ej. /#precios desde el footer o el nav de otra página). El scroll-mt-*
+  // de cada sección compensa el nav sticky; scroll-behavior:smooth es global.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) requestAnimationFrame(() => el.scrollIntoView());
+  }, [hash]);
+
   return (
     <div className="bg-white">
       <SiteNav />
@@ -79,18 +90,19 @@ function TrustBar() {
 }
 
 /* ----------------------------- Features ----------------------------- */
+// El "id" es el ancla a la que apunta el footer (p. ej. /#emision-de-dte).
 const FEATURES = [
-  { icon: FileText, titulo: "Emisión de DTE", desc: "Facturas afectas y exentas, boletas y notas de crédito o débito con el formato que exige el SII." },
-  { icon: Hash, titulo: "Folios y CAF", desc: "Carga tus CAF y el sistema asigna el folio correcto en cada emisión, sin duplicados ni saltos." },
-  { icon: FileCheck2, titulo: "Representación en PDF", desc: "Cada documento genera su PDF con timbre listo para enviar a tu cliente o imprimir." },
-  { icon: Building2, titulo: "Multi-empresa", desc: "Administra varias razones sociales desde una sola cuenta, cada una con sus folios y clientes." },
-  { icon: BarChart3, titulo: "Reportes claros", desc: "Sigue lo emitido del mes, lo pendiente en el SII y el detalle por cliente en un panel ordenado." },
-  { icon: Plug, titulo: "API para integrar", desc: "Conecta tu sitio o sistema de gestión y emite documentos de forma programática." },
+  { id: "emision-de-dte", icon: FileText, titulo: "Emisión de DTE", desc: "Facturas afectas y exentas, boletas y notas de crédito o débito con el formato que exige el SII." },
+  { id: "folios-y-caf", icon: Hash, titulo: "Folios y CAF", desc: "Carga tus CAF y el sistema asigna el folio correcto en cada emisión, sin duplicados ni saltos." },
+  { id: "pdf", icon: FileCheck2, titulo: "Representación en PDF", desc: "Cada documento genera su PDF con timbre listo para enviar a tu cliente o imprimir." },
+  { id: "multi-empresa", icon: Building2, titulo: "Multi-empresa", desc: "Administra varias razones sociales desde una sola cuenta, cada una con sus folios y clientes." },
+  { id: "reportes", icon: BarChart3, titulo: "Reportes claros", desc: "Sigue lo emitido del mes, lo pendiente en el SII y el detalle por cliente en un panel ordenado." },
+  { id: "api", icon: Plug, titulo: "API para integrar", desc: "Conecta tu sitio o sistema de gestión y emite documentos de forma programática." },
 ];
 
 function Features() {
   return (
-    <section id="producto" className="mx-auto max-w-6xl px-5 py-24">
+    <section id="producto" className="mx-auto max-w-6xl scroll-mt-16 px-5 py-24">
       <div className="max-w-2xl">
         <h2 className="font-display text-3xl font-semibold text-ink">
           Todo lo que necesitas para facturar
@@ -101,8 +113,8 @@ function Features() {
         </p>
       </div>
       <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map(({ icon: Icon, titulo, desc }) => (
-          <Card key={titulo} className="p-6 transition-shadow hover:shadow-md">
+        {FEATURES.map(({ id, icon: Icon, titulo, desc }) => (
+          <Card key={titulo} id={id} className="scroll-mt-24 p-6 transition-shadow hover:shadow-md">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
               <Icon size={22} strokeWidth={2} />
             </span>
@@ -124,7 +136,7 @@ const PASOS = [
 
 function HowItWorks() {
   return (
-    <section id="como-funciona" className="border-y border-line bg-canvas">
+    <section id="como-funciona" className="scroll-mt-16 border-y border-line bg-canvas">
       <div className="mx-auto max-w-6xl px-5 py-24">
         <h2 className="max-w-2xl font-display text-3xl font-semibold text-ink">
           De la emisión al SII en tres pasos
@@ -167,7 +179,7 @@ const PLANES = [
 
 function Pricing() {
   return (
-    <section id="precios" className="mx-auto max-w-6xl px-5 py-24">
+    <section id="precios" className="mx-auto max-w-6xl scroll-mt-16 px-5 py-24">
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="font-display text-3xl font-semibold text-ink">Precios simples y en pesos</h2>
         <p className="mt-4 text-lg leading-relaxed text-slate">Sin costos de instalación. Cambia o cancela tu plan cuando quieras.</p>
@@ -216,7 +228,7 @@ const PREGUNTAS = [
 
 function Faq() {
   return (
-    <section id="preguntas" className="border-t border-line bg-canvas">
+    <section id="preguntas" className="scroll-mt-16 border-t border-line bg-canvas">
       <div className="mx-auto max-w-3xl px-5 py-24">
         <h2 className="text-center font-display text-3xl font-semibold text-ink">Preguntas frecuentes</h2>
         <div className="mt-12 space-y-3">

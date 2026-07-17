@@ -2,9 +2,22 @@
 // Cambie USE_MOCK a false en api.ts para consumir la API real.
 
 import type {
-  Caf, Cliente, Compra, DocumentoResponse, DocumentoResumen, LibroResponse, Producto,
+  Caf, Cliente, Compra, DocumentoResponse, DocumentoResumen, Empresa, LibroResponse, Producto,
   RcofResponse, ResumenDashboard, TipoOperacionLibro,
 } from "./types";
+
+export const empresaMock: Empresa = {
+  id: 1,
+  rut: "76543210-9",
+  razonSocial: "Nexo Software SpA",
+  giro: "Desarrollo y mantención de software",
+  actividadEconomica: 620200,
+  direccion: "Calle O'Higgins 1234, Of. 302",
+  comuna: "Quillota",
+  ciudad: "Quillota",
+  telefono: "+56 9 8196 4119",
+  email: "contacto@nexosoftware.cl",
+};
 
 export const clientesMock: Cliente[] = [
   { id: 1, rut: "77111222-3", razonSocial: "Comercial Las Palmas Ltda", comuna: "Viña del Mar", email: "pagos@laspalmas.cl" },

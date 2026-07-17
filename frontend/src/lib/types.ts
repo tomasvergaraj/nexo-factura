@@ -143,6 +143,32 @@ export interface ClienteRequest {
   email?: string;
 }
 
+/** Datos del emisor (espejo de EmpresaResponse del backend). */
+export interface Empresa {
+  id: number;
+  rut: string;
+  razonSocial: string;
+  giro: string;
+  actividadEconomica: number | null;
+  direccion: string;
+  comuna: string;
+  ciudad: string | null;
+  telefono: string | null;
+  email: string | null;
+}
+
+export interface EmpresaRequest {
+  rut: string;
+  razonSocial: string;
+  giro: string;
+  actividadEconomica?: number | null;
+  direccion: string;
+  comuna: string;
+  ciudad?: string;
+  telefono?: string;
+  email?: string;
+}
+
 export interface Producto {
   id: number;
   codigo?: string;
