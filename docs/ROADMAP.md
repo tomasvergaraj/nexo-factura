@@ -2,7 +2,7 @@
 
 > Documento de ingeniería derivado de una auditoría del código (no del README).
 > Distingue lo **real** de lo **simulado** y prioriza el trabajo pendiente.
-> Última actualización: 2026-06-26.
+> Última actualización: 2026-07-17.
 
 ## 1. Estado actual del sistema
 
@@ -52,7 +52,7 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 - P2-2 Tests: extender a máquina de estados y aislamiento multi-tenant. **Sprint 1.**
 - ✅ **P2-3** Sesión: **refresh tokens** rotatorios con detección de reuso, **revocación** (logout), access token corto (60 min) y **rate limiting** en login/registro (por email e IP → 429). *(Sprint 3)*
 - ✅ **P2-4** Inmutabilidad del DTE (campos tributarios congelados con `updatable=false` + **sello de integridad** SHA-256 del XML firmado), manejo de **duplicados → 409** y **`@Version`** (bloqueo optimista) en datos maestros. *(Sprint 3)*. Un log de auditoría completo (quién/cuándo) queda como mejora opcional.
-- P2-5 Contingencia, reenvío de rechazados, libros de compra/venta.
+- ✅ **P2-5** Contingencia de envío al SII (estado `EN_CONTINGENCIA` + reintento individual y masivo), **reenvío de rechazados** (mismo XML firmado) y **libros de compra/venta (IECV)** con registro manual de compras. *(Sprint 5)*
 
 ## 3. Notas de arquitectura / riesgos
 - Toda la integración tributaria crítica está tras `@Profile("!produccion")` **sin contraparte de producción**: activar el perfil `produccion` hoy rompería el contexto.
@@ -91,3 +91,12 @@ Completado y verificado (ver [PROGRESS.md](PROGRESS.md)):
 - **P1-6** — **impuestos adicionales y retenciones**. Catálogo representativo (`TipoImpuesto`: ILA de bebidas alcohólicas/analcohólicas, azucaradas, suntuarios y la retención de IVA por cambio de sujeto), cálculo con base agregada por código y redondeo half-up único por código, total = neto + exento + IVA + Σ(adicionales) − Σ(retenido), emisión en el XML como bloques `ImptoReten` (después de `IVA`, antes de `MntTotal`) y `CodImpAdic` en el detalle (antes de `MontoItem`), validados contra el XSD pre-firma. Solo en documentos de precios netos afectos (33/56/61); boletas/exentos/código desconocido → 409. Migración `V5` aditiva. La verificación de fidelidad SII del workflow de diseño corrigió tres errores antes de implementar (no existe `IVARetTotal` en el DTE; `CodImpAdic` precede a `MontoItem`; códigos/tasas del catálogo).
 
 Follow-ups de P1-6: impuesto por defecto en el producto, retención parcial (`IVANoRet`) y adicionales en boletas (requiere el desglose IVA+ILA dentro del bruto y extender el RCOF); la retención de cambio de sujeto fiel requiere incorporar el tipo Factura de Compra (45).
+
+## 8. Hecho en el Sprint 5 (P2-5, sin activos SII)
+
+Completado y verificado (ver [PROGRESS.md](PROGRESS.md)):
+- **Contingencia de envío**: nuevo estado `EN_CONTINGENCIA` — si el SII no está disponible al enviar, el DTE queda en cola con traza (`intentosEnvio`/`ultimoEnvioEn`/`ultimoErrorEnvio`) en vez de fallar; reintento individual (`POST /{id}/reenviar`) y masivo (`POST /reenviar-pendientes`, una transacción POR documento para no revertir TrackIDs ya aceptados). Stub del SII configurable en runtime (`PUT /api/dev/sii-stub`, solo ADMIN, perfil ≠ prod) para simular caída/rechazo E2E.
+- **Reenvío de rechazados**: `RECHAZADO → ENVIADO` con el mismo XML firmado (DTE inmutable, folio consumido); se eliminó `RECHAZADO → BORRADOR`. Un rechazo es de fondo: el documento NO entra a la cola de contingencia aunque el reenvío falle.
+- **Libros de compra/venta (IECV)**: libro de ventas desde los DTE emitidos del período (boletas solo resumidas, anulados marcados sin sumar, rechazados excluidos; proyección sin `xml_dte`); libro de compras desde el registro manual de documentos recibidos (`documento_compra`, CRUD con unicidad y coherencia `total = neto + exento + IVA − IVA retenido`, retención del 46 soportada). JSON + XML `LibroCompraVenta` representativo sin firmar. Migración `V6`.
+
+Follow-ups de P2-5: signo de las notas de crédito en los totales agregados del libro (hoy positivas, como las filas del IECV), unificar la semántica de RECHAZADO entre RCOF (cuenta el folio y su monto) y libro (lo excluye), y exponer el motivo de fallo por documento en la respuesta del reenvío masivo.

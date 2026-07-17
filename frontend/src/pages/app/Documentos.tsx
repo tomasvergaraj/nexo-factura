@@ -10,7 +10,7 @@ import { formatCLP, formatFecha } from "../../lib/format";
 import { ESTADO_LABEL, TIPO_DTE_LABEL, type DocumentoResumen, type EstadoDte } from "../../lib/types";
 
 type Filtro = "TODOS" | EstadoDte;
-const FILTROS: Filtro[] = ["TODOS", "ACEPTADO", "ENVIADO", "BORRADOR", "RECHAZADO"];
+const FILTROS: Filtro[] = ["TODOS", "ACEPTADO", "ENVIADO", "EN_CONTINGENCIA", "BORRADOR", "RECHAZADO"];
 
 export function Documentos() {
   const navigate = useNavigate();

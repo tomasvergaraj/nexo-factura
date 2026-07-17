@@ -32,6 +32,44 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
      */
     List<DocumentoTributario> findByEmpresaIdAndFechaEmisionAndFolioNotNull(Long empresaId, LocalDate fechaEmision);
 
+    /**
+     * Ids de los documentos en un estado dado, del mas antiguo al mas nuevo. Base
+     * del reenvio masivo de contingencia: solo ids (cada documento se recarga en
+     * su propia transaccion, sin materializar N columnas xml_dte en memoria).
+     */
+    @Query("""
+            select d.id from DocumentoTributario d
+            where d.empresaId = :empresaId and d.estado = :estado
+            order by d.creadoEn asc
+            """)
+    List<Long> findIdsByEmpresaIdAndEstado(@Param("empresaId") Long empresaId, @Param("estado") EstadoDte estado);
+
+    /**
+     * Vista de los documentos foliados (emitidos) de un periodo, base del libro
+     * de ventas. Proyeccion cerrada: trae solo las columnas del libro y NO el
+     * xml_dte (texto de varios KB por fila que la agregacion no necesita).
+     * El servicio ordena por codigo SII (ordenar aqui por tipoDte ordenaria por
+     * el NOMBRE del enum, no por el codigo) y aplica las reglas del IECV.
+     */
+    List<VentaLibroView> findLibroByEmpresaIdAndFolioNotNullAndFechaEmisionBetween(
+            Long empresaId, LocalDate desde, LocalDate hasta);
+
+    /** Proyeccion del documento emitido con lo que consume el libro de ventas. */
+    interface VentaLibroView {
+        TipoDte getTipoDte();
+        Long getFolio();
+        LocalDate getFechaEmision();
+        EstadoDte getEstado();
+        String getReceptorRut();
+        String getReceptorRazonSocial();
+        long getNeto();
+        long getExento();
+        long getIva();
+        long getImpuestosAdicionales();
+        long getIvaRetenido();
+        long getTotal();
+    }
+
     Page<DocumentoTributario> findByEmpresaIdOrderByCreadoEnDesc(Long empresaId, Pageable pageable);
 
     Page<DocumentoTributario> findByEmpresaIdAndEstadoOrderByCreadoEnDesc(
@@ -43,7 +81,8 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
             select coalesce(sum(d.total), 0) from DocumentoTributario d
             where d.empresaId = :empresaId
               and d.estado in (cl.nexosoftware.factura.documento.EstadoDte.ENVIADO,
-                               cl.nexosoftware.factura.documento.EstadoDte.ACEPTADO)
+                               cl.nexosoftware.factura.documento.EstadoDte.ACEPTADO,
+                               cl.nexosoftware.factura.documento.EstadoDte.EN_CONTINGENCIA)
               and d.fechaEmision >= :desde
             """)
     long sumTotalEmitidoDesde(@Param("empresaId") Long empresaId, @Param("desde") LocalDate desde);

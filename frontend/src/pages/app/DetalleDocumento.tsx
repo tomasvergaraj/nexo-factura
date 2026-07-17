@@ -7,7 +7,8 @@ import { AppShell } from "../../components/app/AppShell";
 import { Card, Button, Badge, EmptyState, LoadingState, Alert, Th } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import {
-  getDocumento, emitirDocumento, enviarDocumento, consultarEstadoSii, descargarPdf, mensajeError,
+  getDocumento, emitirDocumento, enviarDocumento, reenviarDocumento, consultarEstadoSii,
+  descargarPdf, mensajeError,
 } from "../../lib/api";
 import { empresaIdActual, obtenerUsuario } from "../../lib/auth";
 import { formatCLP, formatFecha, formatRut } from "../../lib/format";
@@ -16,7 +17,7 @@ import {
   type DocumentoResponse,
 } from "../../lib/types";
 
-type Accion = "emitir" | "enviar" | "estado" | "pdf";
+type Accion = "emitir" | "enviar" | "reenviar" | "estado" | "pdf";
 
 const ROLES_EMISION = ["ADMIN", "EMISOR"];
 
@@ -111,6 +112,13 @@ export function DetalleDocumento() {
       </Button>,
     );
   }
+  if (puedeEmitir && (doc.estado === "EN_CONTINGENCIA" || doc.estado === "RECHAZADO")) {
+    acciones.push(
+      <Button key="reenviar" onClick={() => ejecutar("reenviar", () => reenviarDocumento(empresaIdActual(), docId))} disabled={ocupado !== null}>
+        {ocupado === "reenviar" ? "Reenviando…" : <><Send size={16} /> Reenviar al SII</>}
+      </Button>,
+    );
+  }
   if (puedeEmitir && (doc.estado === "ENVIADO" || doc.estado === "REPARO")) {
     acciones.push(
       <Button key="estado" variant="secondary" onClick={() => ejecutar("estado", () => consultarEstadoSii(empresaIdActual(), docId))} disabled={ocupado !== null}>
@@ -134,6 +142,15 @@ export function DetalleDocumento() {
         </Link>
 
         {error && <Alert>{error}</Alert>}
+
+        {doc.estado === "EN_CONTINGENCIA" && (
+          <Alert tone="warn">
+            El envío al SII falló{doc.ultimoErrorEnvio ? `: ${doc.ultimoErrorEnvio}` : ""}. El
+            documento quedó en contingencia ({doc.intentosEnvio}{" "}
+            {doc.intentosEnvio === 1 ? "intento" : "intentos"}); reenvíalo cuando el servicio se
+            recupere.
+          </Alert>
+        )}
 
         {/* Cabecera */}
         <Card className="p-6">

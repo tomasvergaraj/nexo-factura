@@ -60,6 +60,22 @@ public class DocumentoController {
         return service.enviarSii(empresaId, id);
     }
 
+    @PostMapping("/{id}/reenviar")
+    @Operation(summary = "Reenviar al SII un documento EN_CONTINGENCIA o RECHAZADO. "
+            + "Reenvia el mismo XML firmado; si el SII sigue caido, queda EN_CONTINGENCIA.")
+    @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
+    public DocumentoResponse reenviar(@PathVariable Long empresaId, @PathVariable Long id) {
+        return service.reenviarSii(empresaId, id);
+    }
+
+    @PostMapping("/reenviar-pendientes")
+    @Operation(summary = "Reintentar el envio de todos los documentos EN_CONTINGENCIA de la empresa "
+            + "(del mas antiguo al mas nuevo). Los que fallan quedan en contingencia con su error.")
+    @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
+    public ReenvioMasivoResponse reenviarPendientes(@PathVariable Long empresaId) {
+        return service.reenviarPendientes(empresaId);
+    }
+
     @PostMapping("/{id}/estado-sii")
     @Operation(summary = "Actualizar el estado del envio consultandolo al SII")
     public DocumentoResponse estadoSii(@PathVariable Long empresaId, @PathVariable Long id) {

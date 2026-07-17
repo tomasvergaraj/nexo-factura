@@ -1,6 +1,6 @@
 # Progreso
 
-> Fecha: 2026-06-26. Sprints 1, 2, 3 y 4 **completados y verificados** (todo lo que no depende de certificado/CAF reales).
+> Fecha: 2026-07-17. Sprints 1, 2, 3, 4 y 5 **completados y verificados** (todo lo que no depende de certificado/CAF reales).
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -208,6 +208,46 @@ Se completó **P1-6 — impuestos adicionales y retenciones**, verificable sin c
 | Tests con Testcontainers (`EmisionXsdIT`: emisión con `ImptoReten`, rechazos de scope) | ⚠️ compilan; no ejecutables en este host (corren en CI) |
 
 > Casos clave cubiertos: adicional suma (ILA 10% sobre 100000 → +10000), agregación de base por código antes de redondear (3333+3334 → 6667 → 667, no 666), retención total resta el IVA (50000 → total 50000), combinado adicional+retención, exento/sin-código fuera de la base, boleta ignora códigos, y orden de `ImptoReten`/`CodImpAdic` en el XML que cumple el XSD.
+
+# Sprint 5 (P2-5, sin activos SII)
+
+## Resumen
+Se completó **P2-5 — contingencia, reenvío de rechazados y libros de compra/venta**, verificable sin certificado/CAF reales. Método de los sprints anteriores: diseño (contrato congelado) → implementación → **review de 8 ángulos en paralelo** (línea a línea, comportamiento eliminado, trazado cross-file, reuso, simplificación, eficiencia, altitud, convenciones) → correcciones → gate de build en Docker → commit.
+
+## Qué se implementó
+
+### Contingencia de envío al SII — P2-5
+- Nuevo estado **`EN_CONTINGENCIA`**: si el SII no está disponible al enviar (`SiiNoDisponibleException`), el documento NO falla — queda en cola de reintento con traza persistente: `intentos_envio`, `ultimo_envio_en`, `ultimo_error_envio` (migración `V6`). Solo un FIRMADO entra a contingencia; la caída del SII en otras operaciones (consulta de estado) responde **503**.
+- **Reintento individual** (`POST /documentos/{id}/reenviar`, ADMIN/EMISOR) y **masivo** (`POST /documentos/reenviar-pendientes`): el masivo procesa cada documento en **su propia transacción** (`TransactionTemplate`) y captura cualquier fallo por documento — un TrackID ya aceptado por el SII jamás se revierte por un fallo posterior del lote (evita duplicar envíos). La consulta trae solo IDs (no materializa N columnas `xml_dte`).
+- **Stub del SII configurable en runtime**: `PUT /api/dev/sii-stub` (perfil ≠ prod, **solo ADMIN**: el estado del stub es global al proceso) permite simular la caída (`disponible=false`) y el rechazo (`estadoConsulta=RECHAZADO`) para ejercitar contingencia y reenvío E2E; propiedades `app.sii.stub.*` para el estado inicial. `SiiGatewayProd` documenta que la implementación real debe mapear errores de transporte a `SiiNoDisponibleException`.
+- Dashboard: KPI `enContingencia` + banner con **"Reintentar envíos"** (actualiza contadores desde la respuesta, sin recargar todo); filtro `EN_CONTINGENCIA` en la página Documentos; detalle del DTE con aviso, intentos y botón **Reenviar al SII**.
+
+### Reenvío de rechazados — P2-5
+- `RECHAZADO → ENVIADO` reenviando el **mismo XML firmado** (el DTE es inmutable y su folio ya fue consumido; ante un rechazo de fondo corresponde emitir un documento nuevo). Se **eliminó `RECHAZADO → BORRADOR`** (violaba la inmutabilidad).
+- Un rechazo del SII es una decisión **de fondo, no una caída transitoria**: si el reenvío de un RECHAZADO falla por SII caído, el documento **permanece RECHAZADO** (traza registrada) — no entra a la cola de reintento automático ni re-entra a los libros.
+- `POST /estado-sii` ahora exige estado ENVIADO/REPARO (el TrackID puede quedar como traza en estados posteriores; antes un estado obsoleto producía un 409 de "transición inválida" confuso).
+
+### Libros de compra/venta (IECV) — P2-5
+- **Libro de ventas** (`GET /api/empresas/{id}/libros/ventas?periodo=YYYY-MM`): agrega los DTE foliados del período con las reglas del IECV — **boletas solo resumidas** (sin detalle por documento), **anulados marcados con montos en cero** (no suman), **rechazados excluidos**; otros impuestos y retención del DTE viajan al resumen. La consulta usa una **proyección** que no carga el `xml_dte` de cada documento, y el orden es por **código SII + folio** (ordenar en SQL por el enum ordenaría por su nombre: 61 antes que 56).
+- **Registro de compras** (`/api/empresas/{id}/compras`, CRUD): documentos recibidos (33/34/46/56/61) con unicidad `(empresa, tipo, folio, proveedor)` → 409, RUT validado/normalizado y coherencia **`total = neto + exento + IVA − IVA retenido`** (la retención del comprador —cambio de sujeto, típica de la factura de compra 46— no puede exceder el IVA). Tabla `documento_compra` (V6).
+- **Libro de compras** desde ese registro (misma consulta de período que el listado — un `default` del repositorio como punto único de la regla). **XML `LibroCompraVenta`** (EnvioLibro: Carátula, `TotalesPeriodo` por tipo, `Detalle` con `<Anulado>A</Anulado>`) representativo, sin firmar. Marshalling JAXB centralizado en `JaxbXml` (contexto cacheado) compartido por DTE, RCOF y libros.
+- Frontend: página **Compras** (período local —no UTC—, formulario con retención, sin parpadeo al refrescar, guard anti-respuesta-obsoleta) y página **Libros (IECV)** (tabs ventas/compras, resumen + detalle, descarga del XML **como Blob** para no re-codificar a UTF-8 un archivo que declara ISO-8859-1).
+
+## Review (8 ángulos) — hallazgos corregidos
+Los 8 buscadores en paralelo devolvieron 40+ candidatos; tras deduplicar y verificar se corrigieron, entre otros: (1) el reenvío masivo corría en UNA transacción — un fallo tardío revertía TrackIDs ya aceptados por el SII (→ transacción por documento); (2) `RECHAZADO → EN_CONTINGENCIA` conflaba rechazo de fondo con caída transitoria y re-metía el documento a libros y cola automática (→ eliminado); (3) el KPI de monto del mes excluía los `EN_CONTINGENCIA` (documentos legalmente emitidos); (4) el libro se ordenaba por nombre del enum, no por código SII; (5) la descarga del XML re-codificaba a UTF-8 contradiciendo el prólogo ISO-8859-1 (→ Blob); (6) el endpoint dev del stub —estado global— era mutable por cualquier usuario autenticado (→ solo ADMIN); (7) `MES_ACTUAL` en UTC mostraba el período equivocado por la tarde-noche en Chile (→ helpers de fecha local); (8) el libro de ventas cargaba el `xml_dte` completo de cada DTE (→ proyección); (9) la factura de compra 46 con retención era irrepresentable (→ `iva_retenido` en compras); (10) el filtro de la página Documentos no ofrecía el estado nuevo. Además: marshalling JAXB unificado (3 copias → `JaxbXml` con caché), labels de tipos derivados, mocks del libro derivados de las compras mock, y guards anti-race en Compras.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| `mvn test` (compila main + tests en Docker `maven`) | ✅ |
+| Tests unitarios | ✅ **149** (`LibroService` 9, `CompraValidacion` 9, `LibroXmlGenerator` 4, transiciones ampliadas, + resto) |
+| `tsc --noEmit` (frontend) | ✅ sin errores |
+| `docker compose build` (backend + frontend) | ✅ |
+| Review de 8 ángulos + correcciones | ✅ (ver arriba) |
+| Tests con Testcontainers (`ContingenciaReenvioIT` 8, `LibroCompraVentaIT` 4, + resto) | ⚠️ compilan; no ejecutables en este host (corren en CI) |
+
+> Follow-ups documentados de P2-5: signo de las NC en los totales agregados del libro, unificar la semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en la respuesta del reenvío masivo.
 
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P2-5 (contingencia, reenvío de rechazados, libros de compra/venta). *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45).

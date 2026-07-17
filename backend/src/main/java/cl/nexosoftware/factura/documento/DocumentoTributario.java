@@ -89,6 +89,18 @@ public class DocumentoTributario {
     @Column(name = "track_id")
     private String trackId;
 
+    /** Intentos de envio al SII realizados (exitosos o en contingencia). */
+    @Column(name = "intentos_envio", nullable = false)
+    private int intentosEnvio;
+
+    /** Momento del ultimo intento de envio al SII. */
+    @Column(name = "ultimo_envio_en")
+    private OffsetDateTime ultimoEnvioEn;
+
+    /** Motivo del ultimo fallo de envio; null si el ultimo intento fue exitoso. */
+    @Column(name = "ultimo_error_envio", columnDefinition = "text")
+    private String ultimoErrorEnvio;
+
     /** Sello de integridad: SHA-256 (hex) del XML firmado, fijado al emitir. */
     @Column(length = 64)
     private String sello;

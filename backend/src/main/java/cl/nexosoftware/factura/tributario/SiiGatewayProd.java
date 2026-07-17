@@ -14,6 +14,12 @@ import org.springframework.stereotype.Component;
  * endpoint del ambiente (certificacion/prod) y consultar el estado por TrackID.
  * Hasta entonces cada operacion falla de forma explicita en lugar de simular una
  * aceptacion como hace el stub de desarrollo.
+ *
+ * IMPORTANTE para la implementacion real: los errores de transporte (timeout,
+ * conexion rechazada, 5xx del SII) deben mapearse a
+ * {@link cl.nexosoftware.factura.common.exception.SiiNoDisponibleException} —
+ * es la senal con la que DocumentoService deja el DTE EN_CONTINGENCIA en vez de
+ * fallar; cualquier otra excepcion propaga como error al cliente.
  */
 @Component
 @Profile("prod")

@@ -62,6 +62,11 @@ app:
     ambiente: ${APP_SII_AMBIENTE:CERTIFICACION}
     certificado-path: ${APP_SII_CERT_PATH:}
     certificado-password: ${APP_SII_CERT_PASSWORD:}
+    # Comportamiento inicial del stub del SII (solo perfiles != prod). Tambien
+    # es configurable en runtime via PUT /api/dev/sii-stub (contingencia E2E).
+    stub:
+      disponible: ${APP_SII_STUB_DISPONIBLE:true}
+      estado-consulta: ${APP_SII_STUB_ESTADO:ACEPTADO}
   dte:
     # Validacion XSD del XML del DTE antes de firmar. Mantener en true salvo
     # diagnostico puntual; en false se emiten DTE sin validar el esquema.

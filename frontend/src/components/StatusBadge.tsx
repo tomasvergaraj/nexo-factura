@@ -4,6 +4,7 @@ import { ESTADO_LABEL, type EstadoDte } from "../lib/types";
 const TONO: Record<EstadoDte, "neutral" | "cobalt" | "success" | "warn" | "danger"> = {
   BORRADOR: "neutral",
   FIRMADO: "cobalt",
+  EN_CONTINGENCIA: "warn",
   ENVIADO: "cobalt",
   ACEPTADO: "success",
   RECHAZADO: "danger",

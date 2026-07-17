@@ -28,6 +28,7 @@ public class DashboardService {
         long pendientes = documentoRepository.countByEmpresaIdAndEstado(empresaId, EstadoDte.ENVIADO);
         long aceptados = documentoRepository.countByEmpresaIdAndEstado(empresaId, EstadoDte.ACEPTADO);
         long borradores = documentoRepository.countByEmpresaIdAndEstado(empresaId, EstadoDte.BORRADOR);
+        long enContingencia = documentoRepository.countByEmpresaIdAndEstado(empresaId, EstadoDte.EN_CONTINGENCIA);
 
         var recientes = documentoRepository
                 .findByEmpresaIdOrderByCreadoEnDesc(empresaId, PageRequest.of(0, 8))
@@ -35,6 +36,6 @@ public class DashboardService {
                 .getContent();
 
         return new ResumenDashboard(documentosMes, montoMes, pendientes, aceptados, borradores,
-                List.copyOf(recientes));
+                enContingencia, List.copyOf(recientes));
     }
 }

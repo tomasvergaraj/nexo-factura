@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, CircleDollarSign, Clock, CircleCheck, ArrowUpRight } from "lucide-react";
+import { FileText, CircleDollarSign, Clock, CircleCheck, ArrowUpRight, CloudOff } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import { Kpi } from "../../components/app/Kpi";
-import { Card, LoadingState, Th } from "../../components/ui";
+import { Alert, Button, Card, LoadingState, Th } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
-import { getDashboard } from "../../lib/api";
+import { getDashboard, mensajeError, reenviarPendientes } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
 import { serieEmisionMock } from "../../lib/mock";
 import { formatCLP, formatFecha } from "../../lib/format";
@@ -13,10 +13,36 @@ import { TIPO_DTE_LABEL, type ResumenDashboard } from "../../lib/types";
 
 export function Dashboard() {
   const [data, setData] = useState<ResumenDashboard | null>(null);
+  const [reintentando, setReintentando] = useState(false);
+  const [avisoReenvio, setAvisoReenvio] = useState<string | null>(null);
 
   useEffect(() => {
     getDashboard(empresaIdActual()).then(setData);
   }, []);
+
+  async function reintentarEnvios() {
+    setReintentando(true);
+    setAvisoReenvio(null);
+    try {
+      const resumen = await reenviarPendientes(empresaIdActual());
+      setAvisoReenvio(
+        resumen.enContingencia === 0
+          ? `Se reenviaron ${resumen.enviados} de ${resumen.procesados} documentos.`
+          : `Se reenviaron ${resumen.enviados} de ${resumen.procesados}; ${resumen.enContingencia} siguen en contingencia.`,
+      );
+      // La respuesta ya trae los contadores: se actualiza el estado local sin
+      // pagar una recarga completa del dashboard.
+      setData((d) => d && {
+        ...d,
+        enContingencia: resumen.enContingencia,
+        pendientesSii: d.pendientesSii + resumen.enviados,
+      });
+    } catch (e) {
+      setAvisoReenvio(mensajeError(e, "No se pudieron reenviar los documentos."));
+    } finally {
+      setReintentando(false);
+    }
+  }
 
   return (
     <AppShell titulo="Resumen">
@@ -24,6 +50,20 @@ export function Dashboard() {
         <LoadingState mensaje="Cargando resumen…" />
       ) : (
         <div className="space-y-6">
+          {data.enContingencia > 0 && (
+            <Alert tone="warn" icon={<CloudOff size={16} />}>
+              <span className="flex flex-wrap items-center gap-3">
+                {data.enContingencia === 1
+                  ? "Hay 1 documento en contingencia (el SII no estaba disponible al enviarlo)."
+                  : `Hay ${data.enContingencia} documentos en contingencia (el SII no estaba disponible al enviarlos).`}
+                <Button size="sm" variant="secondary" onClick={reintentarEnvios} disabled={reintentando}>
+                  {reintentando ? "Reintentando…" : "Reintentar envíos"}
+                </Button>
+              </span>
+            </Alert>
+          )}
+          {avisoReenvio && <Alert tone="info">{avisoReenvio}</Alert>}
+
           {/* KPIs */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="Documentos del mes" valor={String(data.documentosMes)}

@@ -14,13 +14,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * Verifica el grafo de transiciones declarado en el enum:
  * <pre>
- *   BORRADOR  -> FIRMADO
- *   FIRMADO   -> ENVIADO | BORRADOR
- *   ENVIADO   -> ACEPTADO | RECHAZADO | REPARO
- *   ACEPTADO  -> ANULADO
- *   RECHAZADO -> BORRADOR
- *   REPARO    -> ACEPTADO | RECHAZADO
- *   ANULADO   -> (terminal)
+ *   BORRADOR        -> FIRMADO
+ *   FIRMADO         -> ENVIADO | BORRADOR | EN_CONTINGENCIA
+ *   EN_CONTINGENCIA -> ENVIADO
+ *   ENVIADO         -> ACEPTADO | RECHAZADO | REPARO
+ *   ACEPTADO        -> ANULADO
+ *   RECHAZADO       -> ENVIADO   (reenvio; nunca a EN_CONTINGENCIA: un rechazo
+ *                                 es de fondo, no una caida transitoria)
+ *   REPARO          -> ACEPTADO | RECHAZADO
+ *   ANULADO         -> (terminal)
  * </pre>
  */
 class EstadoDteTransicionesTest {
@@ -31,16 +33,18 @@ class EstadoDteTransicionesTest {
 
         @ParameterizedTest(name = "{0} -> {1} es valida")
         @CsvSource({
-                "BORRADOR,  FIRMADO",
-                "FIRMADO,   ENVIADO",
-                "FIRMADO,   BORRADOR",
-                "ENVIADO,   ACEPTADO",
-                "ENVIADO,   RECHAZADO",
-                "ENVIADO,   REPARO",
-                "ACEPTADO,  ANULADO",
-                "RECHAZADO, BORRADOR",
-                "REPARO,    ACEPTADO",
-                "REPARO,    RECHAZADO"
+                "BORRADOR,        FIRMADO",
+                "FIRMADO,         ENVIADO",
+                "FIRMADO,         BORRADOR",
+                "FIRMADO,         EN_CONTINGENCIA",
+                "EN_CONTINGENCIA, ENVIADO",
+                "ENVIADO,         ACEPTADO",
+                "ENVIADO,         RECHAZADO",
+                "ENVIADO,         REPARO",
+                "ACEPTADO,        ANULADO",
+                "RECHAZADO,       ENVIADO",
+                "REPARO,          ACEPTADO",
+                "REPARO,          RECHAZADO"
         })
         void permiteLasTransicionesDelCicloDeVida(EstadoDte origen, EstadoDte destino) {
             assertThat(origen.puedeTransicionarA(destino))
@@ -56,19 +60,30 @@ class EstadoDteTransicionesTest {
         @ParameterizedTest(name = "{0} -> {1} es invalida")
         @CsvSource({
                 // saltos de etapa
-                "BORRADOR,  ENVIADO",
-                "BORRADOR,  ACEPTADO",
-                "BORRADOR,  ANULADO",
-                "FIRMADO,   ACEPTADO",
-                "FIRMADO,   ANULADO",
+                "BORRADOR,        ENVIADO",
+                "BORRADOR,        ACEPTADO",
+                "BORRADOR,        ANULADO",
+                "BORRADOR,        EN_CONTINGENCIA",
+                "FIRMADO,         ACEPTADO",
+                "FIRMADO,         ANULADO",
                 // retrocesos no permitidos
-                "ENVIADO,   FIRMADO",
-                "ENVIADO,   BORRADOR",
-                "ACEPTADO,  ENVIADO",
-                "ACEPTADO,  RECHAZADO",
-                // estados finales que no llevan a ANULADO directo
-                "RECHAZADO, ANULADO",
-                "REPARO,    ANULADO"
+                "ENVIADO,         FIRMADO",
+                "ENVIADO,         BORRADOR",
+                "ENVIADO,         EN_CONTINGENCIA",
+                "ACEPTADO,        ENVIADO",
+                "ACEPTADO,        RECHAZADO",
+                "EN_CONTINGENCIA, FIRMADO",
+                "EN_CONTINGENCIA, BORRADOR",
+                // el DTE es inmutable y su folio ya fue consumido: un rechazado
+                // NO vuelve a borrador, solo puede reenviarse
+                "RECHAZADO,       BORRADOR",
+                // un rechazo del SII es de fondo: el documento no entra a la
+                // cola de contingencia aunque el reenvio falle
+                "RECHAZADO,       EN_CONTINGENCIA",
+                // estados que no llevan a ANULADO directo
+                "RECHAZADO,       ANULADO",
+                "REPARO,          ANULADO",
+                "EN_CONTINGENCIA, ANULADO"
         })
         void rechazaLasTransicionesFueraDelGrafo(EstadoDte origen, EstadoDte destino) {
             assertThat(origen.puedeTransicionarA(destino))
@@ -110,6 +125,19 @@ class EstadoDteTransicionesTest {
             boolean esperado = origen == EstadoDte.ACEPTADO;
             assertThat(origen.puedeTransicionarA(EstadoDte.ANULADO))
                     .as("%s -> ANULADO", origen)
+                    .isEqualTo(esperado);
+        }
+    }
+
+    @Test
+    @DisplayName("El destino ENVIADO es alcanzable desde FIRMADO, EN_CONTINGENCIA y RECHAZADO")
+    void enviadoDesdeFirmadoContingenciaYRechazado() {
+        for (EstadoDte origen : EstadoDte.values()) {
+            boolean esperado = origen == EstadoDte.FIRMADO
+                    || origen == EstadoDte.EN_CONTINGENCIA
+                    || origen == EstadoDte.RECHAZADO;
+            assertThat(origen.puedeTransicionarA(EstadoDte.ENVIADO))
+                    .as("%s -> ENVIADO", origen)
                     .isEqualTo(esperado);
         }
     }

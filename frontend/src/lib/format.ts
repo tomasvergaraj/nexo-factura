@@ -1,5 +1,24 @@
 // Formateo y validación para Chile.
 
+/**
+ * Fecha local de HOY como YYYY-MM-DD. OJO: no usar toISOString() para esto —
+ * es UTC y en Chile (UTC-3/-4) por la tarde-noche ya corresponde al día (o mes)
+ * siguiente.
+ */
+export function hoyIso(): string {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+/** Mes local actual como YYYY-MM (período tributario en curso). */
+export function mesActual(): string {
+  return hoyIso().slice(0, 7);
+}
+
+export const MENSAJE_RUT_INVALIDO = "RUT inválido: dígito verificador incorrecto";
+
 const CLP = new Intl.NumberFormat("es-CL", {
   style: "currency",
   currency: "CLP",

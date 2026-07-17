@@ -94,7 +94,20 @@ public final class DocumentoDtos {
             OffsetDateTime creadoEn,
             List<ReferenciaResponse> referencias,
             List<ImpuestoResponse> impuestos,
-            String sello
+            String sello,
+            // Traza del envio al SII (contingencia): intentos realizados, momento
+            // del ultimo intento y motivo del ultimo fallo (null si fue exitoso).
+            int intentosEnvio,
+            OffsetDateTime ultimoEnvioEn,
+            String ultimoErrorEnvio
+    ) {}
+
+    /** Resultado del reenvio masivo de documentos EN_CONTINGENCIA. */
+    public record ReenvioMasivoResponse(
+            int procesados,
+            int enviados,
+            int enContingencia,
+            List<DocumentoResumen> documentos
     ) {}
 
     /** Vista compacta para listados. */

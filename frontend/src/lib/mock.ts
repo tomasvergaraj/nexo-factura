@@ -2,7 +2,8 @@
 // Cambie USE_MOCK a false en api.ts para consumir la API real.
 
 import type {
-  Caf, Cliente, DocumentoResponse, DocumentoResumen, Producto, RcofResponse, ResumenDashboard,
+  Caf, Cliente, Compra, DocumentoResponse, DocumentoResumen, LibroResponse, Producto,
+  RcofResponse, ResumenDashboard, TipoOperacionLibro,
 } from "./types";
 
 export const clientesMock: Cliente[] = [
@@ -35,6 +36,7 @@ export const dashboardMock: ResumenDashboard = {
   pendientesSii: 1,
   aceptados: 34,
   borradores: 3,
+  enContingencia: 0,
   recientes: documentosMock,
 };
 
@@ -58,6 +60,9 @@ export const documentoDetalleMock: DocumentoResponse = {
   referencias: [],
   impuestos: [],
   sello: "3a7bd3e2360a3d5f1f2e4b8c9d0e1a2b3c4d5e6f70819a2b3c4d5e6f7a8b9c0d1",
+  intentosEnvio: 1,
+  ultimoEnvioEn: "2026-06-23T10:25:00Z",
+  ultimoErrorEnvio: null,
 };
 
 export const foliosMock: Caf[] = [
@@ -110,6 +115,71 @@ export function rcofMock(fecha: string): RcofResponse {
       montoExento: afecta.montoExento + exenta.montoExento,
       montoTotal: afecta.montoTotal + exenta.montoTotal,
     },
+    sinMovimiento: false,
+  };
+}
+
+/** Compras registradas de demostración para el período pedido. */
+export function comprasMock(periodo: string): Compra[] {
+  return [
+    { id: 1, tipoDte: 33, folio: 4581, rutProveedor: "96511460-1", razonSocial: "Distribuidora Central SpA", fechaEmision: `${periodo}-05`, neto: 380000, exento: 0, iva: 72200, ivaRetenido: 0, total: 452200, observacion: null, creadoEn: `${periodo}-05T09:00:00Z` },
+    { id: 2, tipoDte: 33, folio: 890, rutProveedor: "77888999-0", razonSocial: "Papelería Insumos Ltda", fechaEmision: `${periodo}-12`, neto: 45000, exento: 0, iva: 8550, ivaRetenido: 0, total: 53550, observacion: null, creadoEn: `${periodo}-12T15:30:00Z` },
+    { id: 3, tipoDte: 34, folio: 152, rutProveedor: "65432100-9", razonSocial: "Capacitación Norte EIRL", fechaEmision: `${periodo}-20`, neto: 0, exento: 150000, iva: 0, ivaRetenido: 0, total: 150000, observacion: null, creadoEn: `${periodo}-20T11:10:00Z` },
+  ];
+}
+
+/** Libro IECV de demostración para el período y tipo de operación pedidos. */
+export function libroMock(tipo: TipoOperacionLibro, periodo: string): LibroResponse {
+  if (tipo === "COMPRA") {
+    // Derivado de comprasMock (misma agregación que el backend) para que la
+    // página de Compras y el libro nunca muestren cifras contradictorias.
+    const compras = comprasMock(periodo);
+    const porTipo = new Map<number, Compra[]>();
+    for (const c of compras) {
+      porTipo.set(c.tipoDte, [...(porTipo.get(c.tipoDte) ?? []), c]);
+    }
+    const suma = (cs: Compra[], f: (c: Compra) => number) => cs.reduce((acc, c) => acc + f(c), 0);
+    const resumen = [...porTipo.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([tipoDocumento, cs]) => ({
+        tipoDocumento, documentos: cs.length, anulados: 0,
+        neto: suma(cs, (c) => c.neto), exento: suma(cs, (c) => c.exento), iva: suma(cs, (c) => c.iva),
+        otrosImpuestos: 0, ivaRetenido: suma(cs, (c) => c.ivaRetenido), total: suma(cs, (c) => c.total),
+      }));
+    return {
+      periodo,
+      tipoOperacion: "COMPRA",
+      resumen,
+      detalle: compras.map((c) => ({
+        tipoDocumento: c.tipoDte, folio: c.folio, fecha: c.fechaEmision,
+        rutContraparte: c.rutProveedor, razonSocial: c.razonSocial,
+        neto: c.neto, exento: c.exento, iva: c.iva, otrosImpuestos: 0, ivaRetenido: c.ivaRetenido,
+        total: c.total, anulado: false,
+      })),
+      totales: {
+        documentos: compras.length, anulados: 0,
+        neto: suma(compras, (c) => c.neto), exento: suma(compras, (c) => c.exento),
+        iva: suma(compras, (c) => c.iva), otrosImpuestos: 0,
+        ivaRetenido: suma(compras, (c) => c.ivaRetenido), total: suma(compras, (c) => c.total),
+      },
+      sinMovimiento: false,
+    };
+  }
+  return {
+    periodo,
+    tipoOperacion: "VENTA",
+    resumen: [
+      { tipoDocumento: 33, documentos: 6, anulados: 1, neto: 4934200, exento: 0, iva: 937498, otrosImpuestos: 0, ivaRetenido: 0, total: 5871698 },
+      { tipoDocumento: 39, documentos: 16, anulados: 1, neto: 546218, exento: 84000, iva: 103782, otrosImpuestos: 0, ivaRetenido: 0, total: 734000 },
+      { tipoDocumento: 61, documentos: 1, anulados: 0, neto: 100000, exento: 0, iva: 19000, otrosImpuestos: 0, ivaRetenido: 0, total: 119000 },
+    ],
+    detalle: [
+      { tipoDocumento: 33, folio: 142, fecha: `${periodo}-23`, rutContraparte: "78222333-4", razonSocial: "Constructora Andes SpA", neto: 1400000, exento: 0, iva: 266000, otrosImpuestos: 0, ivaRetenido: 0, total: 1666000, anulado: false },
+      { tipoDocumento: 33, folio: 141, fecha: `${periodo}-21`, rutContraparte: "77111222-3", razonSocial: "Comercial Las Palmas Ltda", neto: 450000, exento: 0, iva: 85500, otrosImpuestos: 0, ivaRetenido: 0, total: 535500, anulado: false },
+      { tipoDocumento: 33, folio: 138, fecha: `${periodo}-16`, rutContraparte: "77111222-3", razonSocial: "Comercial Las Palmas Ltda", neto: 0, exento: 0, iva: 0, otrosImpuestos: 0, ivaRetenido: 0, total: 0, anulado: true },
+      { tipoDocumento: 61, folio: 18, fecha: `${periodo}-18`, rutContraparte: "78222333-4", razonSocial: "Constructora Andes SpA", neto: 100000, exento: 0, iva: 19000, otrosImpuestos: 0, ivaRetenido: 0, total: 119000, anulado: false },
+    ],
+    totales: { documentos: 23, anulados: 2, neto: 5580418, exento: 84000, iva: 1060280, otrosImpuestos: 0, ivaRetenido: 0, total: 6724698 },
     sinMovimiento: false,
   };
 }

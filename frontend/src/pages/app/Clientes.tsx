@@ -9,7 +9,7 @@ import {
   crearCliente, editarCliente, erroresDeCampo, getClientes, mensajeError,
 } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { formatRut, validarRut } from "../../lib/format";
+import { formatRut, MENSAJE_RUT_INVALIDO, validarRut } from "../../lib/format";
 import type { Cliente, ClienteRequest } from "../../lib/types";
 
 const VACIO: ClienteRequest = {
@@ -73,7 +73,7 @@ export function Clientes() {
     setErrorGeneral(null);
 
     if (!form.rut.trim() || !validarRut(form.rut)) {
-      setErrores({ rut: "RUT invalido: digito verificador incorrecto" });
+      setErrores({ rut: MENSAJE_RUT_INVALIDO });
       return;
     }
     if (!form.razonSocial.trim()) {

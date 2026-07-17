@@ -4,10 +4,10 @@ import { AppShell } from "../../components/app/AppShell";
 import { Card, Input, EmptyState, PageHeader, LoadingState, Alert, Th } from "../../components/ui";
 import { getRcof, mensajeError } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { formatCLP, formatNumero } from "../../lib/format";
+import { formatCLP, formatNumero, hoyIso } from "../../lib/format";
 import { TIPO_DTE_LABEL, TIPO_DTE_POR_CODIGO, type RcofResponse } from "../../lib/types";
 
-const HOY = new Date().toISOString().slice(0, 10);
+const HOY = hoyIso(); // fecha local, no UTC
 
 function rango(desde: number | null, hasta: number | null): string {
   if (desde == null || hasta == null) return "—";

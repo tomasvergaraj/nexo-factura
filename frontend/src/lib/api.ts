@@ -5,12 +5,13 @@
 import axios from "axios";
 import { guardarTokens, limpiarSesion, obtenerRefreshToken, obtenerToken, RUTA_LOGIN } from "./auth";
 import {
-  clientesMock, dashboardMock, documentoDetalleMock, documentosMock, foliosMock, productosMock,
-  rcofMock,
+  clientesMock, comprasMock, dashboardMock, documentoDetalleMock, documentosMock, foliosMock,
+  libroMock, productosMock, rcofMock,
 } from "./mock";
 import type {
-  Caf, CafRequest, Cliente, ClienteRequest, DocumentoResponse, DocumentoResumen,
-  Producto, ProductoRequest, RcofResponse, ReferenciaRequest, ResumenDashboard,
+  Caf, CafRequest, Cliente, ClienteRequest, Compra, CompraRequest, DocumentoResponse,
+  DocumentoResumen, LibroResponse, Producto, ProductoRequest, RcofResponse, ReenvioMasivoResponse,
+  ReferenciaRequest, ResumenDashboard, TipoOperacionLibro,
 } from "./types";
 
 // Opt-in a datos mock: solo con VITE_USE_MOCK="true" (default false).
@@ -209,6 +210,26 @@ export async function enviarDocumento(empresaId: number, id: number): Promise<Do
   return data;
 }
 
+/** Reenvía al SII un documento EN_CONTINGENCIA o RECHAZADO (mismo XML firmado). */
+export async function reenviarDocumento(empresaId: number, id: number): Promise<DocumentoResponse> {
+  if (USE_MOCK) {
+    await demora(400);
+    return { ...documentoDetalleMock, estado: "ENVIADO", ultimoErrorEnvio: null };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/documentos/${id}/reenviar`);
+  return data;
+}
+
+/** Reintenta el envío de todos los documentos EN_CONTINGENCIA de la empresa. */
+export async function reenviarPendientes(empresaId: number): Promise<ReenvioMasivoResponse> {
+  if (USE_MOCK) {
+    await demora(400);
+    return { procesados: 0, enviados: 0, enContingencia: 0, documentos: [] };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/documentos/reenviar-pendientes`);
+  return data;
+}
+
 export async function consultarEstadoSii(empresaId: number, id: number): Promise<DocumentoResponse> {
   if (USE_MOCK) {
     await demora(400);
@@ -346,6 +367,73 @@ export async function getRcof(empresaId: number, fecha: string): Promise<RcofRes
     return rcofMock(fecha);
   }
   const { data } = await http.get(`/empresas/${empresaId}/rcof`, { params: { fecha } });
+  return data;
+}
+
+// ---- Compras (documentos recibidos) ----
+export async function getCompras(empresaId: number, periodo: string): Promise<Compra[]> {
+  if (USE_MOCK) {
+    await demora();
+    return comprasMock(periodo);
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/compras`, { params: { periodo } });
+  return data;
+}
+
+export async function crearCompra(empresaId: number, payload: CompraRequest): Promise<Compra> {
+  if (USE_MOCK) {
+    await demora(400);
+    return {
+      id: Date.now(), ...payload, ivaRetenido: payload.ivaRetenido ?? 0,
+      observacion: payload.observacion ?? null, creadoEn: new Date().toISOString(),
+    };
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/compras`, payload);
+  return data;
+}
+
+export async function eliminarCompra(empresaId: number, id: number): Promise<void> {
+  if (USE_MOCK) {
+    await demora(300);
+    return;
+  }
+  await http.delete(`/empresas/${empresaId}/compras/${id}`);
+}
+
+// ---- Libros de compra/venta (IECV) ----
+export async function getLibro(
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+): Promise<LibroResponse> {
+  if (USE_MOCK) {
+    await demora();
+    return libroMock(tipo, periodo);
+  }
+  const ruta = tipo === "VENTA" ? "ventas" : "compras";
+  const { data } = await http.get(`/empresas/${empresaId}/libros/${ruta}`, { params: { periodo } });
+  return data;
+}
+
+/**
+ * XML LibroCompraVenta del período (sin firmar), para descarga. Se pide como
+ * Blob para conservar los BYTES tal como los sirve el backend: el prólogo
+ * declara ISO-8859-1, y decodificarlo a string y re-codificarlo a UTF-8 al
+ * guardar produciría un archivo cuyo contenido contradice su declaración.
+ */
+export async function getLibroXml(
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+): Promise<Blob> {
+  if (USE_MOCK) {
+    await demora();
+    return new Blob(
+      [`<?xml version="1.0" encoding="ISO-8859-1"?>\n<LibroCompraVenta version="1.0"/>`],
+      { type: "application/xml" },
+    );
+  }
+  const ruta = tipo === "VENTA" ? "ventas" : "compras";
+  const { data } = await http.get(`/empresas/${empresaId}/libros/${ruta}/xml`, {
+    params: { periodo },
+    responseType: "blob",
+  });
   return data;
 }
 

@@ -15,6 +15,7 @@ export interface AuthResponse {
 export type EstadoDte =
   | "BORRADOR"
   | "FIRMADO"
+  | "EN_CONTINGENCIA"
   | "ENVIADO"
   | "ACEPTADO"
   | "RECHAZADO"
@@ -107,6 +108,20 @@ export interface DocumentoResponse extends DocumentoResumen {
   impuestos: ImpuestoResponse[];
   /** Sello de integridad (SHA-256 del XML firmado); null mientras es borrador. */
   sello: string | null;
+  /** Intentos de envío al SII realizados (exitosos o en contingencia). */
+  intentosEnvio: number;
+  /** Momento del último intento de envío (ISO-8601); null si nunca se envió. */
+  ultimoEnvioEn: string | null;
+  /** Motivo del último fallo de envío; null si el último intento fue exitoso. */
+  ultimoErrorEnvio: string | null;
+}
+
+/** Resultado del reenvío masivo de documentos EN_CONTINGENCIA. */
+export interface ReenvioMasivoResponse {
+  procesados: number;
+  enviados: number;
+  enContingencia: number;
+  documentos: DocumentoResumen[];
 }
 
 export interface Cliente {
@@ -172,6 +187,8 @@ export interface ResumenDashboard {
   pendientesSii: number;
   aceptados: number;
   borradores: number;
+  /** Documentos cuyo envío al SII falló y esperan reintento. */
+  enContingencia: number;
   recientes: DocumentoResumen[];
 }
 
@@ -197,6 +214,7 @@ export const CODIGO_TIPO_DTE: Record<TipoDte, number> = {
 export const ESTADO_LABEL: Record<EstadoDte, string> = {
   BORRADOR: "Borrador",
   FIRMADO: "Firmado",
+  EN_CONTINGENCIA: "En contingencia",
   ENVIADO: "Enviado al SII",
   ACEPTADO: "Aceptado",
   RECHAZADO: "Rechazado",
@@ -261,6 +279,100 @@ export const PERMITE_IMPUESTOS: Record<TipoDte, boolean> = {
 export const TIPO_DTE_POR_CODIGO: Record<number, TipoDte> = Object.fromEntries(
   Object.entries(CODIGO_TIPO_DTE).map(([k, v]) => [v, k as TipoDte]),
 ) as Record<number, TipoDte>;
+
+// ---- Compras (documentos recibidos) y libros IECV — espejo del backend ----
+
+/** Documento recibido registrado manualmente (espejo de CompraResponse). */
+export interface Compra {
+  id: number;
+  tipoDte: number; // código SII: 33 | 34 | 46 | 56 | 61
+  folio: number;
+  rutProveedor: string;
+  razonSocial: string;
+  fechaEmision: string; // YYYY-MM-DD
+  neto: number;
+  exento: number;
+  iva: number;
+  /** IVA retenido por el comprador (cambio de sujeto, típico del 46); resta del total. */
+  ivaRetenido: number;
+  total: number;
+  observacion: string | null;
+  creadoEn: string;
+}
+
+export interface CompraRequest {
+  tipoDte: number;
+  folio: number;
+  rutProveedor: string;
+  razonSocial: string;
+  fechaEmision: string;
+  neto: number;
+  exento: number;
+  iva: number;
+  ivaRetenido?: number;
+  total: number;
+  observacion?: string;
+}
+
+/** Tipos admitidos en el registro de compras (espejo de CompraService.TIPOS_PERMITIDOS). */
+export const TIPOS_COMPRA: { codigo: number; label: string }[] =
+  [33, 34, 46, 56, 61].map((codigo) => ({ codigo, label: `${nombreTipoDte(codigo)} (${codigo})` }));
+
+export type TipoOperacionLibro = "VENTA" | "COMPRA";
+
+export interface LibroResumenTipo {
+  tipoDocumento: number;
+  documentos: number;
+  anulados: number;
+  neto: number;
+  exento: number;
+  iva: number;
+  otrosImpuestos: number;
+  ivaRetenido: number;
+  total: number;
+}
+
+export interface LibroDetalleDoc {
+  tipoDocumento: number;
+  folio: number;
+  fecha: string;
+  rutContraparte: string;
+  razonSocial: string;
+  neto: number;
+  exento: number;
+  iva: number;
+  otrosImpuestos: number;
+  ivaRetenido: number;
+  total: number;
+  anulado: boolean;
+}
+
+export interface LibroTotales {
+  documentos: number;
+  anulados: number;
+  neto: number;
+  exento: number;
+  iva: number;
+  otrosImpuestos: number;
+  ivaRetenido: number;
+  total: number;
+}
+
+export interface LibroResponse {
+  periodo: string; // YYYY-MM
+  tipoOperacion: TipoOperacionLibro;
+  resumen: LibroResumenTipo[];
+  detalle: LibroDetalleDoc[];
+  totales: LibroTotales;
+  sinMovimiento: boolean;
+}
+
+/** Nombre de un tipo de DTE a partir de su código SII (incluye recibidos como el 46). */
+export function nombreTipoDte(codigo: number): string {
+  const tipo = TIPO_DTE_POR_CODIGO[codigo];
+  if (tipo) return TIPO_DTE_LABEL[tipo];
+  return codigo === 46 ? "Factura de compra" : `Tipo ${codigo}`;
+}
 
 // ---- RCOF (Reporte de Consumo de Folios) — nombres canónicos del backend ----
 export interface RcofPorTipo {

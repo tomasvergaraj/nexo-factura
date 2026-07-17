@@ -14,6 +14,8 @@ public final class DashboardDtos {
             long pendientesSii,
             long aceptados,
             long borradores,
+            /** Documentos cuyo envio al SII fallo y esperan reintento. */
+            long enContingencia,
             List<DocumentoResumen> recientes
     ) {}
 }

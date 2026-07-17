@@ -44,6 +44,14 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), req, ex.getErrores());
     }
 
+    @ExceptionHandler(SiiNoDisponibleException.class)
+    public ResponseEntity<ApiError> siiNoDisponible(SiiNoDisponibleException ex, HttpServletRequest req) {
+        // Solo llega aqui desde operaciones SIN cola de contingencia (p.ej. la
+        // consulta de estado); el envio la captura y deja el DTE EN_CONTINGENCIA.
+        log.warn("SII no disponible en {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), req, null);
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiError> conflictoDeVersion(OptimisticLockingFailureException ex, HttpServletRequest req) {
         // El registro fue modificado por otra operacion concurrente (lost update evitado).

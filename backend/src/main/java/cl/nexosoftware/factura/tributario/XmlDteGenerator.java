@@ -3,11 +3,8 @@ package cl.nexosoftware.factura.tributario;
 import cl.nexosoftware.factura.documento.DocumentoTributario;
 import cl.nexosoftware.factura.documento.LineaDetalle;
 import cl.nexosoftware.factura.empresa.Empresa;
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Component;
 
-import java.io.StringWriter;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -109,16 +106,6 @@ public class XmlDteGenerator {
     }
 
     private String marshal(ModeloDte.Dte dte) {
-        try {
-            JAXBContext ctx = JAXBContext.newInstance(ModeloDte.Dte.class);
-            Marshaller marshaller = ctx.createMarshaller();
-            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-            marshaller.setProperty(Marshaller.JAXB_FRAGMENT, true);
-            StringWriter sw = new StringWriter();
-            marshaller.marshal(dte, sw);
-            return "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n" + sw;
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el XML del DTE", e);
-        }
+        return JaxbXml.marshal(dte, "No se pudo generar el XML del DTE");
     }
 }

@@ -3,11 +3,8 @@ package cl.nexosoftware.factura.tributario;
 import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.rcof.RcofDtos.RcofPorTipo;
 import cl.nexosoftware.factura.rcof.RcofDtos.RcofResponse;
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Component;
 
-import java.io.StringWriter;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,16 +67,6 @@ public class RcofXmlGenerator {
     }
 
     private String marshal(ModeloConsumoFolios.ConsumoFolios cf) {
-        try {
-            JAXBContext ctx = JAXBContext.newInstance(ModeloConsumoFolios.ConsumoFolios.class);
-            Marshaller marshaller = ctx.createMarshaller();
-            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-            marshaller.setProperty(Marshaller.JAXB_FRAGMENT, true);
-            StringWriter sw = new StringWriter();
-            marshaller.marshal(cf, sw);
-            return "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n" + sw;
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el XML del RCOF", e);
-        }
+        return JaxbXml.marshal(cf, "No se pudo generar el XML del RCOF");
     }
 }

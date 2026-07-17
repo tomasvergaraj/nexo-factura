@@ -6,12 +6,24 @@ import java.util.Set;
  * Ciclo de vida de un DTE.
  * <pre>
  *   BORRADOR -> FIRMADO -> ENVIADO -> (ACEPTADO | RECHAZADO | REPARO)
- *   ACEPTADO -> ANULADO (via nota de credito)
+ *   FIRMADO -> EN_CONTINGENCIA        (el SII no estaba disponible al enviar)
+ *   EN_CONTINGENCIA -> ENVIADO        (reintento de envio exitoso)
+ *   RECHAZADO -> ENVIADO              (reenvio del mismo XML firmado)
+ *   ACEPTADO -> ANULADO               (via nota de credito)
  * </pre>
+ *
+ * Un RECHAZADO no vuelve a BORRADOR: el contenido tributario del DTE es
+ * inmutable y su folio ya fue consumido, asi que la unica correccion posible
+ * es reenviar el mismo XML (errores transitorios del envio) o emitir un
+ * documento nuevo que lo reemplace. Tampoco pasa a EN_CONTINGENCIA: un rechazo
+ * del SII es una decision de fondo, no una caida transitoria, y el documento
+ * no debe entrar a la cola de reintento automatico ni volver a los libros; si
+ * su reenvio falla, permanece RECHAZADO con el error en la traza de envio.
  */
 public enum EstadoDte {
     BORRADOR,
     FIRMADO,
+    EN_CONTINGENCIA,
     ENVIADO,
     ACEPTADO,
     RECHAZADO,
@@ -20,10 +32,11 @@ public enum EstadoDte {
 
     private static final java.util.Map<EstadoDte, Set<EstadoDte>> TRANSICIONES = java.util.Map.of(
             BORRADOR, Set.of(FIRMADO),
-            FIRMADO, Set.of(ENVIADO, BORRADOR),
+            FIRMADO, Set.of(ENVIADO, BORRADOR, EN_CONTINGENCIA),
+            EN_CONTINGENCIA, Set.of(ENVIADO),
             ENVIADO, Set.of(ACEPTADO, RECHAZADO, REPARO),
             ACEPTADO, Set.of(ANULADO),
-            RECHAZADO, Set.of(BORRADOR),
+            RECHAZADO, Set.of(ENVIADO),
             REPARO, Set.of(ACEPTADO, RECHAZADO),
             ANULADO, Set.of()
     );
