@@ -1,5 +1,8 @@
 package cl.nexosoftware.factura.empresa;
 
+import cl.nexosoftware.factura.auth.SecurityUtils;
+import cl.nexosoftware.factura.auth.UsuarioPrincipal;
+import cl.nexosoftware.factura.auth.UsuarioRepository;
 import cl.nexosoftware.factura.common.exception.RecursoNoEncontradoException;
 import cl.nexosoftware.factura.empresa.EmpresaDtos.*;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +17,7 @@ public class EmpresaService {
 
     private final EmpresaRepository repository;
     private final EmpresaMapper mapper;
+    private final UsuarioRepository usuarioRepository;
 
     @Transactional(readOnly = true)
     public List<EmpresaResponse> listar() {
@@ -27,8 +31,20 @@ public class EmpresaService {
 
     @Transactional
     public EmpresaResponse crear(EmpresaRequest req) {
-        Empresa empresa = mapper.toEntity(req);
-        return mapper.toResponse(repository.save(empresa));
+        Empresa empresa = repository.save(mapper.toEntity(req));
+        // Onboarding: si quien la crea aun no tiene empresa (registro recien
+        // hecho), queda asociado a ella. El claim empresaId del JWT se
+        // actualiza en el siguiente /auth/refresh.
+        UsuarioPrincipal actual = SecurityUtils.currentUser();
+        if (actual != null && actual.getEmpresaId() == null) {
+            usuarioRepository.findById(actual.getId())
+                    .filter(u -> u.getEmpresa() == null)
+                    .ifPresent(u -> {
+                        u.setEmpresa(empresa);
+                        usuarioRepository.save(u);
+                    });
+        }
+        return mapper.toResponse(empresa);
     }
 
     @Transactional

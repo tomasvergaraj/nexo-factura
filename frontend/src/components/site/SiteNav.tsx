@@ -31,7 +31,7 @@ export function SiteNav() {
           <Link to="/ingresar" className="hidden sm:block">
             <Button variant="ghost" size="sm">Ingresar</Button>
           </Link>
-          <Link to="/ingresar">
+          <Link to="/registro">
             <Button size="sm">Probar gratis</Button>
           </Link>
         </div>

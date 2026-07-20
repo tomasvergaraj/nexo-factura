@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
+import { Registro } from "./pages/Registro";
 import { Sobre } from "./pages/site/Sobre";
 import { Contacto } from "./pages/site/Contacto";
 import { Terminos } from "./pages/site/Terminos";
@@ -34,6 +35,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/ingresar" element={<Login />} />
+        <Route path="/registro" element={<Registro />} />
         <Route path="/sobre" element={<Sobre />} />
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/terminos" element={<Terminos />} />

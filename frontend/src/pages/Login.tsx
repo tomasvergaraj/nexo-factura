@@ -95,6 +95,13 @@ export function Login() {
               </Button>
             </div>
 
+            <p className="mt-6 text-sm text-slate">
+              ¿Aún no tienes cuenta?{" "}
+              <Link to="/registro" className="font-medium text-cobalt transition-colors hover:text-cobalt-dark">
+                Crear cuenta
+              </Link>
+            </p>
+
             <div className="mt-6 flex items-start gap-3 rounded-lg border border-line bg-mist px-4 py-3">
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
                 <ShieldCheck className="h-4 w-4" />

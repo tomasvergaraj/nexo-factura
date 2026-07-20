@@ -64,7 +64,7 @@ function Hero() {
           </Reveal>
           <Reveal delay={240}>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link to="/ingresar">
+              <Link to="/registro">
                 <Button size="lg">Probar gratis <ArrowRight size={18} /></Button>
               </Link>
               <a href="#como-funciona">
@@ -479,7 +479,7 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <Link to="/ingresar" className="mt-8">
+              <Link to="/registro" className="mt-8">
                 <Button variant={p.destacado ? "primary" : "secondary"} className="w-full">{p.cta}</Button>
               </Link>
             </Card>
@@ -542,7 +542,7 @@ function CtaBand() {
         </Reveal>
         <Reveal delay={120}>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link to="/ingresar">
+            <Link to="/registro">
               <Button size="lg">Probar gratis <ArrowRight size={18} /></Button>
             </Link>
             <a href="https://wa.me/56981964119" target="_blank" rel="noreferrer">

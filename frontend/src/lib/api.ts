@@ -3,7 +3,10 @@
 // levantar el backend). Por defecto (false) consume la API real en /api.
 
 import axios from "axios";
-import { guardarTokens, limpiarSesion, obtenerRefreshToken, obtenerToken, RUTA_LOGIN } from "./auth";
+import {
+  guardarSesion, guardarTokens, limpiarSesion, obtenerRefreshToken, obtenerToken, RUTA_LOGIN,
+  type UsuarioSesion,
+} from "./auth";
 import {
   clientesMock, comprasMock, dashboardMock, documentoDetalleMock, documentosMock, empresaMock,
   foliosMock, libroMock, productosMock, rcofMock,
@@ -28,7 +31,7 @@ http.interceptors.request.use((config) => {
 });
 
 // Rutas de auth que NUNCA deben disparar un refresh (evita recursión).
-const RUTAS_SIN_REFRESH = ["/auth/login", "/auth/refresh", "/auth/logout"];
+const RUTAS_SIN_REFRESH = ["/auth/login", "/auth/registro", "/auth/refresh", "/auth/logout"];
 function esRutaAuth(url?: string): boolean {
   return !!url && RUTAS_SIN_REFRESH.some((r) => url.includes(r));
 }
@@ -154,7 +157,72 @@ export function erroresDeCampo(error: unknown): Record<string, string> {
   return mapa;
 }
 
+// ---- Registro y sesión ----
+
+export interface RegistroPayload {
+  nombre: string;
+  email: string;
+  password: string;
+}
+
+/** Crea la cuenta (usuario ADMIN sin empresa) y guarda la sesión. */
+export async function registrarCuenta(payload: RegistroPayload): Promise<UsuarioSesion> {
+  if (USE_MOCK) {
+    await demora(400);
+    const usuario: UsuarioSesion = {
+      id: 1, nombre: payload.nombre, email: payload.email, rol: "ADMIN", empresaId: null,
+    };
+    guardarSesion("demo-token", "demo-refresh", usuario);
+    return usuario;
+  }
+  const { data } = await http.post("/auth/registro", payload);
+  guardarSesion(data.token, data.refreshToken, data.usuario);
+  return data.usuario as UsuarioSesion;
+}
+
+/**
+ * Re-emite la sesión con /auth/refresh (rota el refresh token) para que el JWT
+ * incorpore claims nuevos — p. ej. el empresaId tras crear la primera empresa.
+ */
+export async function refrescarSesion(): Promise<UsuarioSesion> {
+  if (USE_MOCK) {
+    await demora();
+    const usuario: UsuarioSesion = {
+      id: 1, nombre: "Administrador Demo", email: "admin@nexofactura.cl", rol: "ADMIN", empresaId: 1,
+    };
+    guardarSesion("demo-token", "demo-refresh", usuario);
+    return usuario;
+  }
+  const refreshToken = obtenerRefreshToken();
+  if (!refreshToken) throw new Error("Sin refresh token");
+  const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+  guardarSesion(data.token, data.refreshToken, data.usuario);
+  return data.usuario as UsuarioSesion;
+}
+
 // ---- Empresa (datos del emisor) ----
+
+/**
+ * Crea la empresa emisora. Si el usuario autenticado no tenía empresa (flujo
+ * de registro), el backend lo asocia a ella; refrescarSesion() actualiza luego
+ * el claim del JWT.
+ */
+export async function crearEmpresa(payload: EmpresaRequest): Promise<Empresa> {
+  if (USE_MOCK) {
+    await demora(400);
+    return {
+      ...empresaMock,
+      ...payload,
+      id: 1,
+      actividadEconomica: payload.actividadEconomica ?? null,
+      ciudad: payload.ciudad ?? null,
+      telefono: payload.telefono ?? null,
+      email: payload.email ?? null,
+    };
+  }
+  const { data } = await http.post("/empresas", payload);
+  return data;
+}
 export async function getEmpresa(empresaId: number): Promise<Empresa> {
   if (USE_MOCK) {
     await demora();
