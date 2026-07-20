@@ -27,7 +27,7 @@ export function SitePage({ titulo, descripcion, ancho = "narrow", children }: {
       <SiteNav />
       <main className={`mx-auto px-5 py-16 lg:py-20 ${ancho === "narrow" ? "max-w-3xl" : "max-w-6xl"}`}>
         <header>
-          <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">{titulo}</h1>
+          <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">{titulo}</h1>
           {descripcion && (
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-slate">{descripcion}</p>
           )}

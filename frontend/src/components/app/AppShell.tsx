@@ -44,7 +44,7 @@ export function AppShell({ children, titulo }: { children: ReactNode; titulo: st
                 key={to}
                 to={to}
                 aria-current={seleccionado ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                className={`flex items-center gap-3 rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-150 ${
                   seleccionado
                     ? "bg-cobalt-soft text-cobalt"
                     : "text-slate hover:bg-mist hover:text-ink"
@@ -59,7 +59,7 @@ export function AppShell({ children, titulo }: { children: ReactNode; titulo: st
         <div className="border-t border-line p-3">
           <button
             onClick={() => { cerrarSesion(); navigate("/ingresar"); }}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate transition-colors duration-150 hover:bg-danger-soft hover:text-danger"
+            className="flex w-full items-center gap-3 rounded-full px-3.5 py-2 text-sm font-medium text-slate transition-colors duration-150 hover:bg-danger-soft hover:text-danger"
           >
             <LogOut size={18} className="text-slate-soft" /> Cerrar sesión
           </button>

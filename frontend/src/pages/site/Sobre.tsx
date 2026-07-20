@@ -44,7 +44,7 @@ export function Sobre() {
       <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {PRINCIPIOS.map(({ icon: Icon, titulo, desc }) => (
           <Card key={titulo} className="p-6">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
               <Icon size={22} strokeWidth={2} />
             </span>
             <h2 className="mt-5 font-display text-base font-semibold text-ink">{titulo}</h2>

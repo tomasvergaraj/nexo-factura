@@ -15,7 +15,7 @@ export function Contacto() {
     >
       <div className="grid gap-5 md:grid-cols-3">
         <Card className="flex flex-col p-6">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
             <MessageCircle size={22} strokeWidth={2} />
           </span>
           <h2 className="mt-5 font-display text-base font-semibold text-ink">WhatsApp</h2>
@@ -29,7 +29,7 @@ export function Contacto() {
         </Card>
 
         <Card className="flex flex-col p-6">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
             <Mail size={22} strokeWidth={2} />
           </span>
           <h2 className="mt-5 font-display text-base font-semibold text-ink">Correo</h2>
@@ -43,7 +43,7 @@ export function Contacto() {
         </Card>
 
         <Card className="flex flex-col p-6">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
             <MapPin size={22} strokeWidth={2} />
           </span>
           <h2 className="mt-5 font-display text-base font-semibold text-ink">Dónde estamos</h2>

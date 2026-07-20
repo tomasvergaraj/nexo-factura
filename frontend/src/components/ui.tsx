@@ -7,16 +7,16 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-cobalt text-white shadow-xs hover:bg-cobalt-dark active:bg-cobalt-dark",
-  secondary: "bg-white text-ink border border-line shadow-xs hover:border-slate-soft hover:bg-mist/40",
+  primary: "bg-cobalt text-white hover:bg-cobalt-dark active:bg-cobalt-dark",
+  secondary: "bg-white text-ink border border-line hover:border-slate-soft hover:bg-mist/40",
   ghost: "bg-transparent text-slate hover:bg-mist hover:text-ink",
-  danger: "bg-danger text-white shadow-xs hover:opacity-90",
+  danger: "bg-danger text-white hover:opacity-90",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-9 px-3.5 text-sm",
-  md: "h-10 px-4 text-sm",
-  lg: "h-11 px-5 text-sm",
+  sm: "h-9 px-4 text-sm",
+  md: "h-10 px-5 text-sm",
+  lg: "h-11 px-6 text-sm",
 };
 
 interface BtnProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -27,7 +27,7 @@ interface BtnProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({ variant = "primary", size = "md", className = "", ...props }: BtnProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-sm font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/40 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/40 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     />
   );
@@ -35,7 +35,7 @@ export function Button({ variant = "primary", size = "md", className = "", ...pr
 
 export function Card({ className = "", id, children }: { className?: string; id?: string; children: ReactNode }) {
   return (
-    <div id={id} className={`rounded-lg border border-line bg-white shadow-xs ${className}`}>{children}</div>
+    <div id={id} className={`rounded-lg border border-line bg-white ${className}`}>{children}</div>
   );
 }
 
@@ -58,7 +58,7 @@ export function Field({ label, hint, error, children }: {
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`h-10 w-full rounded-sm border border-line bg-white px-3 text-sm text-ink shadow-xs transition-[border-color,box-shadow] placeholder:text-slate-soft focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/25 disabled:cursor-not-allowed disabled:bg-mist disabled:text-slate ${className}`}
+      className={`h-10 w-full rounded-full border border-line bg-white px-4 text-sm text-ink transition-[border-color,box-shadow] placeholder:text-slate-soft focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/25 disabled:cursor-not-allowed disabled:bg-mist disabled:text-slate ${className}`}
       {...props}
     />
   );
@@ -67,7 +67,7 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
 export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
   return (
     <select
-      className={`h-10 w-full rounded-sm border border-line bg-white px-3 text-sm text-ink shadow-xs transition-[border-color,box-shadow] focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/25 disabled:cursor-not-allowed disabled:bg-mist disabled:text-slate ${className}`}
+      className={`h-10 w-full rounded-full border border-line bg-white px-4 text-sm text-ink transition-[border-color,box-shadow] focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/25 disabled:cursor-not-allowed disabled:bg-mist disabled:text-slate ${className}`}
       {...props}
     >
       {children}
@@ -78,7 +78,7 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
 export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
-      className={`w-full rounded-sm border border-line bg-white px-3 py-2.5 text-sm leading-relaxed text-ink shadow-xs transition-[border-color,box-shadow] placeholder:text-slate-soft focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/25 disabled:cursor-not-allowed disabled:bg-mist disabled:text-slate ${className}`}
+      className={`w-full rounded-lg border border-line bg-white px-4 py-2.5 text-sm leading-relaxed text-ink transition-[border-color,box-shadow] placeholder:text-slate-soft focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/25 disabled:cursor-not-allowed disabled:bg-mist disabled:text-slate ${className}`}
       {...props}
     />
   );
@@ -150,7 +150,7 @@ export function EmptyState({ icon, titulo, descripcion, accion }: {
   return (
     <div className="grid place-items-center px-6 py-16 text-center">
       {icon && (
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
           {icon}
         </span>
       )}
@@ -209,7 +209,7 @@ export function Alert({ tone = "danger", icon, children, className = "" }: {
   className?: string;
 }) {
   return (
-    <div className={`flex items-start gap-2 rounded-sm border px-3 py-2.5 text-sm ${ALERT_TONES[tone]} ${className}`}>
+    <div className={`flex items-start gap-2 rounded-lg border px-4 py-2.5 text-sm ${ALERT_TONES[tone]} ${className}`}>
       {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
       <span>{children}</span>
     </div>
@@ -233,7 +233,7 @@ export function Th({ align = "left", className = "", children }: {
 export function IconButton({ className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-sm text-slate-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     />
   );

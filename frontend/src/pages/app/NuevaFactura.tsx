@@ -285,11 +285,11 @@ export function NuevaFactura() {
                 </Field>
               </div>
               {cliente ? (
-                <div className="mt-4 rounded-sm bg-mist px-3 py-2.5 text-xs text-slate">
+                <div className="mt-4 rounded-lg bg-mist px-3.5 py-2.5 text-xs text-slate">
                   <span className="tnum">{formatRut(cliente.rut)}</span> · {cliente.comuna ?? "—"} · {cliente.email ?? "sin correo"}
                 </div>
               ) : esBoleta ? (
-                <div className="mt-4 flex items-center gap-2 rounded-sm bg-mist px-3 py-2.5 text-xs text-slate">
+                <div className="mt-4 flex items-center gap-2 rounded-lg bg-mist px-3.5 py-2.5 text-xs text-slate">
                   <Badge tone="cobalt">{RAZON_CONSUMIDOR_FINAL}</Badge>
                   <span className="tnum">{formatRut(RUT_CONSUMIDOR_FINAL)}</span>
                 </div>
@@ -321,7 +321,7 @@ export function NuevaFactura() {
                   </Field>
 
                   {folioRef != null && (
-                    <div className="rounded-sm bg-mist px-3 py-2.5 text-xs text-slate tnum">
+                    <div className="rounded-lg bg-mist px-3.5 py-2.5 text-xs text-slate tnum">
                       Referencia: documento {tipoDocumentoRef} · folio {folioRef} · {formatFecha(fechaRef)}
                     </div>
                   )}
@@ -379,7 +379,7 @@ export function NuevaFactura() {
                           </Select>
                           <IconButton
                             onClick={() => quitarLinea(l.uid)}
-                            className="h-10 w-10 border border-line shadow-xs hover:border-danger hover:bg-danger-soft hover:text-danger"
+                            className="h-10 w-10 border border-line hover:border-danger hover:bg-danger-soft hover:text-danger"
                             aria-label="Quitar línea"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -402,7 +402,7 @@ export function NuevaFactura() {
                           </label>
                           <div className="text-xs font-medium text-slate-soft">
                             Importe
-                            <div className="mt-1.5 flex h-9 items-center justify-end rounded-sm bg-mist px-3 text-sm font-medium text-ink tnum">
+                            <div className="mt-1.5 flex h-9 items-center justify-end rounded-full bg-mist px-3.5 text-sm font-medium text-ink tnum">
                               {formatCLP(monto)}
                             </div>
                           </div>

@@ -8,7 +8,7 @@ export function Kpi({ label, valor, sub, icono }: {
     <Card className="p-5">
       <div className="flex items-start justify-between">
         <span className="text-sm font-medium text-slate">{label}</span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-cobalt-soft text-cobalt">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
           {icono}
         </span>
       </div>

@@ -2,9 +2,11 @@
 
 /* ============================================================
    Nexo Factura · sistema de diseño
-   "Clean SaaS" (familia Linear / Vercel / Stripe / Mercury / Ramp).
-   Lienzo neutro y calmado · cobalto de marca con moderación ·
-   tipografía Sora (display) + Inter (UI/datos) · solo modo claro.
+   Base "Clean SaaS" + ADN Mercury (banca) adaptado a modo claro:
+   controles en píldora · sin sombras (separación por hairline y
+   contraste de valor) · pesos intermedios en títulos (nunca 700+) ·
+   un solo acento cobalto por vista · ritmo espacioso.
+   Tipografía Sora (display) + Inter (UI/datos) · solo modo claro.
    ============================================================ */
 @theme {
   /* — Tinta / texto — */
@@ -37,16 +39,16 @@
   --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* — Escala de radios — */
-  --radius-sm: 8px;    /* inputs, botones, controles */
-  --radius-md: 10px;   /* cards estándar, menús, pills de control */
-  --radius-lg: 12px;   /* cards destacadas */
-  --radius-xl: 16px;   /* cards grandes, modales, artefacto hero */
+  /* — Escala de radios —
+     Controles interactivos (botones, inputs, pills, nav) van SIEMPRE
+     en rounded-full; estos radios son para superficies. */
+  --radius-sm: 8px;    /* elementos menores no interactivos */
+  --radius-md: 10px;   /* menús, popovers */
+  --radius-lg: 12px;   /* cards (radio canónico de superficie) */
+  --radius-xl: 16px;   /* modales, artefacto hero */
 
-  /* — Escala de sombras (baja opacidad, suaves, en capas) — */
-  --shadow-xs: 0 1px 2px 0 rgba(11, 27, 43, 0.04);
-  --shadow-sm: 0 1px 2px 0 rgba(11, 27, 43, 0.05), 0 1px 3px 0 rgba(11, 27, 43, 0.04);
-  --shadow-md: 0 4px 8px -2px rgba(11, 27, 43, 0.06), 0 2px 4px -2px rgba(11, 27, 43, 0.04);
+  /* — Sombras: solo para capas flotantes (modal, popover).
+     Cards y controles NO llevan sombra: separan hairline + valor. — */
   --shadow-lg: 0 12px 24px -8px rgba(11, 27, 43, 0.10), 0 4px 8px -4px rgba(11, 27, 43, 0.05);
   --shadow-xl: 0 24px 48px -16px rgba(11, 27, 43, 0.14), 0 8px 16px -8px rgba(11, 27, 43, 0.06);
   /* — Sombra de foco cobalto (anillo suave) — */
@@ -63,9 +65,11 @@
     text-rendering: optimizeLegibility;
     line-height: 1.55;
   }
+  /* Títulos: peso intermedio calibrado (600 máx., nunca bold 700+) */
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.022em;
+    font-weight: 600;
+    letter-spacing: -0.015em;
     line-height: 1.2;
   }
   p { line-height: 1.6; }
@@ -77,5 +81,104 @@
   :focus-visible {
     outline: 2px solid var(--color-azure);
     outline-offset: 2px;
+  }
+}
+
+/* ============================================================
+   Animaciones del sitio público — solo CSS, sin librerías.
+   Todas respetan prefers-reduced-motion.
+   ============================================================ */
+@layer utilities {
+  /* Revelado al entrar al viewport (lo activa <Reveal/> con .is-visible) */
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 0.65s ease var(--reveal-delay, 0ms),
+      transform 0.65s cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms);
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Línea/barra que crece en horizontal cuando su sección se revela */
+  .grow-x {
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 1.3s cubic-bezier(0.22, 0.61, 0.36, 1) 300ms;
+  }
+  .is-visible .grow-x { transform: scaleX(1); }
+
+  /* Barras decorativas que crecen en vertical */
+  .grow-y {
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 350ms);
+  }
+  .is-visible .grow-y { transform: scaleY(1); }
+
+  /* Flotado suave del artefacto hero y sus chips */
+  .float-slow { animation: float-slow 7s ease-in-out infinite; }
+  .float-slower { animation: float-slow 9s ease-in-out 1.2s infinite; }
+
+  /* Timbre "ACEPTADO" que se estampa sobre la factura */
+  .stamp-in {
+    opacity: 0;
+    animation: stamp-in 0.45s cubic-bezier(0.19, 1.4, 0.42, 1) 1.15s forwards;
+  }
+
+  /* Franja de sellos en marquesina continua (pausa al hover) */
+  .marquee {
+    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  }
+  .marquee-track { animation: marquee 32s linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+
+  /* Cursor de la viñeta de API */
+  .blink-caret { animation: blink 1.1s steps(1) infinite; }
+
+  /* Cuadrícula tenue del hero, desvanecida hacia los bordes */
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 75% 65% at 60% 25%, black 25%, transparent 72%);
+    mask-image: radial-gradient(ellipse 75% 65% at 60% 25%, black 25%, transparent 72%);
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes stamp-in {
+  0% { opacity: 0; transform: scale(1.7) rotate(-14deg); }
+  60% { opacity: 1; transform: scale(0.94) rotate(-7deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-8deg); }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .grow-x, .grow-y {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .float-slow, .float-slower, .marquee-track, .blink-caret {
+    animation: none !important;
+  }
+  .stamp-in {
+    animation: none !important;
+    opacity: 1;
+    transform: rotate(-8deg);
   }
 }

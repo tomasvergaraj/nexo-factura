@@ -204,7 +204,7 @@ export function Configuracion() {
         )}
 
         <Card className="flex items-start gap-4 p-6">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cobalt-soft text-cobalt">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
             <ShieldCheck size={22} strokeWidth={2} />
           </span>
           <div>

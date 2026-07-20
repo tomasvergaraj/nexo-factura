@@ -73,13 +73,13 @@ export function Libros() {
         />
 
         {/* Selector ventas/compras */}
-        <div className="inline-flex rounded-md border border-line bg-white p-1 shadow-xs">
+        <div className="inline-flex rounded-full border border-line bg-white p-1">
           {(["VENTA", "COMPRA"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTipo(t)}
               aria-pressed={tipo === t}
-              className={`rounded-sm px-4 py-1.5 text-sm font-medium transition-colors ${
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 tipo === t ? "bg-cobalt text-white" : "text-slate hover:text-ink"
               }`}
             >

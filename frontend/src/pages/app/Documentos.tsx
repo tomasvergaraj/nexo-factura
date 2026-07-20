@@ -51,7 +51,7 @@ export function Documentos() {
               <button
                 key={f}
                 onClick={() => setFiltro(f)}
-                className={`rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
                   filtro === f
                     ? "border-cobalt-soft bg-cobalt-soft text-cobalt"
                     : "border-line bg-white text-slate hover:bg-mist hover:text-ink"
