@@ -9,6 +9,7 @@ import { SiteFooter } from "../components/site/SiteFooter";
 import { Reveal } from "../components/site/Reveal";
 import { FacturaPreview } from "../components/FacturaPreview";
 import { Badge, Button, Card } from "../components/ui";
+import { activarModoDemo } from "../lib/api";
 
 export function Landing() {
   // Scroll a la sección del hash cuando se llega a la Landing con un ancla
@@ -73,7 +74,15 @@ function Hero() {
             </div>
           </Reveal>
           <Reveal delay={320}>
-            <p className="mt-4 text-sm text-slate-soft">14 días gratis · sin tarjeta · cancela cuando quieras</p>
+            <p className="mt-4 text-sm text-slate-soft">
+              14 días gratis · sin tarjeta · o{" "}
+              <button
+                onClick={activarModoDemo}
+                className="rounded-full font-medium text-cobalt underline decoration-cobalt/30 underline-offset-2 transition-colors hover:text-cobalt-dark"
+              >
+                explora la demo con datos de ejemplo
+              </button>
+            </p>
           </Reveal>
         </div>
 
@@ -182,7 +191,7 @@ function ViajeDte() {
         <Reveal className="mt-16">
           <div className="relative">
             {/* Línea de progreso que se dibuja al llegar a la sección */}
-            <div aria-hidden="true" className="absolute left-0 right-0 top-[22px] hidden h-px bg-line lg:block">
+            <div aria-hidden="true" className="absolute left-0 right-0 top-5.5 hidden h-px bg-line lg:block">
               <div className="grow-x h-px w-full bg-cobalt" />
             </div>
             <ol className="grid gap-10 lg:grid-cols-4 lg:gap-8">
@@ -338,7 +347,7 @@ function Bento() {
             <div aria-hidden="true" className="mt-5 rounded-sm border border-dashed border-line bg-mist/60 px-4 py-3">
               <div className="space-y-1">
                 {[92, 78, 96, 64, 88].map((w, i) => (
-                  <div key={i} className="h-[3px] rounded-full bg-ink/60" style={{ width: `${w}%` }} />
+                  <div key={i} className="h-0.75 rounded-full bg-ink/60" style={{ width: `${w}%` }} />
                 ))}
               </div>
               <p className="mt-2 text-center text-[10px] font-medium uppercase tracking-wide text-slate-soft">

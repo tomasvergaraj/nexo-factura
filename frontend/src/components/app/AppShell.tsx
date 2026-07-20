@@ -7,7 +7,7 @@ import {
 import { Logo } from "../Logo";
 import { Button } from "../ui";
 import { obtenerUsuario } from "../../lib/auth";
-import { cerrarSesion } from "../../lib/api";
+import { cerrarSesion, estaEnDemo } from "../../lib/api";
 
 const NAV = [
   { to: "/app", label: "Resumen", icon: LayoutDashboard, exact: true },
@@ -69,7 +69,14 @@ export function AppShell({ children, titulo }: { children: ReactNode; titulo: st
       {/* Contenido */}
       <div className="flex-1 lg:pl-60">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-line bg-white/90 px-6 backdrop-blur">
-          <h1 className="font-display text-lg font-semibold text-ink">{titulo}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-display text-lg font-semibold text-ink">{titulo}</h1>
+            {estaEnDemo() && (
+              <span className="hidden items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-medium text-warn sm:inline-flex">
+                Demo · datos de ejemplo
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3 sm:gap-4">
             <Link to="/app/nueva-factura">
               <Button size="sm"><Plus size={16} /> Nueva factura</Button>

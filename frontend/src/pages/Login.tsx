@@ -5,7 +5,7 @@ import { Logo } from "../components/Logo";
 import { Alert, Button, Field, Input } from "../components/ui";
 import { FacturaPreview } from "../components/FacturaPreview";
 import axios from "axios";
-import http, { USE_MOCK } from "../lib/api";
+import http, { activarModoDemo, USE_MOCK } from "../lib/api";
 import { guardarSesion } from "../lib/auth";
 
 export function Login() {
@@ -106,9 +106,17 @@ export function Login() {
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
                 <ShieldCheck className="h-4 w-4" />
               </span>
-              <div className="text-xs text-slate">
-                <p className="font-medium text-ink-soft">Acceso de demostración</p>
-                <p className="mt-0.5 tnum">admin@nexofactura.cl · nexo1234</p>
+              <div className="flex-1 text-xs text-slate">
+                <p className="font-medium text-ink-soft">¿Solo quieres mirar?</p>
+                <p className="mt-0.5">
+                  Recorre el panel con datos de ejemplo, sin cuenta.{" "}
+                  <button
+                    onClick={activarModoDemo}
+                    className="rounded-full font-medium text-cobalt transition-colors hover:text-cobalt-dark"
+                  >
+                    Entrar a la demo →
+                  </button>
+                </p>
               </div>
             </div>
           </div>

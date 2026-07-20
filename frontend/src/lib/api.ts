@@ -17,8 +17,28 @@ import type {
   ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard, TipoOperacionLibro,
 } from "./types";
 
-// Opt-in a datos mock: solo con VITE_USE_MOCK="true" (default false).
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+// Modo demo público: el visitante recorre la app con datos de ejemplo, sin
+// backend. Se activa en runtime vía localStorage; requiere recarga porque
+// USE_MOCK se evalúa una sola vez al cargar el bundle.
+const DEMO_KEY = "nf_demo";
+
+/** true si la sesión actual es la demo pública (chequeo en runtime). */
+export function estaEnDemo(): boolean {
+  return localStorage.getItem(DEMO_KEY) === "1";
+}
+
+/** Entra a la demo: sesión ficticia + recarga hacia el panel. */
+export function activarModoDemo() {
+  localStorage.setItem(DEMO_KEY, "1");
+  guardarSesion("demo-token", "demo-refresh", {
+    id: 1, nombre: "Visita de demo", email: "demo@nexofactura.cl", rol: "ADMIN", empresaId: 1,
+  });
+  window.location.assign("/app");
+}
+
+// Opt-in a datos mock: build de demostración (VITE_USE_MOCK="true") o modo
+// demo público activado en runtime.
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true" || estaEnDemo();
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -96,11 +116,18 @@ http.interceptors.response.use(
 
 /** Cierra sesión: revoca el refresh token en el servidor (best-effort) y limpia el estado local. */
 export function cerrarSesion() {
+  const enDemo = estaEnDemo();
   const refreshToken = obtenerRefreshToken();
-  if (refreshToken) {
+  if (refreshToken && !enDemo) {
     void axios.post(`${BASE_URL}/auth/logout`, { refreshToken }).catch(() => {});
   }
+  localStorage.removeItem(DEMO_KEY);
   limpiarSesion();
+  // Salir de la demo exige recargar: USE_MOCK quedó fijado al cargar el bundle
+  // y sin recarga un login real seguiría operando contra los mocks.
+  if (enDemo) {
+    window.location.assign("/");
+  }
 }
 
 const demora = (ms = 250) => new Promise((r) => setTimeout(r, ms));
