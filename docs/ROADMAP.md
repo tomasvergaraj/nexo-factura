@@ -2,9 +2,16 @@
 
 > Documento de ingeniería derivado de una auditoría del código (no del README).
 > Distingue lo **real** de lo **simulado** y prioriza el trabajo pendiente.
-> Última actualización: 2026-07-17.
+> Última actualización: 2026-07-20.
 
-## 1. Estado actual del sistema
+> **Cómo leer este documento.** Las secciones **1 y 3 son la foto de la auditoría inicial
+> (pre-Sprint 1) y se conservan sin cambios** como línea base: es el punto de partida contra
+> el que se priorizó el backlog, **no** el estado de hoy. Lo que efectivamente está hecho está
+> en la §2 (marcas ✅) y en el registro por sprint de las §§4-9; el estado verificado vive en
+> [PROGRESS.md](PROGRESS.md). Casi todo lo que la §1 marca en rojo y la §3 lista como riesgo
+> ya se cerró en los Sprints 1-2 — ver §10 para el saldo.
+
+## 1. Estado en la auditoría inicial (pre-Sprint 1 — línea base histórica)
 
 ### ✅ Real y funcional (backend)
 - **Auth/JWT**: registro BCrypt, login vía `AuthenticationManager`, emisión/validación HMAC-SHA256 con claims `uid/rol/empresaId`, filtro Bearer por request.
@@ -30,14 +37,16 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 ## 2. Backlog priorizado
 
 ### P0 — Bloqueantes
-| # | Funcionalidad | Capa | Sprint |
-|---|---|---|---|
-| P0-1 | **Seguridad multi-tenant**: validar `empresaId` del path contra el claim del JWT (cerrar IDOR) + `@PreAuthorize` por rol + cerrar IDOR en `actualizar()` de Cliente/Producto | backend | **1** |
-| P0-2 | **Cablear frontend a API real**: `VITE_USE_MOCK` (default false), `empresaId` desde el usuario logueado, interceptor 401/403 | frontend | **1** |
-| P0-3 | **Hardening del secret JWT**: exigir `APP_JWT_SECRET` en prod (fallar arranque si falta) | backend | **1** |
-| P0-4 | **Firma XMLDSig real** con certificado PKCS#12 (perfil producción, C14N, SHA256withRSA) | backend | 2 |
-| P0-5 | **Firma real del TED (FRMT)** + parseo/validación del CAF + **PDF417 real** | backend | 2 |
-| P0-6 | **Integración SII real**: semilla→token→EnvioDTE→consulta por TrackID | backend | 2 |
+| # | Estado | Funcionalidad | Capa | Sprint |
+|---|---|---|---|---|
+| P0-1 | ✅ | **Seguridad multi-tenant**: validar `empresaId` del path contra el claim del JWT (cerrar IDOR) + `@PreAuthorize` por rol + cerrar IDOR en `actualizar()` de Cliente/Producto | backend | 1 |
+| P0-2 | ✅ | **Cablear frontend a API real**: `VITE_USE_MOCK` (default false), `empresaId` desde el usuario logueado, interceptor 401/403 | frontend | 1 |
+| P0-3 | ✅ | **Hardening del secret JWT**: exigir `APP_JWT_SECRET` en prod (fallar arranque si falta) | backend | 1 |
+| P0-4 | 🔒 | **Firma XMLDSig real** con certificado PKCS#12 (perfil producción, C14N, SHA256withRSA) | backend | — |
+| P0-5 | 🔒 | **Firma real del TED (FRMT)** + parseo/validación del CAF (el **PDF417 real** ya está hecho, Sprint 2) | backend | — |
+| P0-6 | 🔒 | **Integración SII real**: semilla→token→EnvioDTE→consulta por TrackID | backend | — |
+
+> 🔒 = **gateado por activos externos** (certificado PKCS#12 + CAF reales, aún no disponibles). No es trabajo pospuesto por prioridad: es trabajo que no se puede implementar ni verificar sin esos activos. Los esqueletos de perfil `prod` ya dejan el punto de extensión listo.
 
 ### P1 — Completitud tributaria y producto
 - ✅ **P1-1** Notas de crédito/débito (56/61) con referencias obligatorias y anulación del documento referenciado. *(Sprint 2)*
@@ -48,13 +57,13 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 - ✅ **P1-6** Impuestos adicionales (ILA bebidas, suntuarios) y **retención de IVA** (cambio de sujeto), modelados como bloques `ImptoReten` del DTE; catálogo representativo (`TipoImpuesto`), cálculo con agregación por código, validación XSD y solo en documentos de precios netos afectos (33/56/61). *(Sprint 4)*
 
 ### P2 — Robustez, calidad y operación
-- P2-1 `estado-sii`: pasar de GET (con efectos de escritura) a POST idempotente. **Sprint 1.**
-- P2-2 Tests: extender a máquina de estados y aislamiento multi-tenant. **Sprint 1.**
+- ✅ **P2-1** `estado-sii`: pasar de GET (con efectos de escritura) a POST idempotente. *(Sprint 1)*
+- ✅ **P2-2** Tests: extender a máquina de estados y aislamiento multi-tenant. *(Sprint 1)*
 - ✅ **P2-3** Sesión: **refresh tokens** rotatorios con detección de reuso, **revocación** (logout), access token corto (60 min) y **rate limiting** en login/registro (por email e IP → 429). *(Sprint 3)*
 - ✅ **P2-4** Inmutabilidad del DTE (campos tributarios congelados con `updatable=false` + **sello de integridad** SHA-256 del XML firmado), manejo de **duplicados → 409** y **`@Version`** (bloqueo optimista) en datos maestros. *(Sprint 3)*. Un log de auditoría completo (quién/cuándo) queda como mejora opcional.
 - ✅ **P2-5** Contingencia de envío al SII (estado `EN_CONTINGENCIA` + reintento individual y masivo), **reenvío de rechazados** (mismo XML firmado) y **libros de compra/venta (IECV)** con registro manual de compras. *(Sprint 5)*
 
-## 3. Notas de arquitectura / riesgos
+## 3. Notas de arquitectura / riesgos (de la auditoría inicial — ver §10 para el saldo actual)
 - Toda la integración tributaria crítica está tras `@Profile("!produccion")` **sin contraparte de producción**: activar el perfil `produccion` hoy rompería el contexto.
 - **IDOR/multi-tenant sistémico**: el único aislamiento es el filtro por `empresaId` en queries; el path no se valida contra el JWT.
 - Frontend desacoplado de la realidad por un flag global hardcodeado.
@@ -70,6 +79,8 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 - Documentación del progreso y de los esqueletos de perfil producción para el Sprint 2.
 
 El Sprint 2 (P0-4/5/6) queda **diseñado y documentado**; requiere un certificado PKCS#12 y un CAF reales para implementarse y verificarse.
+
+> **Nota posterior.** Ese plan no se cumplió: los activos no llegaron, así que el Sprint 2 real fue P1-1/P1-3/P1-5 + PDF417 + perfil `prod` (§5) y los P0-4/5/6 siguen gateados. Los sprints 3-5 aplicaron el mismo criterio — avanzar solo en lo verificable sin activos externos.
 
 ## 5. Hecho en el Sprint 2
 
@@ -100,3 +111,21 @@ Completado y verificado (ver [PROGRESS.md](PROGRESS.md)):
 - **Libros de compra/venta (IECV)**: libro de ventas desde los DTE emitidos del período (boletas solo resumidas, anulados marcados sin sumar, rechazados excluidos; proyección sin `xml_dte`); libro de compras desde el registro manual de documentos recibidos (`documento_compra`, CRUD con unicidad y coherencia `total = neto + exento + IVA − IVA retenido`, retención del 46 soportada). JSON + XML `LibroCompraVenta` representativo sin firmar. Migración `V6`.
 
 Follow-ups de P2-5: signo de las notas de crédito en los totales agregados del libro (hoy positivas, como las filas del IECV), unificar la semántica de RECHAZADO entre RCOF (cuenta el folio y su monto) y libro (lo excluye), y exponer el motivo de fallo por documento en la respuesta del reenvío masivo.
+
+## 9. Hecho tras el Sprint 5: sitio público y Configuración del emisor
+
+Commit `e1e834f`, solo frontend (ver [PROGRESS.md](PROGRESS.md)). Cierra los **callejones sin salida de la navegación**, que eran el último resto visible del estado descrito en la §1:
+- **Sitio público**: páginas Sobre, Contacto, Términos, Privacidad y **Estado del servicio** (consulta `/actuator/health` en vivo, sin interceptor de auth); layout compartido `SitePage`; footer y nav cableados a rutas que ahora existen, con navegación SPA a las anclas de la Landing.
+- **Configuración del emisor**: `/app/configuracion` pasa de `Placeholder` a pantalla real sobre `GET`/`PUT /api/empresas/{id}`, con validación de RUT (módulo 11) y **modo lectura para el rol `EMISOR`** (espejo en la UI del `@PreAuthorize` de ADMIN). Con esto **desaparece el último `Placeholder`** de la aplicación.
+- **Infra del frontend**: proxy de Vite al `8082` del host (donde está mapeado el backend en Docker) y `location = /actuator/health` en nginx — match exacto, el resto de actuator no se expone.
+
+## 10. Saldo actual de los riesgos de la §3
+
+| Riesgo de la auditoría | Estado |
+|---|---|
+| Integración tributaria tras `@Profile` sin contraparte de producción (el perfil rompía el contexto) | ✅ **Cerrado** en el Sprint 2: perfil estandarizado a `prod` con beans `FirmaElectronicaProd`/`SiiGatewayProd` que fallan fail-fast; el contexto levanta. |
+| IDOR/multi-tenant sistémico (el path no se validaba contra el JWT) | ✅ **Cerrado** en el Sprint 1: `TenantGuard` + `@PreAuthorize` en los controllers scoped, y scope por fila en `actualizar()`. |
+| Frontend desacoplado por un flag global hardcodeado | ✅ **Cerrado** en el Sprint 1 (`VITE_USE_MOCK`, default `false`) y completado en el Sprint 2 y en la §9: ya no queda ninguna pantalla mock ni `Placeholder`. |
+| Encoding/canonicalización del XML sin resolver | 🟡 **Abierto**, y sigue siendo el bloqueo de fondo de P0-4. Mitigado en parte: prólogo ISO-8859-1 coherente extremo a extremo (incluidas las descargas como Blob) y validación XSD pre-firma. La canonicalización C14N definitiva se decide al implementar la firma real. |
+
+**Saldo**: de la §3 solo queda vivo el punto de canonicalización, atado a P0-4. Los P0-4/5/6 siguen **gateados por un certificado PKCS#12 y un CAF reales** que aún no están disponibles; todo lo demás del backlog priorizado está hecho.

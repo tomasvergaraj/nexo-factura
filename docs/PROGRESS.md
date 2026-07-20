@@ -1,6 +1,6 @@
 # Progreso
 
-> Fecha: 2026-07-17. Sprints 1, 2, 3, 4 y 5 **completados y verificados** (todo lo que no depende de certificado/CAF reales).
+> Última actualización: 2026-07-20. Sprints 1, 2, 3, 4 y 5 **completados y verificados** (todo lo que no depende de certificado/CAF reales), más el **sitio público y la Configuración del emisor** (post-Sprint 5).
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -248,6 +248,41 @@ Los 8 buscadores en paralelo devolvieron 40+ candidatos; tras deduplicar y verif
 | Tests con Testcontainers (`ContingenciaReenvioIT` 8, `LibroCompraVentaIT` 4, + resto) | ⚠️ compilan; no ejecutables en este host (corren en CI) |
 
 > Follow-ups documentados de P2-5: signo de las NC en los totales agregados del libro, unificar la semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en la respuesta del reenvío masivo.
+
+# Sitio público y Configuración del emisor (post-Sprint 5)
+
+## Resumen
+Cierre de los **callejones sin salida de la navegación**: el footer y el nav del sitio apuntaban a rutas que no existían, y **Configuración** era el último `Placeholder` ("en construcción") de la app. Commit `e1e834f`. No toca el backend: se apoya en endpoints que ya existían (`GET`/`PUT /api/empresas/{id}`, `/actuator/health`).
+
+## Qué se implementó
+
+### Sitio público
+- Páginas nuevas bajo rutas de primer nivel: **Sobre** (`/sobre`), **Contacto** (`/contacto`), **Términos** (`/terminos`), **Privacidad** (`/privacidad`) y **Estado del servicio** (`/estado`).
+- **Layout compartido `SitePage`** (nav + cabecera + contenido + footer) con `ProseSection` para los bloques de texto legal. Restaura el scroll al tope —react-router conserva la posición al navegar desde el footer— y fija el `document.title` por página.
+- **Footer y nav cableados**: los enlaces dejan de apuntar a rutas inexistentes. La navegación a anclas de la Landing usa `Link` + hash-scroll (SPA) en vez de recargar la página desde una subpágina.
+- **Estado del servicio en vivo**: `comprobarSalud()` consulta `/actuator/health` y muestra UP/caído. Va por `axios` **directo, sin el interceptor** de `http` — un 401/403 en un endpoint público jamás debe cerrar la sesión ni redirigir al login. Timeout de 8 s y `catch` → "caído" (nunca propaga el error a la UI).
+- Contacto no tiene formulario propio: enlaza por `mailto:` (no hay servicio de correo en el backend, y un formulario que no envía nada sería otro callejón sin salida).
+
+### Configuración del emisor
+- `Configuracion.tsx` reemplaza a `Placeholder` en `/app/configuracion`; **`Placeholder.tsx` se eliminó** (era su único uso).
+- Carga con `GET /api/empresas/{id}` y guarda con `PUT`, usando `empresaIdActual()` (nunca un id literal). Tipos `Empresa`/`EmpresaRequest` como espejo de `EmpresaResponse` del backend.
+- **Validación de RUT en el cliente** (`validarRut`, el mismo módulo 11 del backend) más obligatoriedad de razón social, giro, dirección y comuna, y actividad económica numérica. Los errores de campo del **400 del backend** se mapean sobre los mismos campos vía `erroresDeCampo`, así que la validación local es una mejora de latencia, no la única defensa.
+- **Modo lectura para `EMISOR`**: los campos van `disabled` y el botón Guardar no se renderiza, reflejando en la UI el `@PreAuthorize` de ADMIN que ya protegía `EmpresaController`. El backend sigue siendo la autoridad (403 si se intenta igual).
+- Guard anti-respuesta-obsoleta (`activo`) en la carga inicial.
+
+### Infra del frontend
+- Proxy de Vite corregido a **`localhost:8082`** (el backend en Docker está mapeado ahí porque el 8080 del host lo ocupa otra app) y añadido `/actuator/health`.
+- `nginx.conf`: `location = /actuator/health` proxyeado al backend. Es un **match exacto**, no un prefijo: solo el health queda público, el resto de actuator no se expone.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| `tsc --noEmit` + `vite build` (frontend) | ✅ |
+| `docker compose build` | ✅ |
+| Rutas del footer/nav sin destino roto | ✅ |
+| `/actuator/health` público (en `PUBLIC_PATHS` de `SecurityConfig`, expuesto en `application.yml`) | ✅ |
+| Configuración: carga, guarda y refleja errores de campo del backend | ✅ |
 
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md). **Gated por activos SII** (certificado PKCS#12 + CAF reales): **firma XMLDSig real**, **firma del TED (FRMT)** + validación del **CAF**, **integración real con el SII** (semilla/token/EnvioDTE/estado), y el **alineamiento al XSD oficial + namespace `SiiDte`**; los esqueletos de perfil `prod` ya dejan el punto de extensión listo. **Sin gatear**: P2-5 (contingencia, reenvío de rechazados, libros de compra/venta). *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45).
