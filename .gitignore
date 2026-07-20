@@ -32,6 +32,12 @@ pnpm-debug.log*
 .env.*.local
 !.env.example
 
+# ==== Secretos (certificado digital + CAF) ====
+# NUNCA versionar: certificado PKCS#12 del representante legal y CAF del SII.
+secrets/
+*.pfx
+*.p12
+
 # ==== IDE / editores ====
 .idea/
 .vscode/

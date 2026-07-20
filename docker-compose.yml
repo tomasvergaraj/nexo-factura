@@ -31,6 +31,13 @@ services:
       DB_PASSWORD: nexo
       APP_JWT_SECRET: dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789
       APP_CORS_ORIGINS: http://localhost:5173,http://localhost:8081
+      # Certificado digital (PKCS#12) para la firma real (P0-4/5/6).
+      # La clave vive en el .env local (gitignoreado), nunca en este archivo.
+      APP_SII_CERT_PATH: /secrets/19726539-6.pfx
+      APP_SII_CERT_PASSWORD: ${APP_SII_CERT_PASSWORD:-}
+    volumes:
+      # Certificado + CAF locales (carpeta gitignoreada), solo lectura.
+      - ./secrets:/secrets:ro
     ports:
       # Host 8082 (8080 lo ocupa otra app local); puerto interno del contenedor sigue 8080
       - "8082:8080"
