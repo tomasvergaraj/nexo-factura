@@ -20,10 +20,10 @@ public class FolioService {
     private final CafRepository cafRepository;
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public long siguienteFolio(Long empresaId, TipoDte tipoDte) {
+    public FolioAsignado siguienteFolio(Long empresaId, TipoDte tipoDte) {
         Caf caf = cafRepository.bloquearCafDisponible(empresaId, tipoDte)
                 .orElseThrow(() -> new ReglaNegocioException(
-                        "No hay folios disponibles para " + tipoDte.getDescripcion()
+                        "No hay folios disponibles ni vigentes para " + tipoDte.getDescripcion()
                                 + ". Cargue un nuevo CAF desde el SII."));
 
         long folio = caf.getFolioActual() + 1;
@@ -32,6 +32,6 @@ public class FolioService {
             caf.setAgotado(true);
         }
         cafRepository.save(caf);
-        return folio;
+        return new FolioAsignado(folio, caf);
     }
 }

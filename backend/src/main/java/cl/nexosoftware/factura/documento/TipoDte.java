@@ -35,6 +35,15 @@ public enum TipoDte {
         return this == BOLETA_AFECTA || this == BOLETA_EXENTA;
     }
 
+    /**
+     * True para los tipos cuyo CAF caduca (Res. Ex. 58/2017: documentos que dan
+     * derecho a credito fiscal IVA — 33/56/61 de este catalogo — vencen a los 6
+     * meses de la fecha de autorizacion). Los CAF de boletas y exentas no vencen.
+     */
+    public boolean cafVence() {
+        return this == FACTURA_AFECTA || this == NOTA_DEBITO || this == NOTA_CREDITO;
+    }
+
     public static TipoDte desdeCodigo(int codigo) {
         for (TipoDte t : values()) {
             if (t.codigo == codigo) return t;

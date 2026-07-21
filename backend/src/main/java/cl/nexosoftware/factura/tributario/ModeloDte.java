@@ -2,16 +2,20 @@ package cl.nexosoftware.factura.tributario;
 
 import jakarta.xml.bind.annotation.*;
 import jakarta.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
+import org.w3c.dom.Element;
 
 import java.util.List;
 
 /**
- * Modelo JAXB del DTE (subconjunto representativo del esquema del SII).
+ * Modelo JAXB del DTE de la familia factura/notas (33/34/56/61), alineado al
+ * esquema oficial {@code DTE_v10.xsd} (namespace SiiDte via package-info):
+ * orden de elementos del XSD (en particular {@code IndExe} ANTES de
+ * {@code NmbItem}), {@code Acteco} obligatorio del Emisor y {@code TmstFirma}
+ * al cierre del Documento.
  *
- * Reproduce la estructura Documento -> Encabezado (IdDoc, Emisor, Receptor,
- * Totales) + Detalle + TED, suficiente para generar y firmar el XML. El esquema
- * oficial completo del SII agrega mas campos; este modelo concentra los que
- * intervienen en la emision de una factura o boleta tipica.
+ * El TED va como subarbol DOM ({@code @XmlAnyElement}): lo produce
+ * {@link TedGenerator} ya aplanado y firmado, y debe conservarse byte-identico
+ * dentro del documento (la boleta 39/41 usa {@link ModeloBoleta}).
  */
 public final class ModeloDte {
 
@@ -29,9 +33,11 @@ public final class ModeloDte {
         @XmlAttribute(name = "ID") public String id;
         @XmlElement(name = "Encabezado") public Encabezado encabezado;
         @XmlElement(name = "Detalle") public List<Detalle> detalle;
-        // El orden de los campos es el orden de marshalling: Detalle*, Referencia*, TED.
+        // Orden del XSD: Detalle*, Referencia*, TED, TmstFirma.
         @XmlElement(name = "Referencia") public List<Referencia> referencias;
-        @XmlElement(name = "TED") public Ted ted;
+        /** TED aplanado y firmado, insertado como DOM para no re-serializarlo. */
+        @XmlAnyElement public Element ted;
+        @XmlElement(name = "TmstFirma") public String tmstFirma;
     }
 
     @XmlAccessorType(XmlAccessType.FIELD)
@@ -54,6 +60,8 @@ public final class ModeloDte {
         @XmlElement(name = "RUTEmisor") public String rut;
         @XmlElement(name = "RznSoc") public String razonSocial;
         @XmlElement(name = "GiroEmis") public String giro;
+        /** Codigo de actividad economica: obligatorio en el XSD oficial (1..4). */
+        @XmlElement(name = "Acteco") public Integer acteco;
         @XmlElement(name = "DirOrigen") public String direccion;
         @XmlElement(name = "CmnaOrigen") public String comuna;
     }
@@ -96,15 +104,17 @@ public final class ModeloDte {
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class Detalle {
         @XmlElement(name = "NroLinDet") public int numeroLinea;
+        // Orden del XSD oficial: IndExe va ANTES de NmbItem (campo 5 vs 8).
+        @XmlElement(name = "IndExe") public Integer indicadorExento;
         @XmlElement(name = "NmbItem") public String nombre;
         // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
         @XmlElement(name = "QtyItem") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double cantidad;
         @XmlElement(name = "UnmdItem") public String unidad;
-        @XmlElement(name = "PrcItem") public long precioUnitario;
-        @XmlElement(name = "DescuentoMonto") public long descuento;
-        @XmlElement(name = "IndExe") public Integer indicadorExento;
-        // Codigo del otro impuesto de la linea: va ANTES de MontoItem (campo 37 vs 38
-        // del esquema oficial). Null -> JAXB lo omite.
+        // Dec12_6Type exige minimo 0.000001: con precio 0 el elemento se OMITE (null).
+        @XmlElement(name = "PrcItem") public Long precioUnitario;
+        // MntImpType exige minimo 1: sin descuento el elemento se OMITE (null).
+        @XmlElement(name = "DescuentoMonto") public Long descuento;
+        // Codigo del otro impuesto de la linea: va ANTES de MontoItem. Null -> omitido.
         @XmlElement(name = "CodImpAdic") public Integer codImpAdic;
         @XmlElement(name = "MontoItem") public long montoItem;
     }
@@ -118,33 +128,5 @@ public final class ModeloDte {
         @XmlElement(name = "FchRef") public String fechaRef;
         @XmlElement(name = "CodRef") public int codigoReferencia;
         @XmlElement(name = "RazonRef") public String razon;
-    }
-
-    /** Timbre Electronico (TED). En produccion el campo FRMT se firma con la llave del CAF. */
-    @XmlAccessorType(XmlAccessType.FIELD)
-    @XmlRootElement(name = "TED")
-    public static class Ted {
-        @XmlAttribute(name = "version") public String version = "1.0";
-        @XmlElement(name = "DD") public Dd dd;
-        @XmlElement(name = "FRMT") public Frmt frmt;
-    }
-
-    @XmlAccessorType(XmlAccessType.FIELD)
-    public static class Dd {
-        @XmlElement(name = "RE") public String rutEmisor;
-        @XmlElement(name = "TD") public int tipoDte;
-        @XmlElement(name = "F") public long folio;
-        @XmlElement(name = "FE") public String fechaEmision;
-        @XmlElement(name = "RR") public String rutReceptor;
-        @XmlElement(name = "RSR") public String razonSocialReceptor;
-        @XmlElement(name = "MNT") public long monto;
-        @XmlElement(name = "IT1") public String primerItem;
-        @XmlElement(name = "TSTED") public String timestamp;
-    }
-
-    @XmlAccessorType(XmlAccessType.FIELD)
-    public static class Frmt {
-        @XmlAttribute(name = "algoritmo") public String algoritmo = "SHA1withRSA";
-        @XmlValue public String valor;
     }
 }

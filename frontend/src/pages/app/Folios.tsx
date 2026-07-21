@@ -1,35 +1,37 @@
 import { useEffect, useState } from "react";
-import { Plus, Hash } from "lucide-react";
+import { Plus, Hash, FileUp } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import {
-  Card, Input, Button, Field, Select, Modal, Badge, EmptyState,
+  Card, Button, Field, Modal, Badge, EmptyState,
   PageHeader, LoadingState, Alert,
 } from "../../components/ui";
 import { cargarCaf, getFolios, mensajeError } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
+import { camposCaf } from "../../lib/caf";
 import { formatFecha, formatNumero } from "../../lib/format";
-import { TIPO_DTE_LABEL, type Caf, type CafRequest, type TipoDte } from "../../lib/types";
+import { TIPO_DTE_LABEL, TIPO_DTE_POR_CODIGO, type Caf } from "../../lib/types";
 
-const TIPOS: TipoDte[] = [
-  "FACTURA_AFECTA", "FACTURA_EXENTA", "BOLETA_AFECTA", "BOLETA_EXENTA", "NOTA_DEBITO", "NOTA_CREDITO",
-];
-
-interface FormCaf {
-  tipoDte: TipoDte;
-  folioDesde: string;
-  folioHasta: string;
-  fechaAutorizacion: string;
-  fechaVencimiento: string;
+/**
+ * Vista previa derivada del XML del CAF: suficiente para que el usuario
+ * confirme que subió el archivo correcto (el parseo vive en lib/caf).
+ */
+function previewCaf(xml: string) {
+  const campos = camposCaf(xml);
+  if (!campos?.td || !campos.desde || !campos.hasta) return null;
+  return {
+    tipo: TIPO_DTE_POR_CODIGO[campos.td]
+      ? TIPO_DTE_LABEL[TIPO_DTE_POR_CODIGO[campos.td]]
+      : `Tipo ${campos.td}`,
+    rango: `${campos.desde} – ${campos.hasta}`,
+    re: campos.re ?? "—",
+    fa: campos.fa ?? "—",
+  };
 }
-
-const VACIO: FormCaf = {
-  tipoDte: "FACTURA_AFECTA", folioDesde: "", folioHasta: "", fechaAutorizacion: "", fechaVencimiento: "",
-};
 
 export function Folios() {
   const [folios, setFolios] = useState<Caf[] | null>(null);
   const [abierto, setAbierto] = useState(false);
-  const [form, setForm] = useState<FormCaf>(VACIO);
+  const [xmlCaf, setXmlCaf] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -39,35 +41,30 @@ export function Folios() {
   useEffect(cargar, []);
 
   function abrirNuevo() {
-    setForm(VACIO);
+    setXmlCaf("");
     setError(null);
     setAbierto(true);
   }
 
+  async function leerArchivo(file: File | undefined) {
+    if (!file) return;
+    // Los CAF del SII vienen en ISO-8859-1; TextDecoder lo maneja explícito.
+    const buffer = await file.arrayBuffer();
+    setXmlCaf(new TextDecoder("iso-8859-1").decode(buffer));
+    setError(null);
+  }
+
+  const preview = xmlCaf.trim() ? previewCaf(xmlCaf) : null;
+
   async function guardar() {
     setError(null);
-    const desde = Number(form.folioDesde);
-    const hasta = Number(form.folioHasta);
-    if (!desde || desde < 1) {
-      setError("Indica un folio inicial válido.");
+    if (!xmlCaf.trim()) {
+      setError("Sube o pega el XML del CAF entregado por el SII.");
       return;
     }
-    if (!hasta || hasta < desde) {
-      setError("El folio final debe ser mayor o igual al inicial.");
-      return;
-    }
-
-    const payload: CafRequest = {
-      tipoDte: form.tipoDte,
-      folioDesde: desde,
-      folioHasta: hasta,
-      ...(form.fechaAutorizacion ? { fechaAutorizacion: form.fechaAutorizacion } : {}),
-      ...(form.fechaVencimiento ? { fechaVencimiento: form.fechaVencimiento } : {}),
-    };
-
     setGuardando(true);
     try {
-      await cargarCaf(empresaIdActual(), payload);
+      await cargarCaf(empresaIdActual(), { xmlCaf });
       setAbierto(false);
       cargar();
     } catch (e) {
@@ -186,48 +183,46 @@ export function Folios() {
       >
         <div className="space-y-4">
           {error && <Alert>{error}</Alert>}
-          <Field label="Tipo de documento">
-            <Select
-              value={form.tipoDte}
-              onChange={(e) => setForm((f) => ({ ...f, tipoDte: e.target.value as TipoDte }))}
-            >
-              {TIPOS.map((t) => (
-                <option key={t} value={t}>{TIPO_DTE_LABEL[t]}</option>
-              ))}
-            </Select>
+          <p className="text-sm text-slate">
+            Sube el archivo XML del CAF tal como lo entrega el SII (Timbraje
+            electrónico). El tipo de documento, el rango de folios y las fechas
+            se leen del propio archivo.
+          </p>
+          <Field label="Archivo del CAF">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-line px-4 py-3 text-sm text-slate hover:border-cobalt hover:text-cobalt">
+              <FileUp className="h-4 w-4" />
+              <span>Seleccionar archivo XML…</span>
+              <input
+                type="file"
+                accept=".xml,text/xml"
+                className="hidden"
+                onChange={(e) => leerArchivo(e.target.files?.[0])}
+              />
+            </label>
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Folio desde">
-              <Input
-                type="number" min={1} className="tnum"
-                value={form.folioDesde}
-                onChange={(e) => setForm((f) => ({ ...f, folioDesde: e.target.value }))}
-              />
-            </Field>
-            <Field label="Folio hasta">
-              <Input
-                type="number" min={1} className="tnum"
-                value={form.folioHasta}
-                onChange={(e) => setForm((f) => ({ ...f, folioHasta: e.target.value }))}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Fecha autorización" hint="Opcional">
-              <Input
-                type="date"
-                value={form.fechaAutorizacion}
-                onChange={(e) => setForm((f) => ({ ...f, fechaAutorizacion: e.target.value }))}
-              />
-            </Field>
-            <Field label="Fecha vencimiento" hint="Opcional">
-              <Input
-                type="date"
-                value={form.fechaVencimiento}
-                onChange={(e) => setForm((f) => ({ ...f, fechaVencimiento: e.target.value }))}
-              />
-            </Field>
-          </div>
+          <Field label="O pega el XML" hint="Contenido completo del archivo AUTORIZACION">
+            <textarea
+              className="h-32 w-full rounded-lg border border-line bg-white px-3 py-2 font-mono text-xs text-ink outline-none focus:border-cobalt"
+              value={xmlCaf}
+              onChange={(e) => { setXmlCaf(e.target.value); setError(null); }}
+              placeholder="<AUTORIZACION><CAF version=&quot;1.0&quot;>…"
+              spellCheck={false}
+            />
+          </Field>
+          {preview && (
+            <div className="rounded-lg bg-mist px-4 py-3 text-sm">
+              <p className="font-medium text-ink">{preview.tipo}</p>
+              <p className="mt-1 text-xs text-slate tnum">
+                Folios {preview.rango} · Emisor {preview.re} · Autorizado el {preview.fa}
+              </p>
+            </div>
+          )}
+          {xmlCaf.trim() && !preview && (
+            <p className="text-xs text-warn">
+              El contenido no parece un CAF del SII (falta AUTORIZACION/CAF); el
+              backend lo validará al cargar.
+            </p>
+          )}
         </div>
       </Modal>
     </AppShell>

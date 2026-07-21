@@ -198,13 +198,13 @@ export interface Caf {
   fechaVencimiento: string | null;
 }
 
+/**
+ * Alta de un CAF: solo el XML tal como lo entrega el SII. El backend deriva
+ * tipo, rango, fechas y claves del parseo (los campos manuales se eliminaron:
+ * un CAF sin su XML real no puede timbrar).
+ */
 export interface CafRequest {
-  tipoDte: TipoDte;
-  folioDesde: number;
-  folioHasta: number;
-  xmlCaf?: string;
-  fechaAutorizacion?: string;
-  fechaVencimiento?: string;
+  xmlCaf: string;
 }
 
 export interface ResumenDashboard {

@@ -31,7 +31,9 @@ class LibroXmlGeneratorTest {
         assertThat(xml).startsWith("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>");
         assertThatCode(() -> parsear(xml)).doesNotThrowAnyException();
         assertThat(xml)
-                .contains("<LibroCompraVenta version=\"1.0\">")
+                // Desde el Sprint 6 todo el paquete marshalla en el namespace
+                // oficial SiiDte (tambien los libros, cuyo esquema real lo usa).
+                .contains("<LibroCompraVenta version=\"1.0\" xmlns=\"http://www.sii.cl/SiiDte\">")
                 .contains("<RutEmisorLibro>91000000-0</RutEmisorLibro>")
                 .contains("<PeriodoTributario>2026-07</PeriodoTributario>")
                 .contains("<TipoOperacion>VENTA</TipoOperacion>")

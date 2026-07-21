@@ -291,46 +291,52 @@ de desarrollo).
 
 ---
 
-## Qué está simulado
+## Perfiles: real en `prod`, simulado en `dev`
 
-Para que el flujo sea ejecutable de extremo a extremo sin certificados ni CAF reales,
-tres piezas de la validez tributaria están **aisladas tras interfaces** y simuladas en
-los perfiles distintos de producción, listas para reemplazar por su implementación real:
+La validez tributaria completa está **implementada de verdad** en el perfil `prod`
+(Sprint 6, con certificado PKCS#12 y CAF reales):
 
-- **Firma electrónica** (`FirmaElectronicaStub`): inserta un nodo de firma simbólico.
-  La versión real usa el **certificado digital PKCS#12** del representante legal y XMLDSig.
-- **Comunicación con el SII** (`SiiGatewayStub`): devuelve un TrackID sintético (y es
-  configurable en runtime para simular caídas o rechazos E2E). La versión real obtiene
-  semilla y token, arma el sobre `EnvioDTE` y consulta estado en certificación o producción.
-- **Timbre PDF417**: el TED se genera, pero el `FRMT` es un placeholder; el código de
-  barras se completa al integrar un CAF real.
+- **Firma electrónica** (`FirmaElectronicaProd`): XMLDSig con el JDK y los algoritmos
+  que el XSD oficial del SII **fija por schema** (C14N inclusive, `rsa-sha1`, digest
+  `sha1`), sobre el certificado PKCS#12 del firmante autorizado.
+- **Timbre (TED) real**: el CAF del SII se parsea y valida al cargarlo (clave PKCS#1
+  incluida) y el `FRMT` se firma con su clave privada (`SHA1withRSA` sobre el `DD`
+  aplanado según la regla oficial); el PDF417 lo imprime tal cual.
+- **Comunicación con el SII** por sus dos canales reales: **API REST de boleta
+  electrónica** (39/41: semilla → token → envío a pangal/rahue → estado) y **canal
+  clásico de DTE** (33/34/56/61: SOAP maullin/palena, upload `EnvioDTE` y
+  `QueryEstUp`). Todo XML se valida contra los **XSD oficiales vendoreados** antes
+  de salir.
 
-Estas decisiones están comentadas en el código y el perfil `prod` está esqueletado
-para **fallar de forma explícita** (fail-fast) en vez de simular en silencio.
+Para desarrollar sin certificados ni CAF reales, el perfil `dev` (default) conserva
+los dobles: `FirmaElectronicaStub` (firma con forma schema-válida pero valores
+simbólicos) y `SiiGatewayStub` (TrackID sintético, configurable en runtime para
+simular caídas o rechazos E2E). El ambiente de **certificación** del SII se activa
+con `docker-compose.cert.yml` (perfil `prod` + `APP_SII_AMBIENTE=CERTIFICACION`).
 
 ---
 
 ## Roadmap
 
-El sistema es completo y verificable **sin activos externos del SII**. Lo que queda
-pendiente está **gateado por un certificado PKCS#12 y un CAF reales** (P0-4/5/6):
+El backlog priorizado (P0/P1/P2) está **completo**, incluida la integración
+tributaria real (P0-4/5/6, Sprint 6). Quedan follow-ups documentados: E2E de
+notas 56/61 y factura exenta 34 (falta timbrar sus CAF), certificado y resolución
+por empresa (multi-tenant), verificación de la FRMA del CAF y el trámite formal de
+certificación → producción ante el SII.
 
-- **Firma XMLDSig real** con certificado (C14N, `SHA256withRSA`).
-- **Firma real del TED (FRMT)** + parseo/validación del CAF + **PDF417 real**.
-- **Integración SII real**: semilla → token → `EnvioDTE` → consulta por TrackID.
-
-El detalle de lo implementado frente a lo simulado, con el backlog priorizado (P0/P1/P2),
-vive en [`docs/ROADMAP.md`](docs/ROADMAP.md). El progreso por sprint está en
+El detalle, con la línea base de la auditoría y el registro por sprint, vive en
+[`docs/ROADMAP.md`](docs/ROADMAP.md). El progreso verificado está en
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ---
 
 ## Estado del proyecto
 
-En desarrollo activo. Los sprints 1–5 están completos y en `main` (auth y seguridad,
-completitud tributaria, notas y boletas, impuestos adicionales, contingencia y libros
-IECV). El siguiente hito (integración SII real) está diseñado y documentado, a la espera
-de los activos tributarios.
+En desarrollo activo. Los sprints 1–6 están completos (auth y seguridad, completitud
+tributaria, notas y boletas, impuestos adicionales, contingencia y libros IECV, y la
+**integración tributaria real**: firma XMLDSig, TED con FRMT real e integración con
+el SII por ambos canales — con una **factura 33 ACEPTADA por el SII de certificación**
+como gate de cierre; el detalle está en [`docs/PROGRESS.md`](docs/PROGRESS.md)).
 
 ## Autor
 

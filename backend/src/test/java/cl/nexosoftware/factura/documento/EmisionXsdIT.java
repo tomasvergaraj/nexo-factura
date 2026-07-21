@@ -9,7 +9,7 @@ import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaRepository;
 import cl.nexosoftware.factura.folio.Caf;
 import cl.nexosoftware.factura.folio.CafRepository;
-import cl.nexosoftware.factura.tributario.FirmaElectronica;
+import cl.nexosoftware.factura.tributario.DteFixtures;
 import cl.nexosoftware.factura.tributario.SelloDte;
 import cl.nexosoftware.factura.tributario.SiiGateway;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,19 +20,19 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
  * Test de integracion que emite documentos REALES con el {@link cl.nexosoftware.factura.tributario.XmlDteGenerator},
- * {@link cl.nexosoftware.factura.tributario.TedGenerator} y {@link cl.nexosoftware.factura.tributario.DteXmlValidator}
- * reales (solo se mockean firma y SII). Garantiza que cada DTE legitimo que el
- * sistema genera supera la validacion XSD pre-firma, incluido el bloque
- * Referencia de las notas de credito.
+ * {@link cl.nexosoftware.factura.tributario.TedGenerator}, la firma stub del
+ * perfil de test y el {@link cl.nexosoftware.factura.tributario.DteXmlValidator}
+ * reales (solo se mockea el SII). Garantiza que cada DTE legitimo que el sistema
+ * genera supera la validacion XSD post-firma contra los esquemas oficiales,
+ * incluido el bloque Referencia de las notas de credito.
  */
 class EmisionXsdIT extends AbstractIntegrationTest {
 
@@ -42,8 +42,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CafRepository cafRepository;
 
-    // Firma y SII se mockean; XmlDteGenerator/TedGenerator/DteXmlValidator son reales.
-    @MockBean private FirmaElectronica firmaElectronica;
+    // Solo el SII (red) se mockea; el resto del flujo tributario es real.
     @MockBean private SiiGateway siiGateway;
 
     private Long empresaId;
@@ -51,25 +50,21 @@ class EmisionXsdIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void preparar() {
-        // Passthrough: el XML firmado guardado es el mismo XML que ya paso el XSD.
-        when(firmaElectronica.firmar(anyString())).thenAnswer(inv -> inv.getArgument(0));
-        when(siiGateway.enviar(anyString())).thenReturn("TRACK-XSD");
-        when(siiGateway.consultarEstado(anyString())).thenReturn(SiiGateway.EstadoEnvio.ACEPTADO);
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-XSD");
+        when(siiGateway.consultarEstado(any(SiiGateway.ConsultaSii.class)))
+                .thenReturn(SiiGateway.EstadoEnvio.ACEPTADO);
 
-        Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("91000000-" + ThreadLocalRandom.current().nextInt(0, 9))
-                .razonSocial("Empresa XSD")
-                .giro("Servicios")
-                .direccion("Calle 1")
-                .comuna("Quillota")
-                .build());
-        empresaId = empresa.getId();
+        // La empresa emisora debe calzar con el RE del CAF fixture (76543210-9);
+        // su RUT es unico en la BD, asi que se reutiliza y se limpia su estado.
+        empresaId = empresaEmisora("Empresa XSD").getId();
 
         Cliente cliente = clienteRepository.save(Cliente.builder()
                 .empresaId(empresaId)
                 .rut("77111222-3")
                 .razonSocial("Cliente de prueba")
                 .giro("Comercio")
+                .direccion("Av 2")
+                .comuna("Vina")
                 .build());
         clienteId = cliente.getId();
 
@@ -80,14 +75,16 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("emitir una factura afecta produce un XML que pasa el XSD")
+    @DisplayName("emitir una factura afecta produce un XML firmado que pasa el XSD")
     void emitirFacturaAfectaProduceXmlValido() {
         DocumentoResponse factura = crearFactura();
         DocumentoResponse emitido = documentoService.emitir(empresaId, factura.id());
 
         assertThat(emitido.estado()).isEqualTo(EstadoDte.FIRMADO);
         String xml = xmlDe(factura.id());
-        assertThat(xml).contains("<TipoDTE>33</TipoDTE>").contains("<TED").contains("<FRMT");
+        // TED con FRMT real (clave del CAF) y firma XMLDSig del stub incorporada.
+        assertThat(xml).contains("<TipoDTE>33</TipoDTE>").contains("<TED").contains("<FRMT")
+                .contains("<Signature");
     }
 
     @Test
@@ -105,7 +102,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("emitir una boleta exenta produce un XML valido con IndExe e IVA cero")
+    @DisplayName("emitir una boleta exenta produce un XML valido con IndExe y sin bloque IVA")
     void emitirBoletaExentaProduceXmlValido() {
         DocumentoResponse boleta = documentoService.crear(empresaId, new CrearDocumentoRequest(
                 TipoDte.BOLETA_EXENTA, null, null, null,
@@ -114,7 +111,10 @@ class EmisionXsdIT extends AbstractIntegrationTest {
         documentoService.emitir(empresaId, boleta.id());
 
         String xml = xmlDe(boleta.id());
-        assertThat(xml).contains("<IndExe>1</IndExe>").contains("<IVA>0</IVA>").contains("<MntExe>8000</MntExe>");
+        // En la boleta exenta los totales llevan solo MntExe/MntTotal: el
+        // elemento IVA se omite (no va como cero).
+        assertThat(xml).contains("<IndExe>1</IndExe>").contains("<MntExe>8000</MntExe>");
+        assertThat(xml).doesNotContain("<IVA>");
     }
 
     @Test
@@ -243,6 +243,7 @@ class EmisionXsdIT extends AbstractIntegrationTest {
     }
 
     private Caf caf(TipoDte tipoDte) {
+        boolean boleta = tipoDte == TipoDte.BOLETA_AFECTA || tipoDte == TipoDte.BOLETA_EXENTA;
         return Caf.builder()
                 .empresaId(empresaId)
                 .tipoDte(tipoDte)
@@ -250,7 +251,36 @@ class EmisionXsdIT extends AbstractIntegrationTest {
                 .folioHasta(1000)
                 .folioActual(0)
                 .agotado(false)
+                // El rango de la fila manda para asignar folios; el XML del CAF
+                // fixture (39 para boletas, 33 para el resto) aporta RE y clave.
+                .xmlCaf(DteFixtures.xmlCaf(boleta ? 39 : 33))
                 .creadoEn(OffsetDateTime.now())
                 .build();
+    }
+
+    /**
+     * Busca (o crea) la empresa emisora con el RUT del CAF fixture y elimina sus
+     * documentos, CAFs y clientes de tests anteriores para partir de cero.
+     */
+    private Empresa empresaEmisora(String razonSocial) {
+        Empresa empresa = empresaRepository.findAll().stream()
+                .filter(e -> DteFixtures.RUT_EMISOR.equals(e.getRut()))
+                .findFirst()
+                .orElseGet(() -> empresaRepository.save(Empresa.builder()
+                        .rut(DteFixtures.RUT_EMISOR)
+                        .razonSocial(razonSocial)
+                        .giro("Servicios")
+                        .actividadEconomica(620200)
+                        .direccion("Calle 1")
+                        .comuna("Quillota")
+                        .build()));
+        Long id = empresa.getId();
+        documentoRepository.deleteAll(documentoRepository.findAll().stream()
+                .filter(d -> id.equals(d.getEmpresaId())).toList());
+        cafRepository.deleteAll(cafRepository.findAll().stream()
+                .filter(c -> id.equals(c.getEmpresaId())).toList());
+        clienteRepository.deleteAll(clienteRepository.findAll().stream()
+                .filter(c -> id.equals(c.getEmpresaId())).toList());
+        return empresa;
     }
 }

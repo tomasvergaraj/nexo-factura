@@ -2,14 +2,14 @@
 
 > Documento de ingeniería derivado de una auditoría del código (no del README).
 > Distingue lo **real** de lo **simulado** y prioriza el trabajo pendiente.
-> Última actualización: 2026-07-20.
+> Última actualización: 2026-07-21.
 
 > **Cómo leer este documento.** Las secciones **1 y 3 son la foto de la auditoría inicial
 > (pre-Sprint 1) y se conservan sin cambios** como línea base: es el punto de partida contra
 > el que se priorizó el backlog, **no** el estado de hoy. Lo que efectivamente está hecho está
-> en la §2 (marcas ✅) y en el registro por sprint de las §§4-9; el estado verificado vive en
-> [PROGRESS.md](PROGRESS.md). Casi todo lo que la §1 marca en rojo y la §3 lista como riesgo
-> ya se cerró en los Sprints 1-2 — ver §10 para el saldo.
+> en la §2 (marcas ✅) y en el registro por sprint de las §§4-9 y 11; el estado verificado vive
+> en [PROGRESS.md](PROGRESS.md). Todo lo que la §1 marca en rojo y la §3 lista como riesgo
+> ya se cerró — ver §10 para el saldo.
 
 ## 1. Estado en la auditoría inicial (pre-Sprint 1 — línea base histórica)
 
@@ -42,17 +42,17 @@ El flujo emitir→firmar→enviar→consultar corre completo en perfil `dev`, pe
 | P0-1 | ✅ | **Seguridad multi-tenant**: validar `empresaId` del path contra el claim del JWT (cerrar IDOR) + `@PreAuthorize` por rol + cerrar IDOR en `actualizar()` de Cliente/Producto | backend | 1 |
 | P0-2 | ✅ | **Cablear frontend a API real**: `VITE_USE_MOCK` (default false), `empresaId` desde el usuario logueado, interceptor 401/403 | frontend | 1 |
 | P0-3 | ✅ | **Hardening del secret JWT**: exigir `APP_JWT_SECRET` en prod (fallar arranque si falta) | backend | 1 |
-| P0-4 | 🔒 | **Firma XMLDSig real** con certificado PKCS#12 (perfil producción, C14N, SHA256withRSA) | backend | — |
-| P0-5 | 🔒 | **Firma real del TED (FRMT)** + parseo/validación del CAF (el **PDF417 real** ya está hecho, Sprint 2) | backend | — |
-| P0-6 | 🔒 | **Integración SII real**: semilla→token→EnvioDTE→consulta por TrackID | backend | — |
+| P0-4 | ✅ | **Firma XMLDSig real** con certificado PKCS#12 (perfil producción, C14N inclusive, **`rsa-sha1`** — el XSD oficial lo fija por schema; el "SHA256withRSA" original era un supuesto erróneo, ver corrección C1 del [plan](SPRINT-6-PLAN.md)) | backend | 6 |
+| P0-5 | ✅ | **Firma real del TED (FRMT)** con la clave del CAF + parseo/validación del CAF (el **PDF417 real** ya está hecho, Sprint 2) | backend | 6 |
+| P0-6 | ✅ | **Integración SII real** por sus DOS canales: API REST de boleta (39/41, pangal/apicert) y flujo clásico SOAP (33/34/56/61, maullin: semilla→token→EnvioDTE→QueryEstUp) | backend | 6 |
 
-> 🔒 = **gateado por activos externos** (certificado PKCS#12 + CAF reales, aún no disponibles). No es trabajo pospuesto por prioridad: es trabajo que no se puede implementar ni verificar sin esos activos. Los esqueletos de perfil `prod` ya dejan el punto de extensión listo.
+> 🔒 = **gateado por activos externos** (certificado PKCS#12 + CAF reales). Ese gate se abrió al llegar los activos (certificado Acepta + CAF de certificación de boleta 39 y factura 33) y los tres P0 se implementaron en el Sprint 6.
 
 ### P1 — Completitud tributaria y producto
 - ✅ **P1-1** Notas de crédito/débito (56/61) con referencias obligatorias y anulación del documento referenciado. *(Sprint 2)*
 - ✅ **P1-2** Boletas (39/41): monto bruto (IVA incluido) con desglose del neto, receptor "Consumidor final" (cliente opcional) y RCOF diario (reporte + XML `ConsumoFolios` sin firmar). *(Sprint 3)*
 - ✅ **P1-3** Validación de dígito verificador (módulo 11) en el backend. *(Sprint 2)*
-- ✅ **P1-4** Modelo JAXB completado (bloque `Referencia` en el XML) y **validación XSD pre-firma** contra un esquema representativo (`sii/DTE.xsd`). El alineamiento al XSD oficial completo + namespace `SiiDte` queda como follow-up atado a la firma/CAF reales. *(Sprint 3)*
+- ✅ **P1-4** Modelo JAXB completado (bloque `Referencia` en el XML) y **validación XSD pre-firma** contra un esquema representativo (`sii/DTE.xsd`). *(Sprint 3)* El follow-up (alineamiento al XSD oficial + namespace `SiiDte`) se cerró en el **Sprint 6**: XSD oficiales vendoreados, validación post-firma y el esquema representativo eliminado.
 - ✅ **P1-5** CRUD real en el front (Clientes/Productos/Folios) + pantalla de detalle de DTE. *(Sprint 2)*
 - ✅ **P1-6** Impuestos adicionales (ILA bebidas, suntuarios) y **retención de IVA** (cambio de sujeto), modelados como bloques `ImptoReten` del DTE; catálogo representativo (`TipoImpuesto`), cálculo con agregación por código, validación XSD y solo en documentos de precios netos afectos (33/56/61). *(Sprint 4)*
 
@@ -90,7 +90,7 @@ Completado y verificado (ver [PROGRESS.md](PROGRESS.md)): **P1-1** (notas de cr�
 
 La integración tributaria real (P0-4/5/6: firma XMLDSig con PKCS#12, FRMT + CAF real, SII real) sigue **gateada por un certificado y un CAF reales** que aún no están disponibles. Mientras tanto se completaron, verificables sin esos activos (ver [PROGRESS.md](PROGRESS.md)):
 - **P1-2** — **boletas 39/41** con precio bruto (IVA incluido) y desglose del neto, **receptor "Consumidor final"** (cliente opcional, solo en boletas) y el **RCOF** (Reporte de Consumo de Folios) diario con su endpoint y XML `ConsumoFolios` (sin firmar/enviar).
-- **P1-4** — **bloque `Referencia`** agregado al XML del DTE (antes las notas 56/61 no lo emitían) y **validación XSD pre-firma** (`DteXmlValidator`) contra un esquema representativo; una emisión cuyo XML no cumple el esquema falla con **422** y revierte el folio.
+- **P1-4** — **bloque `Referencia`** agregado al XML del DTE (antes las notas 56/61 no lo emitían) y **validación XSD pre-firma** (`DteXmlValidator`) contra un esquema representativo *(reemplazado en el Sprint 6 por los XSD oficiales, con validación post-firma)*; una emisión cuyo XML no cumple el esquema falla con **422** y revierte el folio.
 - **P2-4** — **inmutabilidad del DTE** (`updatable=false` en los campos tributarios + **sello de integridad** SHA-256 fijado al emitir), **duplicados → 409** (`DataIntegrityViolationException`) y **`@Version`** en Empresa/Cliente/Producto (conflicto → 409). Migración `V3`.
 - **P2-3** — **sesión y seguridad**: refresh tokens opacos (solo el hash SHA-256 se guarda) rotados en cada `/refresh` con detección de reuso (revoca toda la cadena), `/logout` revoca, access token corto (60 min) y **rate limiting** en memoria por email + IP (login y registro → 429 con `Retry-After`). Frontend con auto-refresh transparente. Migración `V4`.
 
@@ -126,6 +126,15 @@ Commit `e1e834f`, solo frontend (ver [PROGRESS.md](PROGRESS.md)). Cierra los **c
 | Integración tributaria tras `@Profile` sin contraparte de producción (el perfil rompía el contexto) | ✅ **Cerrado** en el Sprint 2: perfil estandarizado a `prod` con beans `FirmaElectronicaProd`/`SiiGatewayProd` que fallan fail-fast; el contexto levanta. |
 | IDOR/multi-tenant sistémico (el path no se validaba contra el JWT) | ✅ **Cerrado** en el Sprint 1: `TenantGuard` + `@PreAuthorize` en los controllers scoped, y scope por fila en `actualizar()`. |
 | Frontend desacoplado por un flag global hardcodeado | ✅ **Cerrado** en el Sprint 1 (`VITE_USE_MOCK`, default `false`) y completado en el Sprint 2 y en la §9: ya no queda ninguna pantalla mock ni `Placeholder`. |
-| Encoding/canonicalización del XML sin resolver | 🟡 **Abierto**, y sigue siendo el bloqueo de fondo de P0-4. Mitigado en parte: prólogo ISO-8859-1 coherente extremo a extremo (incluidas las descargas como Blob) y validación XSD pre-firma. La canonicalización C14N definitiva se decide al implementar la firma real. |
+| Encoding/canonicalización del XML sin resolver | ✅ **Cerrado** en el Sprint 6: C14N inclusive (la que fija el XSD oficial de la firma), DTE marshallado **sin indentación** (una línea — elimina la deriva byte-a-byte del TED y de la firma), prólogo ISO-8859-1 coherente extremo a extremo y TED como string aplanado de fuente única. |
 
-**Saldo**: de la §3 solo queda vivo el punto de canonicalización, atado a P0-4. Los P0-4/5/6 siguen **gateados por un certificado PKCS#12 y un CAF reales** que aún no están disponibles; todo lo demás del backlog priorizado está hecho.
+**Saldo**: los cuatro riesgos de la §3 están cerrados y el backlog priorizado (P0/P1/P2) está **completo**. Lo que queda son los follow-ups documentados del §11 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md).
+
+## 11. Hecho en el Sprint 6 (P0-4/5/6: integración tributaria real)
+
+Con el certificado PKCS#12 y dos CAF de certificación reales disponibles, se implementó todo lo gateado (ver [PROGRESS.md](PROGRESS.md) y el diseño en [SPRINT-6-PLAN.md](SPRINT-6-PLAN.md)):
+- **P0-5** — `CafParser` (DER PKCS#1 propio, coherencia de claves, `<CAF>` verbatim), alta de CAF **por XML**, `TedGenerator` real (DD aplanado según la regla oficial, **FRMT `SHA1withRSA`** verificado contra la clave pública del CAF) y PDF que extrae el TED del XML almacenado.
+- **P0-4** — `CertificadoDigital` + `FirmaElectronicaProd` (XMLDSig del JDK con los algoritmos que **fija** el XSD oficial: C14N inclusive, `rsa-sha1`, digest `sha1`), namespace `SiiDte` en todo el paquete, rama boleta del generador (su schema es distinto), XSD oficiales vendoreados como única validación (**post-firma**, revirtiendo folio con 422).
+- **P0-6** — `SiiGatewayProd` ruteando por tipo a dos transportes con token independiente: **boleta 39/41 por la API REST** (semilla/token/envío multipart/estado; pangal=cert, rahue=prod) y **facturas/notas 33/34/56/61 por el canal clásico** (SOAP `CrSeed`/`GetTokenFromSeed`, upload `DTEUpload`, estado `QueryEstUp` en maullin/palena). Errores de transporte → contingencia (Sprint 5 intacto); rechazo de negocio → error duro; token inválido → renovar y reintentar una vez.
+- **Operación**: `docker-compose.cert.yml` (perfil `prod` + ambiente `CERTIFICACION`), carga de CAF por XML en el frontend, config `app.sii.*` (FchResol/NroResol/user-agent). Suite en **231 unitarios** (todos los generadores validados contra los XSD oficiales).
+- **E2E contra el SII de certificación**: **factura 33 ACEPTADA** (TrackID real de maullin) — el gate real del sprint. La boleta 39 validó todo el pipeline técnico (schema, firmas, TED sin reparo) y quedó bloqueada solo por el estado administrativo del CAF en el portal (**601 Folio DTE Anulado**): se cierra timbrando un CAF 39 nuevo. El E2E cazó además **6 bugs invisibles para la suite** (detalle en [PROGRESS.md](PROGRESS.md)).

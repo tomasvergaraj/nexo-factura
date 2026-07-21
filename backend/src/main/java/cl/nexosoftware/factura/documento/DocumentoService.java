@@ -3,12 +3,17 @@ package cl.nexosoftware.factura.documento;
 import cl.nexosoftware.factura.cliente.Cliente;
 import cl.nexosoftware.factura.cliente.ClienteRepository;
 import cl.nexosoftware.factura.common.PageResponse;
+import cl.nexosoftware.factura.common.exception.DteInvalidoException;
 import cl.nexosoftware.factura.common.exception.RecursoNoEncontradoException;
 import cl.nexosoftware.factura.common.exception.ReglaNegocioException;
 import cl.nexosoftware.factura.common.exception.SiiNoDisponibleException;
 import cl.nexosoftware.factura.documento.DocumentoDtos.*;
+import cl.nexosoftware.factura.common.validation.Rut;
 import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaService;
+import cl.nexosoftware.factura.folio.CafData;
+import cl.nexosoftware.factura.folio.CafParser;
+import cl.nexosoftware.factura.folio.FolioAsignado;
 import cl.nexosoftware.factura.folio.FolioService;
 import cl.nexosoftware.factura.producto.Producto;
 import cl.nexosoftware.factura.producto.ProductoRepository;
@@ -48,6 +53,7 @@ public class DocumentoService {
     private final ProductoRepository productoRepository;
     private final EmpresaService empresaService;
     private final FolioService folioService;
+    private final CafParser cafParser;
     private final CalculadoraImpuestos calculadora;
     private final XmlDteGenerator xmlGenerator;
     private final DteXmlValidator dteXmlValidator;
@@ -68,6 +74,7 @@ public class DocumentoService {
                     "Solo las boletas (39/41) pueden emitirse sin cliente; "
                             + req.tipoDte().getDescripcion() + " requiere un cliente");
         }
+        validarCotasDelEsquema(req);
 
         String receptorRut, receptorRazonSocial, receptorGiro, receptorDireccion, receptorComuna;
         if (req.clienteId() != null) {
@@ -130,19 +137,28 @@ public class DocumentoService {
         exigirEstado(doc, EstadoDte.BORRADOR, EstadoDte.FIRMADO);
 
         Empresa emisor = empresaService.buscar(empresaId);
+        validarDatosParaSii(doc, emisor);
 
-        // 1. Reserva atomica del folio dentro de esta transaccion.
-        long folio = folioService.siguienteFolio(empresaId, doc.getTipoDte());
-        doc.setFolio(folio);
+        // 1. Reserva atomica del folio dentro de esta transaccion. El CAF del que
+        //    salio el folio viaja junto a el: su bloque <CAF> y su clave privada
+        //    son los que timbran este documento.
+        FolioAsignado asignado = folioService.siguienteFolio(empresaId, doc.getTipoDte());
+        doc.setFolio(asignado.folio());
+        CafData caf = cafParser.parsear(asignado.caf().getXmlCaf());
+        if (!Rut.normalizar(caf.re()).equals(Rut.normalizar(emisor.getRut()))) {
+            throw new ReglaNegocioException(
+                    "El CAF del folio " + asignado.folio() + " pertenece al RUT " + caf.re()
+                            + ", no al emisor (" + emisor.getRut() + ")");
+        }
 
-        // 2. Timbre electronico (TED) + XML + firma.
-        ModeloDte.Ted ted = tedGenerator.generar(doc, emisor.getRut());
+        // 2. Timbre (TED con FRMT real) -> XML -> firma XMLDSig -> validacion
+        //    contra el XSD oficial (que exige la Signature, por eso va despues de
+        //    firmar). DteInvalidoException propaga y revierte la reserva de folio
+        //    (todo emitir() es una sola @Transactional).
+        String ted = tedGenerator.generar(doc, emisor.getRut(), caf);
         String xml = xmlGenerator.generar(doc, emisor, ted);
-        // Validacion XSD pre-firma: si el XML generado no cumple el esquema,
-        // DteInvalidoException (RuntimeException) propaga y revierte la reserva de
-        // folio (todo emitir() es una sola @Transactional).
-        dteXmlValidator.validar(xml);
         String xmlFirmado = firmaElectronica.firmar(xml);
+        dteXmlValidator.validar(xmlFirmado, doc.getTipoDte());
 
         doc.setXmlDte(xmlFirmado);
         // Sello de integridad (tamper-evidence) sobre el XML firmado.
@@ -225,8 +241,11 @@ public class DocumentoService {
 
     /**
      * Reintento de un documento del lote, dentro de una transaccion propia.
-     * Captura cualquier fallo inesperado (no solo la caida del SII) para que un
-     * documento corrupto no aborte el resto del lote.
+     * Un rechazo DE NEGOCIO del SII (upload rechazado, sobre invalido) saca al
+     * documento de la cola (-> RECHAZADO con el motivo): dejarlo en contingencia
+     * lo haria golpear al SII indefinidamente con un envio que sera rechazado
+     * igual. Cualquier otro fallo inesperado se captura para que un documento
+     * corrupto no aborte el resto del lote (queda EN_CONTINGENCIA con su error).
      */
     private DocumentoTributario reintentarUno(Long id) {
         DocumentoTributario doc = documentoRepository.findById(id).orElse(null);
@@ -235,6 +254,9 @@ public class DocumentoService {
         }
         try {
             intentarEnvio(doc);
+        } catch (ReglaNegocioException | DteInvalidoException e) {
+            doc.setUltimoErrorEnvio(e.getMessage());
+            transicionar(doc, EstadoDte.RECHAZADO);
         } catch (RuntimeException e) {
             doc.setUltimoErrorEnvio(e.getMessage());
         }
@@ -254,7 +276,9 @@ public class DocumentoService {
                     "Solo se puede consultar el estado de un documento ENVIADO o en REPARO; este esta "
                             + doc.getEstado());
         }
-        SiiGateway.EstadoEnvio estado = siiGateway.consultarEstado(doc.getTrackId());
+        Empresa emisor = empresaService.buscar(empresaId);
+        SiiGateway.EstadoEnvio estado = siiGateway.consultarEstado(new SiiGateway.ConsultaSii(
+                doc.getTrackId(), doc.getTipoDte().getCodigo(), emisor.getRut()));
         switch (estado) {
             case ACEPTADO -> transicionar(doc, EstadoDte.ACEPTADO);
             case ACEPTADO_CON_REPARO -> transicionar(doc, EstadoDte.REPARO);
@@ -299,10 +323,12 @@ public class DocumentoService {
         if (doc.getXmlDte() == null) {
             throw new ReglaNegocioException("El documento no tiene XML firmado para enviar");
         }
+        Empresa emisor = empresaService.buscar(doc.getEmpresaId());
         doc.setIntentosEnvio(doc.getIntentosEnvio() + 1);
         doc.setUltimoEnvioEn(OffsetDateTime.now());
         try {
-            String trackId = siiGateway.enviar(doc.getXmlDte());
+            String trackId = siiGateway.enviar(new SiiGateway.EnvioSii(
+                    doc.getXmlDte(), doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut()));
             doc.setTrackId(trackId);
             doc.setUltimoErrorEnvio(null);
             transicionar(doc, EstadoDte.ENVIADO);
@@ -316,6 +342,88 @@ public class DocumentoService {
 
     private static boolean esBoleta(TipoDte tipo) {
         return tipo == TipoDte.BOLETA_AFECTA || tipo == TipoDte.BOLETA_EXENTA;
+    }
+
+    /**
+     * Cotas estructurales del esquema oficial, chequeadas AL CREAR para que el
+     * usuario las vea de inmediato y no como un 422 de schema al emitir: maximo
+     * de lineas (60 en factura/notas, 1000 en boleta — el Formato espera dividir
+     * en varios documentos), maximo de 40 referencias y el rango de FechaType
+     * (2000-01-01 a 2050-12-31, que ademas atrapa el tipico typo de anio).
+     */
+    private void validarCotasDelEsquema(CrearDocumentoRequest req) {
+        int maxLineas = esBoleta(req.tipoDte()) ? 1000 : 60;
+        if (req.lineas().size() > maxLineas) {
+            throw new ReglaNegocioException(
+                    "Una " + req.tipoDte().getDescripcion() + " admite maximo " + maxLineas
+                            + " lineas (limite del esquema del SII); divida la venta en varios documentos");
+        }
+        if (req.referencias() != null && req.referencias().size() > 40) {
+            throw new ReglaNegocioException(
+                    "Un DTE admite maximo 40 referencias (limite del esquema del SII)");
+        }
+        if (req.fechaEmision() != null
+                && (req.fechaEmision().isBefore(LocalDate.of(2000, 1, 1))
+                || req.fechaEmision().isAfter(LocalDate.of(2050, 12, 31)))) {
+            throw new ReglaNegocioException(
+                    "La fecha de emision debe estar entre 2000-01-01 y 2050-12-31 (rango del SII)");
+        }
+        for (ReferenciaRequest rr : req.referencias() != null ? req.referencias() : List.<ReferenciaRequest>of()) {
+            if (rr.fechaRef().isBefore(LocalDate.of(2000, 1, 1))
+                    || rr.fechaRef().isAfter(LocalDate.of(2050, 12, 31))) {
+                throw new ReglaNegocioException(
+                        "La fecha de la referencia al documento " + rr.folioRef()
+                                + " debe estar entre 2000-01-01 y 2050-12-31 (rango del SII)");
+            }
+        }
+    }
+
+    /**
+     * Exige, antes de consumir un folio, los datos que el esquema oficial o el
+     * Formato DTE del SII hacen obligatorios en la familia factura/notas y que
+     * nuestro modelo permite dejar vacios: Acteco del emisor (obligatorio en el
+     * XSD) y giro/direccion/comuna del receptor (obligatorios por el Formato).
+     * Las boletas no los exigen (su esquema es distinto).
+     */
+    private void validarDatosParaSii(DocumentoTributario doc, Empresa emisor) {
+        if (esBoleta(doc.getTipoDte())) {
+            return;
+        }
+        if (emisor.getActividadEconomica() == null) {
+            throw new ReglaNegocioException(
+                    "La empresa no tiene codigo de actividad economica (Acteco), obligatorio para emitir "
+                            + doc.getTipoDte().getDescripcion() + ". Completelo en Configuracion.");
+        }
+        if (esBlanco(doc.getReceptorGiro()) || esBlanco(doc.getReceptorDireccion())
+                || esBlanco(doc.getReceptorComuna())) {
+            throw new ReglaNegocioException(
+                    "El receptor de una " + doc.getTipoDte().getDescripcion()
+                            + " requiere giro, direccion y comuna (exigencia del SII). Complete la ficha del cliente.");
+        }
+    }
+
+    private static boolean esBlanco(String s) {
+        return s == null || s.isBlank();
+    }
+
+    /**
+     * Normaliza la cantidad a la escala del esquema (Dec12_6Type: 6 decimales,
+     * minimo 0.000001, maximo 999999999999.999999). Se redondea half-up al
+     * CREAR para que lo almacenado sea exactamente lo que se emite; una
+     * cantidad que redondeada queda en cero (p.ej. 0.0000001) se rechaza.
+     */
+    private static double normalizarCantidad(Double cantidad) {
+        java.math.BigDecimal bd = java.math.BigDecimal.valueOf(cantidad)
+                .setScale(6, java.math.RoundingMode.HALF_UP);
+        if (bd.signum() <= 0) {
+            throw new ReglaNegocioException(
+                    "La cantidad minima por linea es 0,000001 (limite del esquema del SII)");
+        }
+        if (bd.compareTo(new java.math.BigDecimal("999999999999.999999")) > 0) {
+            throw new ReglaNegocioException(
+                    "La cantidad maxima por linea es 999.999.999.999,999999 (limite del esquema del SII)");
+        }
+        return bd.doubleValue();
     }
 
     private LineaDetalle construirLinea(Long empresaId, LineaRequest lr) {
@@ -339,13 +447,14 @@ public class DocumentoService {
             throw new ReglaNegocioException("Cada linea requiere un producto o un nombre");
         }
 
+        double cantidad = normalizarCantidad(lr.cantidad());
         long descuento = lr.descuentoMonto() != null ? lr.descuentoMonto() : 0L;
-        long monto = calculadora.montoLinea(lr.cantidad(), precio, descuento);
+        long monto = calculadora.montoLinea(cantidad, precio, descuento);
 
         return LineaDetalle.builder()
                 .productoId(productoId)
                 .nombre(nombre)
-                .cantidad(lr.cantidad())
+                .cantidad(cantidad)
                 .unidad(unidad)
                 .precioUnitario(precio)
                 .descuentoMonto(descuento)

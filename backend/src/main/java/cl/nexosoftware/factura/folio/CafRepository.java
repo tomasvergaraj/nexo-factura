@@ -17,6 +17,10 @@ public interface CafRepository extends JpaRepository<Caf, Long> {
     /**
      * Bloquea (SELECT ... FOR UPDATE) el CAF vigente con menor rango que aun tenga
      * folios disponibles, garantizando asignacion atomica del siguiente folio.
+     * Un CAF vencido (Res. Ex. 58/2017: los de documentos con credito fiscal
+     * caducan a los 6 meses y el SII los rechaza en recepcion) se salta, igual
+     * que un CAF legacy sin XML almacenado (sin el se puede asignar folio pero
+     * no timbrar, y la emision quedaria bloqueada).
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -24,10 +28,15 @@ public interface CafRepository extends JpaRepository<Caf, Long> {
             where c.empresaId = :empresaId
               and c.tipoDte = :tipoDte
               and c.agotado = false
+              and c.xmlCaf is not null
               and c.folioActual < c.folioHasta
+              and (c.fechaVencimiento is null or c.fechaVencimiento >= current_date)
             order by c.folioDesde asc
             limit 1
             """)
     Optional<Caf> bloquearCafDisponible(@Param("empresaId") Long empresaId,
                                         @Param("tipoDte") TipoDte tipoDte);
+
+    boolean existsByEmpresaIdAndTipoDteAndFolioDesdeAndFolioHasta(
+            Long empresaId, TipoDte tipoDte, long folioDesde, long folioHasta);
 }

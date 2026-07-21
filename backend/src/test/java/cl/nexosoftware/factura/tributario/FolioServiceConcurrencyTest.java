@@ -72,7 +72,7 @@ class FolioServiceConcurrencyTest extends AbstractIntegrationTest {
                 try {
                     partida.await();
                     Long folio = tx.execute(status ->
-                            folioService.siguienteFolio(empresaId, TipoDte.FACTURA_AFECTA));
+                            folioService.siguienteFolio(empresaId, TipoDte.FACTURA_AFECTA).folio());
                     folios.add(folio);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

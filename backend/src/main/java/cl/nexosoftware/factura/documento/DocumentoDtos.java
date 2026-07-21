@@ -24,7 +24,8 @@ public final class DocumentoDtos {
             Long productoId,
             String nombre,
             @NotNull @Positive Double cantidad,
-            Long precioUnitario,
+            // 0 permitido (linea de regalo: PrcItem se omite en el XML); negativo no.
+            @PositiveOrZero Long precioUnitario,
             @PositiveOrZero Long descuentoMonto,
             Boolean afecto,
             // Codigo de otro impuesto (catalogo TipoImpuesto); null = solo IVA. La

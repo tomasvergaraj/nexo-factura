@@ -58,10 +58,18 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
   sii:
-    # CERTIFICACION (Maullin) o PRODUCCION (Palena)
+    # CERTIFICACION (apicert/pangal + maullin) o PRODUCCION (api/rahue + palena)
     ambiente: ${APP_SII_AMBIENTE:CERTIFICACION}
     certificado-path: ${APP_SII_CERT_PATH:}
     certificado-password: ${APP_SII_CERT_PASSWORD:}
+    # RUN del firmante autorizado; por defecto se extrae del SERIALNUMBER del certificado.
+    rut-firmante: ${APP_SII_RUT_FIRMANTE:}
+    # Caratula de los envios. En certificacion: FchResol = la fecha que muestra
+    # "Datos de la Empresa" del ambiente cert del SII; NroResol = 0 (fijo).
+    fch-resol: ${APP_SII_FCH_RESOL:}
+    nro-resol: ${APP_SII_NRO_RESOL:0}
+    # El WAF del SII bloquea User-Agents de libreria; formato recomendado por su spec.
+    user-agent: ${APP_SII_USER_AGENT:Mozilla/4.0 (compatible; PROG 1.0)}
     # Comportamiento inicial del stub del SII (solo perfiles != prod). Tambien
     # es configurable en runtime via PUT /api/dev/sii-stub (contingencia E2E).
     stub:

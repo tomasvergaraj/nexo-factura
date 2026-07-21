@@ -27,6 +27,9 @@ public class Pdf417Generator {
         try {
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.CHARACTER_SET, "ISO-8859-1");
+            // Nivel de correccion de error 5: exigencia oficial del SII para el
+            // timbre (Instructivo A.2.5), junto con codificacion binaria.
+            hints.put(EncodeHintType.ERROR_CORRECTION, 5);
             hints.put(EncodeHintType.MARGIN, 1);
 
             BitMatrix matriz = new PDF417Writer().encode(contenido, BarcodeFormat.PDF_417, 0, 0, hints);

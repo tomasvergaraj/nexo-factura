@@ -1,8 +1,7 @@
 package cl.nexosoftware.factura.folio;
 
 import cl.nexosoftware.factura.documento.TipoDte;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotBlank;
 
 import java.time.LocalDate;
 
@@ -11,17 +10,12 @@ public final class CafDtos {
     private CafDtos() {}
 
     /**
-     * Alta de un CAF. En produccion estos datos se extraen del XML del CAF que
-     * entrega el SII; aqui se aceptan tambien de forma explicita para pruebas.
+     * Alta de un CAF: se sube el XML tal como lo entrega el SII y TODO lo demas
+     * (tipo, rango, fechas, claves) se deriva del parseo. Ya no se aceptan campos
+     * manuales: un CAF sin su XML real no puede timbrar (el TED exige el bloque
+     * CAF y su clave privada).
      */
-    public record CafRequest(
-            @NotNull TipoDte tipoDte,
-            @NotNull @Positive Long folioDesde,
-            @NotNull @Positive Long folioHasta,
-            String xmlCaf,
-            LocalDate fechaAutorizacion,
-            LocalDate fechaVencimiento
-    ) {}
+    public record CafRequest(@NotBlank String xmlCaf) {}
 
     public record CafResponse(
             Long id,

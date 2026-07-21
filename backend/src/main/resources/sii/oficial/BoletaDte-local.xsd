@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!-- Wrapper LOCAL de Nexo Factura (NO es un archivo del SII).
+     EnvioBOLETA_v11.xsd declara el DTE de boleta (BOLETADefType) solo inline
+     dentro del SetDTE, por lo que una boleta suelta no es validable contra el
+     esquema oficial. Este wrapper lo expone como elemento global para poder
+     validar el DTE de la boleta al emitir, antes de armar el sobre. -->
+<xs:schema targetNamespace="http://www.sii.cl/SiiDte" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:SiiDte="http://www.sii.cl/SiiDte" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:include schemaLocation="EnvioBOLETA_v11.xsd"/>
+	<xs:element name="DTE" type="SiiDte:BOLETADefType"/>
+</xs:schema>

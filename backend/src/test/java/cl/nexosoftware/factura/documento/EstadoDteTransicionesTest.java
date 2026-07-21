@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <pre>
  *   BORRADOR        -> FIRMADO
  *   FIRMADO         -> ENVIADO | BORRADOR | EN_CONTINGENCIA
- *   EN_CONTINGENCIA -> ENVIADO
+ *   EN_CONTINGENCIA -> ENVIADO | RECHAZADO
  *   ENVIADO         -> ACEPTADO | RECHAZADO | REPARO
  *   ACEPTADO        -> ANULADO
  *   RECHAZADO       -> ENVIADO   (reenvio; nunca a EN_CONTINGENCIA: un rechazo
@@ -38,6 +38,9 @@ class EstadoDteTransicionesTest {
                 "FIRMADO,         BORRADOR",
                 "FIRMADO,         EN_CONTINGENCIA",
                 "EN_CONTINGENCIA, ENVIADO",
+                // el SII respondio con un rechazo de negocio durante el reintento:
+                // el documento sale de la cola de contingencia con el motivo
+                "EN_CONTINGENCIA, RECHAZADO",
                 "ENVIADO,         ACEPTADO",
                 "ENVIADO,         RECHAZADO",
                 "ENVIADO,         REPARO",

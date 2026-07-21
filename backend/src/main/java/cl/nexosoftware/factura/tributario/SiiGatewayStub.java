@@ -38,18 +38,19 @@ public class SiiGatewayStub implements SiiGateway {
     }
 
     @Override
-    public String enviar(String xmlDteFirmado) {
+    public String enviar(EnvioSii envio) {
         if (!disponible) {
             log.warn("Stub SII: envio rechazado, el SII esta simulado como NO disponible");
             throw new SiiNoDisponibleException("SII no disponible (simulado por el stub)");
         }
         long trackId = ThreadLocalRandom.current().nextLong(1_000_000, 9_999_999);
-        log.info("Stub SII: envio simulado, TrackID={}", trackId);
+        log.info("Stub SII: envio simulado (tipo {} folio {}), TrackID={}",
+                envio.tipoDte(), envio.folio(), trackId);
         return String.valueOf(trackId);
     }
 
     @Override
-    public EstadoEnvio consultarEstado(String trackId) {
+    public EstadoEnvio consultarEstado(ConsultaSii consulta) {
         if (!disponible) {
             throw new SiiNoDisponibleException("SII no disponible (simulado por el stub)");
         }

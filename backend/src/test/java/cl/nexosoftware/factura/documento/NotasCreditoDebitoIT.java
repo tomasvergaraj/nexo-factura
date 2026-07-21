@@ -18,60 +18,49 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
  * Test de integracion del flujo de notas de credito/debito (56/61): validacion de
  * referencias obligatorias al crear y anulacion atomica del documento original
  * ACEPTADO al emitir una nota de credito con codigo de referencia ANULA_DOCUMENTO.
- * Las dependencias tributarias externas (TED, XML, firma y SII) se reemplazan con
- * mocks, igual que en {@link DocumentoServiceTransicionesIT}.
+ * El unico mock es {@link SiiGateway}; el timbre, el XML, la firma (stub) y la
+ * validacion XSD son los reales, igual que en {@link DocumentoServiceTransicionesIT}.
  */
 class NotasCreditoDebitoIT extends AbstractIntegrationTest {
 
     @Autowired private DocumentoService documentoService;
+    @Autowired private DocumentoRepository documentoRepository;
     @Autowired private EmpresaRepository empresaRepository;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CafRepository cafRepository;
 
     @MockBean private SiiGateway siiGateway;
-    @MockBean private FirmaElectronica firmaElectronica;
-    @MockBean private TedGenerator tedGenerator;
-    @MockBean private XmlDteGenerator xmlDteGenerator;
-    // El XML mockeado ("<DTE/>") no cumple el XSD: se mockea el validador para
-    // que no falle (este IT aisla las notas, no la validacion de esquema).
-    @MockBean private DteXmlValidator dteXmlValidator;
 
     private Long empresaId;
     private Long clienteId;
 
     @BeforeEach
     void preparar() {
-        when(tedGenerator.generar(any(), anyString())).thenReturn(new ModeloDte.Ted());
-        when(xmlDteGenerator.generar(any(), any(), any())).thenReturn("<DTE/>");
-        when(firmaElectronica.firmar(anyString())).thenReturn("<DTE firmado=\"true\"/>");
-        when(siiGateway.enviar(anyString())).thenReturn("TRACK-NC");
-        when(siiGateway.consultarEstado(anyString())).thenReturn(SiiGateway.EstadoEnvio.ACEPTADO);
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-NC");
+        when(siiGateway.consultarEstado(any(SiiGateway.ConsultaSii.class)))
+                .thenReturn(SiiGateway.EstadoEnvio.ACEPTADO);
 
-        Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("91000000-" + ThreadLocalRandom.current().nextInt(0, 9))
-                .razonSocial("Empresa Notas")
-                .giro("Pruebas")
-                .direccion("Calle 1")
-                .comuna("Quillota")
-                .build());
-        empresaId = empresa.getId();
+        // La empresa emisora debe calzar con el RE del CAF fixture (76543210-9);
+        // su RUT es unico en la BD, asi que se reutiliza y se limpia su estado.
+        empresaId = empresaEmisora("Empresa Notas").getId();
 
         Cliente cliente = clienteRepository.save(Cliente.builder()
                 .empresaId(empresaId)
                 .rut("77111222-3")
                 .razonSocial("Cliente de prueba")
+                .giro("Comercio")
+                .direccion("Av 2")
+                .comuna("Vina")
                 .build());
         clienteId = cliente.getId();
 
@@ -147,7 +136,36 @@ class NotasCreditoDebitoIT extends AbstractIntegrationTest {
                 .folioHasta(1000)
                 .folioActual(0)
                 .agotado(false)
+                // Fixture 33 tambien para la NC: al emitir no se cruza el TD del
+                // XML con el tipo de la fila; solo importan el RE y la clave.
+                .xmlCaf(DteFixtures.xmlCaf(33))
                 .creadoEn(OffsetDateTime.now())
                 .build();
+    }
+
+    /**
+     * Busca (o crea) la empresa emisora con el RUT del CAF fixture y elimina sus
+     * documentos, CAFs y clientes de tests anteriores para partir de cero.
+     */
+    private Empresa empresaEmisora(String razonSocial) {
+        Empresa empresa = empresaRepository.findAll().stream()
+                .filter(e -> DteFixtures.RUT_EMISOR.equals(e.getRut()))
+                .findFirst()
+                .orElseGet(() -> empresaRepository.save(Empresa.builder()
+                        .rut(DteFixtures.RUT_EMISOR)
+                        .razonSocial(razonSocial)
+                        .giro("Pruebas")
+                        .actividadEconomica(620200)
+                        .direccion("Calle 1")
+                        .comuna("Quillota")
+                        .build()));
+        Long id = empresa.getId();
+        documentoRepository.deleteAll(documentoRepository.findAll().stream()
+                .filter(d -> id.equals(d.getEmpresaId())).toList());
+        cafRepository.deleteAll(cafRepository.findAll().stream()
+                .filter(c -> id.equals(c.getEmpresaId())).toList());
+        clienteRepository.deleteAll(clienteRepository.findAll().stream()
+                .filter(c -> id.equals(c.getEmpresaId())).toList());
+        return empresa;
     }
 }

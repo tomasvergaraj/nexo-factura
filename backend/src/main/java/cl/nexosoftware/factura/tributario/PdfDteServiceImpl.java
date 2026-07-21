@@ -23,9 +23,10 @@ import java.util.Locale;
  * rojo con RUT, tipo y folio; datos de emisor y receptor; tabla de detalle;
  * totales; y el timbre electronico (PDF417).
  *
- * El PDF417 codifica el TED real (fragmento XML del timbre, ISO-8859-1) generado
- * por {@link TedGenerator}. La firma FRMT sigue siendo un marcador de posicion
- * hasta integrar la llave privada del CAF real.
+ * El PDF417 codifica el TED tal como quedo EN EL XML FIRMADO almacenado (se
+ * extrae como substring, jamas se regenera: regenerarlo produciria una segunda
+ * firma FRMT con otro TSTED, distinta de la del documento emitido). Un
+ * documento sin XML (borrador) muestra el texto de respaldo en vez del timbre.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,7 +40,6 @@ public class PdfDteServiceImpl implements PdfDteService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfDteServiceImpl.class);
 
-    private final TedGenerator tedGenerator;
     private final Pdf417Generator pdf417Generator;
 
     @Override
@@ -56,9 +56,7 @@ public class PdfDteServiceImpl implements PdfDteService {
             pdf.add(detalle(doc));
             pdf.add(totales(doc));
 
-            ModeloDte.Ted ted = tedGenerator.generar(doc, emisor.getRut());
-            String tedXml = tedGenerator.aXml(ted);
-            agregarTimbre(pdf, tedXml);
+            agregarTimbre(pdf, extraerTed(doc.getXmlDte()));
 
             pdf.close();
             return out.toByteArray();
@@ -186,6 +184,15 @@ public class PdfDteServiceImpl implements PdfDteService {
      */
     private void agregarTimbre(Document pdf, String tedXml) throws DocumentException {
         pdf.add(new Paragraph(" "));
+        if (tedXml == null) {
+            // Borrador sin emitir: no hay XML firmado ni timbre que representar.
+            Paragraph p = new Paragraph();
+            p.setAlignment(Element.ALIGN_CENTER);
+            p.add(new Chunk("DOCUMENTO EN BORRADOR - SIN TIMBRE\n", font(9, Font.BOLD, GRIS)));
+            p.add(new Chunk("El timbre electronico se genera al emitir.", font(7, Font.ITALIC, GRIS)));
+            pdf.add(p);
+            return;
+        }
         try {
             byte[] png = pdf417Generator.generarPng(tedXml);
             Image img = Image.getInstance(png);
@@ -210,6 +217,18 @@ public class PdfDteServiceImpl implements PdfDteService {
                     font(7, Font.ITALIC, GRIS)));
             pdf.add(p);
         }
+    }
+
+    /**
+     * Extrae el fragmento {@code <TED ...>...</TED>} del XML firmado almacenado,
+     * byte-identico a como fue firmado. Null si el documento no tiene XML.
+     */
+    private String extraerTed(String xmlDte) {
+        if (xmlDte == null) return null;
+        int inicio = xmlDte.indexOf("<TED");
+        int fin = xmlDte.indexOf("</TED>");
+        if (inicio < 0 || fin < 0) return null;
+        return xmlDte.substring(inicio, fin + "</TED>".length());
     }
 
     // ---- helpers ----

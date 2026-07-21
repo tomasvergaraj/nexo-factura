@@ -7,6 +7,7 @@ import {
   guardarSesion, guardarTokens, limpiarSesion, obtenerRefreshToken, obtenerToken, RUTA_LOGIN,
   type UsuarioSesion,
 } from "./auth";
+import { camposCaf } from "./caf";
 import {
   clientesMock, comprasMock, dashboardMock, documentoDetalleMock, documentosMock, empresaMock,
   foliosMock, libroMock, productosMock, rcofMock,
@@ -14,8 +15,9 @@ import {
 import type {
   Caf, CafRequest, Cliente, ClienteRequest, Compra, CompraRequest, DocumentoResponse,
   DocumentoResumen, Empresa, EmpresaRequest, LibroResponse, Producto, ProductoRequest, RcofResponse,
-  ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard, TipoOperacionLibro,
+  ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard, TipoDte, TipoOperacionLibro,
 } from "./types";
+import { TIPO_DTE_POR_CODIGO } from "./types";
 
 // Modo demo público: el visitante recorre la app con datos de ejemplo, sin
 // backend. Se activa en runtime vía localStorage; requiere recarga porque
@@ -490,15 +492,20 @@ export async function getFolios(empresaId: number): Promise<Caf[]> {
 export async function cargarCaf(empresaId: number, payload: CafRequest): Promise<Caf> {
   if (USE_MOCK) {
     await demora(400);
+    const campos = camposCaf(payload.xmlCaf);
+    const td = campos?.td ?? 33;
+    const desde = campos?.desde ?? 1;
+    const hasta = campos?.hasta ?? desde;
+    const tipo: TipoDte = TIPO_DTE_POR_CODIGO[td] ?? "FACTURA_AFECTA";
     return {
       id: Date.now(),
-      tipoDte: payload.tipoDte,
-      folioDesde: payload.folioDesde,
-      folioHasta: payload.folioHasta,
-      folioActual: payload.folioDesde,
-      foliosDisponibles: payload.folioHasta - payload.folioDesde + 1,
+      tipoDte: tipo,
+      folioDesde: desde,
+      folioHasta: hasta,
+      folioActual: desde - 1,
+      foliosDisponibles: hasta - desde + 1,
       agotado: false,
-      fechaVencimiento: payload.fechaVencimiento ?? null,
+      fechaVencimiento: null,
     };
   }
   const { data } = await http.post(`/empresas/${empresaId}/folios`, payload);

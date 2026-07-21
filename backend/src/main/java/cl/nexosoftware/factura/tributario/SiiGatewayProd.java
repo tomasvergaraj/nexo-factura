@@ -1,44 +1,54 @@
 package cl.nexosoftware.factura.tributario;
 
+import cl.nexosoftware.factura.common.exception.ReglaNegocioException;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
- * Esqueleto de {@link SiiGateway} para el perfil prod.
+ * Gateway real del SII (perfil prod): rutea cada operacion al transporte del
+ * tipo de documento — boletas 39/41 via {@link SiiTransporteBoleta} (API REST,
+ * apicert/pangal) y facturas/notas 33/34/56/61 via {@link SiiTransporteDte}
+ * (canal clasico, maullin/palena). Canales con hosts, autenticacion y sobres
+ * independientes.
  *
- * El bean existe para que el contexto del perfil prod levante, pero la
- * integracion real con el SII todavia no esta implementada: obtener semilla,
- * firmar la semilla y solicitar token, armar el sobre EnvioDTE, subirlo al
- * endpoint del ambiente (certificacion/prod) y consultar el estado por TrackID.
- * Hasta entonces cada operacion falla de forma explicita en lugar de simular una
- * aceptacion como hace el stub de desarrollo.
- *
- * IMPORTANTE para la implementacion real: los errores de transporte (timeout,
- * conexion rechazada, 5xx del SII) deben mapearse a
- * {@link cl.nexosoftware.factura.common.exception.SiiNoDisponibleException} —
- * es la senal con la que DocumentoService deja el DTE EN_CONTINGENCIA en vez de
- * fallar; cualquier otra excepcion propaga como error al cliente.
+ * Contrato de errores (el que espera DocumentoService): errores de transporte →
+ * {@link cl.nexosoftware.factura.common.exception.SiiNoDisponibleException}
+ * (deja el DTE EN_CONTINGENCIA); rechazos de negocio → excepcion dura.
  */
 @Component
 @Profile("prod")
+@RequiredArgsConstructor
 @Slf4j
 public class SiiGatewayProd implements SiiGateway {
 
+    private final List<SiiTransporte> transportes;
+
     @PostConstruct
     void avisar() {
-        log.warn("SiiGatewayProd activo: la integracion real con el SII esta PENDIENTE. "
-                + "El envio y la consulta de estado fallaran hasta completarla.");
+        log.info("SiiGatewayProd activo con {} transporte(s): {}", transportes.size(),
+                transportes.stream().map(t -> t.getClass().getSimpleName()).toList());
     }
 
     @Override
-    public String enviar(String xmlDteFirmado) {
-        throw new UnsupportedOperationException("Integracion real con el SII pendiente");
+    public String enviar(EnvioSii envio) {
+        return transporte(envio.tipoDte()).enviar(envio);
     }
 
     @Override
-    public EstadoEnvio consultarEstado(String trackId) {
-        throw new UnsupportedOperationException("Integracion real con el SII pendiente");
+    public EstadoEnvio consultarEstado(ConsultaSii consulta) {
+        return transporte(consulta.tipoDte()).consultarEstado(consulta);
+    }
+
+    private SiiTransporte transporte(int tipoDte) {
+        return transportes.stream()
+                .filter(t -> t.soporta(tipoDte))
+                .findFirst()
+                .orElseThrow(() -> new ReglaNegocioException(
+                        "Ningun canal del SII soporta el tipo de documento " + tipoDte));
     }
 }

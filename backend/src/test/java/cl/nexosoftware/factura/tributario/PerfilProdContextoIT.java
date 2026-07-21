@@ -30,8 +30,22 @@ class PerfilProdContextoIT extends AbstractIntegrationTest {
             "test-prod-secret-distinto-del-de-dev-9876543210-abcdef";
 
     @DynamicPropertySource
-    static void jwtSecret(DynamicPropertyRegistry registry) {
+    static void propiedadesProd(DynamicPropertyRegistry registry) {
         registry.add("app.jwt.secret", () -> SECRET_PROD_TEST);
+        // CertificadoDigital y EnvioBoletaGenerator son fail-fast en prod: el
+        // contexto solo levanta con un certificado legible y una FchResol valida.
+        registry.add("app.sii.certificado-path", PerfilProdContextoIT::rutaCertPrueba);
+        registry.add("app.sii.certificado-password", () -> "test123");
+        registry.add("app.sii.fch-resol", () -> "2026-05-14");
+    }
+
+    private static String rutaCertPrueba() {
+        try {
+            return new org.springframework.core.io.ClassPathResource("sii/cert_prueba.p12")
+                    .getFile().getAbsolutePath();
+        } catch (Exception e) {
+            throw new IllegalStateException("Falta el fixture sii/cert_prueba.p12", e);
+        }
     }
 
     @Autowired

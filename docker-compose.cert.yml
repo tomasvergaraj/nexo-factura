@@ -1,0 +1,18 @@
+# Override para el E2E contra el SII de CERTIFICACION con la integracion real.
+# Uso:  docker compose -f docker-compose.yml -f docker-compose.cert.yml up -d
+#
+# Requiere en el .env (gitignoreado):
+#   APP_SII_CERT_PASSWORD=...        clave del PKCS#12 de secrets/
+#   APP_SII_FCH_RESOL=2026-05-14     fecha de resolucion del ambiente cert ("Datos de la Empresa")
+#   APP_JWT_SECRET_PROD=...          secret real (>=32 bytes, distinto del de dev)
+#
+# El perfil prod activa: firma XMLDSig real, gateway real (apicert/pangal) y la
+# validacion fail-fast del certificado. La BD es la misma de dev; para el E2E se
+# usa una empresa con el RUT del CAF (78397017-1) creada via registro.
+services:
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      APP_SII_AMBIENTE: CERTIFICACION
+      APP_SII_FCH_RESOL: ${APP_SII_FCH_RESOL:?falta APP_SII_FCH_RESOL en .env}
+      APP_JWT_SECRET: ${APP_JWT_SECRET_PROD:?falta APP_JWT_SECRET_PROD en .env}

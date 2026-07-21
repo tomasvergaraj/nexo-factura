@@ -19,55 +19,46 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
  * Test de integracion (PostgreSQL real via Testcontainers) de la contingencia de
  * envio al SII y el reenvio de rechazados en {@link DocumentoService}: caida del
  * SII -> EN_CONTINGENCIA con traza, reintento individual y masivo, y reenvio del
- * mismo XML de un documento RECHAZADO.
+ * mismo XML de un documento RECHAZADO. El unico mock es {@link SiiGateway}; la
+ * emision (TED, XML, firma stub y XSD) es real con el CAF de {@link DteFixtures}.
  */
 class ContingenciaReenvioIT extends AbstractIntegrationTest {
 
     @Autowired private DocumentoService documentoService;
+    @Autowired private DocumentoRepository documentoRepository;
     @Autowired private EmpresaRepository empresaRepository;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CafRepository cafRepository;
 
     @MockBean private SiiGateway siiGateway;
-    @MockBean private FirmaElectronica firmaElectronica;
-    @MockBean private TedGenerator tedGenerator;
-    @MockBean private XmlDteGenerator xmlDteGenerator;
-    @MockBean private DteXmlValidator dteXmlValidator;
 
     private Long empresaId;
     private Long clienteId;
 
     @BeforeEach
     void preparar() {
-        when(tedGenerator.generar(any(), anyString())).thenReturn(new ModeloDte.Ted());
-        when(xmlDteGenerator.generar(any(), any(), any())).thenReturn("<DTE/>");
-        when(firmaElectronica.firmar(anyString())).thenReturn("<DTE firmado=\"true\"/>");
-
-        Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("92000000-" + ThreadLocalRandom.current().nextInt(0, 9))
-                .razonSocial("Empresa Contingencia")
-                .giro("Pruebas")
-                .direccion("Calle 1")
-                .comuna("Quillota")
-                .build());
-        empresaId = empresa.getId();
+        // La empresa emisora debe calzar con el RE del CAF fixture (76543210-9);
+        // su RUT es unico en la BD, asi que se reutiliza y se limpia su estado
+        // (clave para que reenviarPendientes no arrastre documentos de otro test).
+        empresaId = empresaEmisora("Empresa Contingencia").getId();
 
         Cliente cliente = clienteRepository.save(Cliente.builder()
                 .empresaId(empresaId)
                 .rut("77111222-3")
                 .razonSocial("Cliente de prueba")
+                .giro("Comercio")
+                .direccion("Av 2")
+                .comuna("Vina")
                 .build());
         clienteId = cliente.getId();
 
@@ -78,6 +69,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
                 .folioHasta(1000)
                 .folioActual(0)
                 .agotado(false)
+                .xmlCaf(DteFixtures.xmlCaf(33))
                 .creadoEn(OffsetDateTime.now())
                 .build());
     }
@@ -85,7 +77,8 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("si el SII no esta disponible, enviar deja el documento EN_CONTINGENCIA con la traza del fallo")
     void envioConSiiCaidoQuedaEnContingencia() {
-        when(siiGateway.enviar(anyString())).thenThrow(new SiiNoDisponibleException("SII caido"));
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("SII caido"));
         DocumentoResponse doc = emitido();
 
         DocumentoResponse resultado = documentoService.enviarSii(empresaId, doc.id());
@@ -100,7 +93,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("reenviar un documento EN_CONTINGENCIA con el SII recuperado lo deja ENVIADO y limpia el error")
     void reenvioDesdeContingenciaTransicionaAEnviado() {
-        when(siiGateway.enviar(anyString()))
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
                 .thenThrow(new SiiNoDisponibleException("SII caido"))
                 .thenReturn("TRACK-77");
         DocumentoResponse doc = emitido();
@@ -117,7 +110,8 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("si el SII sigue caido, el reintento acumula intentos y permanece EN_CONTINGENCIA")
     void reintentoConSiiCaidoPermaneceEnContingencia() {
-        when(siiGateway.enviar(anyString())).thenThrow(new SiiNoDisponibleException("SII caido"));
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("SII caido"));
         DocumentoResponse doc = emitido();
         documentoService.enviarSii(empresaId, doc.id());
 
@@ -130,13 +124,14 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("reenviar-pendientes reintenta todos los EN_CONTINGENCIA y reporta el resultado")
     void reenvioMasivoProcesaTodosLosPendientes() {
-        when(siiGateway.enviar(anyString())).thenThrow(new SiiNoDisponibleException("SII caido"));
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("SII caido"));
         DocumentoResponse doc1 = emitido();
         DocumentoResponse doc2 = emitido();
         documentoService.enviarSii(empresaId, doc1.id());
         documentoService.enviarSii(empresaId, doc2.id());
 
-        when(siiGateway.enviar(anyString())).thenReturn("TRACK-A", "TRACK-B");
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-A", "TRACK-B");
         ReenvioMasivoResponse resumen = documentoService.reenviarPendientes(empresaId);
 
         assertThat(resumen.procesados()).isEqualTo(2);
@@ -149,8 +144,9 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("un documento RECHAZADO por el SII puede reenviarse y vuelve a ENVIADO")
     void reenvioDeRechazadoVuelveAEnviado() {
-        when(siiGateway.enviar(anyString())).thenReturn("TRACK-1", "TRACK-2");
-        when(siiGateway.consultarEstado(anyString())).thenReturn(SiiGateway.EstadoEnvio.RECHAZADO);
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-1", "TRACK-2");
+        when(siiGateway.consultarEstado(any(SiiGateway.ConsultaSii.class)))
+                .thenReturn(SiiGateway.EstadoEnvio.RECHAZADO);
         DocumentoResponse doc = emitido();
         documentoService.enviarSii(empresaId, doc.id());
         DocumentoResponse rechazado = documentoService.consultarEstadoSii(empresaId, doc.id());
@@ -165,10 +161,11 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("si el SII esta caido, el reenvio de un RECHAZADO lo deja RECHAZADO (no entra a contingencia)")
     void reenvioDeRechazadoConSiiCaidoPermaneceRechazado() {
-        when(siiGateway.enviar(anyString()))
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
                 .thenReturn("TRACK-1")
                 .thenThrow(new SiiNoDisponibleException("SII caido"));
-        when(siiGateway.consultarEstado(anyString())).thenReturn(SiiGateway.EstadoEnvio.RECHAZADO);
+        when(siiGateway.consultarEstado(any(SiiGateway.ConsultaSii.class)))
+                .thenReturn(SiiGateway.EstadoEnvio.RECHAZADO);
         DocumentoResponse doc = emitido();
         documentoService.enviarSii(empresaId, doc.id());
         documentoService.consultarEstadoSii(empresaId, doc.id()); // RECHAZADO
@@ -184,8 +181,9 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("consultar el estado de un documento que no esta ENVIADO ni REPARO lanza ReglaNegocioException")
     void consultaEnEstadoInvalidoLanzaReglaNegocio() {
-        when(siiGateway.enviar(anyString())).thenReturn("TRACK-1");
-        when(siiGateway.consultarEstado(anyString())).thenReturn(SiiGateway.EstadoEnvio.RECHAZADO);
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-1");
+        when(siiGateway.consultarEstado(any(SiiGateway.ConsultaSii.class)))
+                .thenReturn(SiiGateway.EstadoEnvio.RECHAZADO);
         DocumentoResponse doc = emitido();
         documentoService.enviarSii(empresaId, doc.id());
         documentoService.consultarEstadoSii(empresaId, doc.id()); // RECHAZADO, trackId queda como traza
@@ -214,5 +212,31 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
                 null);
         DocumentoResponse borrador = documentoService.crear(empresaId, req);
         return documentoService.emitir(empresaId, borrador.id());
+    }
+
+    /**
+     * Busca (o crea) la empresa emisora con el RUT del CAF fixture y elimina sus
+     * documentos, CAFs y clientes de tests anteriores para partir de cero.
+     */
+    private Empresa empresaEmisora(String razonSocial) {
+        Empresa empresa = empresaRepository.findAll().stream()
+                .filter(e -> DteFixtures.RUT_EMISOR.equals(e.getRut()))
+                .findFirst()
+                .orElseGet(() -> empresaRepository.save(Empresa.builder()
+                        .rut(DteFixtures.RUT_EMISOR)
+                        .razonSocial(razonSocial)
+                        .giro("Pruebas")
+                        .actividadEconomica(620200)
+                        .direccion("Calle 1")
+                        .comuna("Quillota")
+                        .build()));
+        Long id = empresa.getId();
+        documentoRepository.deleteAll(documentoRepository.findAll().stream()
+                .filter(d -> id.equals(d.getEmpresaId())).toList());
+        cafRepository.deleteAll(cafRepository.findAll().stream()
+                .filter(c -> id.equals(c.getEmpresaId())).toList());
+        clienteRepository.deleteAll(clienteRepository.findAll().stream()
+                .filter(c -> id.equals(c.getEmpresaId())).toList());
+        return empresa;
     }
 }

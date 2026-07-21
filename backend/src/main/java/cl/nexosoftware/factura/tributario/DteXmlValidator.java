@@ -2,11 +2,13 @@ package cl.nexosoftware.factura.tributario;
 
 import cl.nexosoftware.factura.common.exception.ApiError;
 import cl.nexosoftware.factura.common.exception.DteInvalidoException;
+import cl.nexosoftware.factura.documento.TipoDte;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
+import org.w3c.dom.ls.LSInput;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
@@ -23,65 +25,127 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Valida el XML del DTE contra el esquema XSD representativo ANTES de firmarlo.
+ * Valida los XML tributarios contra los esquemas OFICIALES del SII
+ * (resources/sii/oficial, namespace SiiDte), DESPUES de firmar: los XSD exigen
+ * el nodo Signature, asi que el orden en la emision es generar → firmar →
+ * validar (todo en la misma transaccion; un XML invalido revierte el folio).
  *
- * Thread-safety: el {@link Schema} se compila una sola vez en el constructor y es
- * inmutable/thread-safe; el {@link Validator} NO lo es, por lo que se crea uno
- * nuevo por cada llamada a {@link #validar(String)}.
+ * Dos esquemas compilados e independientes — ambos definen tipos del mismo
+ * namespace y NO pueden cargarse juntos:
+ * <ul>
+ *   <li>facturas/notas: {@code DTE_v10.xsd} (elemento global DTE);</li>
+ *   <li>boletas: {@code BoletaDte-local.xsd} (wrapper local que expone el DTE
+ *       de boleta como raiz) e incluye {@code EnvioBOLETA_v11.xsd}, por lo que
+ *       tambien valida el sobre EnvioBOLETA completo antes de enviarlo.</li>
+ * </ul>
  *
- * Seguridad (XXE): la SchemaFactory y cada Validator se endurecen
- * (FEATURE_SECURE_PROCESSING + ACCESS_EXTERNAL_DTD/SCHEMA vacios), de modo que un
- * XML con DOCTYPE o entidades externas no pueda leer recursos del host.
+ * Thread-safety: los {@link Schema} son inmutables; el {@link Validator} NO lo
+ * es y se crea por llamada. Seguridad (XXE): SchemaFactory y Validator
+ * endurecidos con acceso externo CERRADO ("" — ni file ni http); los
+ * include/import entre los XSD vendoreados se resuelven con un
+ * LSResourceResolver de classpath, que ademas es lo unico que funciona dentro
+ * del fat jar de Spring Boot (protocolo {@code nested:}, que la allowlist de
+ * JAXP no reconoce).
  */
 @Component
 public class DteXmlValidator {
 
     private static final Logger log = LoggerFactory.getLogger(DteXmlValidator.class);
-    private static final String XSD_CLASSPATH = "sii/DTE.xsd";
+    // EnvioDTE_v10 incluye DTE_v10: un solo Schema valida tanto el DTE suelto
+    // de factura/notas como el sobre EnvioDTE completo.
+    private static final String XSD_FACTURA = "sii/oficial/EnvioDTE_v10.xsd";
+    private static final String XSD_BOLETA = "sii/oficial/BoletaDte-local.xsd";
 
-    private final Schema schema;
+    private final Schema schemaFactura;
+    private final Schema schemaBoleta;
     private final boolean habilitado;
 
     public DteXmlValidator(@Value("${app.dte.validar-xsd:true}") boolean habilitado) {
         this.habilitado = habilitado;
-        this.schema = compilarSchema();
+        this.schemaFactura = compilarSchema(XSD_FACTURA);
+        this.schemaBoleta = compilarSchema(XSD_BOLETA);
         if (!habilitado) {
             log.warn("Validacion XSD del DTE DESHABILITADA (app.dte.validar-xsd=false). "
                     + "Solo para diagnostico, nunca en produccion.");
         }
     }
 
-    private Schema compilarSchema() {
+    private Schema compilarSchema(String classpath) {
         SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
         try {
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            // Acceso externo CERRADO: los include/import entre los XSD oficiales
+            // (SiiTypes, xmldsignature, DTE_v10) se sirven desde el classpath con
+            // el resolver de abajo. Una allowlist de protocolos no sirve aca: en
+            // el fat jar de Boot los recursos viven bajo el protocolo "nested:",
+            // que JAXP no reconoce (fallaba el arranque en prod).
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         } catch (SAXException e) {
-            throw new IllegalStateException("No se pudo endurecer la SchemaFactory XSD del DTE", e);
+            throw new IllegalStateException("No se pudo endurecer la SchemaFactory XSD", e);
         }
+        factory.setResourceResolver(DteXmlValidator::resolverXsdDelClasspath);
 
-        ClassPathResource recurso = new ClassPathResource(XSD_CLASSPATH);
+        ClassPathResource recurso = new ClassPathResource(classpath);
         if (!recurso.exists()) {
             throw new IllegalStateException(
-                    "No se encontro el esquema XSD del DTE en el classpath: " + XSD_CLASSPATH);
+                    "No se encontro el esquema XSD en el classpath: " + classpath);
         }
         try (InputStream in = recurso.getInputStream()) {
-            return factory.newSchema(new StreamSource(in));
+            // El systemId conserva el nombre para los mensajes de error.
+            return factory.newSchema(new StreamSource(in, classpath));
         } catch (SAXException | IOException e) {
             throw new IllegalStateException(
-                    "No se pudo compilar el esquema XSD del DTE (" + XSD_CLASSPATH + ")", e);
+                    "No se pudo compilar el esquema XSD (" + classpath + ")", e);
         }
     }
 
     /**
-     * Valida el XML completo contra el XSD, acumulando TODOS los errores.
-     *
-     * @param xml XML del DTE sin firmar (incluye la declaracion ISO-8859-1; se
-     *            parsea via StringReader para ignorar el encoding declarado).
-     * @throws DteInvalidoException si el XML no cumple el esquema.
+     * Resuelve un schemaLocation relativo de los XSD vendoreados a su recurso en
+     * {@code sii/oficial/}. Devuelve null si no lo conoce (JAXP intentara el
+     * acceso externo, que esta cerrado, y fallara con claridad).
      */
-    public void validar(String xml) {
+    private static LSInput resolverXsdDelClasspath(String type, String namespaceURI, String publicId,
+                                                   String systemId, String baseURI) {
+        if (systemId == null) {
+            return null;
+        }
+        String nombre = systemId.substring(systemId.lastIndexOf('/') + 1);
+        ClassPathResource recurso = new ClassPathResource("sii/oficial/" + nombre);
+        if (!recurso.exists()) {
+            return null;
+        }
+        try {
+            return new XsdClasspathInput(recurso.getInputStream(), systemId, publicId, baseURI);
+        } catch (IOException e) {
+            throw new IllegalStateException("No se pudo leer el XSD del classpath: " + nombre, e);
+        }
+    }
+
+    /**
+     * Valida el XML FIRMADO del DTE contra el esquema oficial del tipo,
+     * acumulando TODOS los errores.
+     *
+     * @throws DteInvalidoException si el XML no cumple el esquema (422).
+     */
+    public void validar(String xml, TipoDte tipo) {
+        validarContra(tipo.preciosBrutos() ? schemaBoleta : schemaFactura, xml,
+                "El XML del DTE generado no cumple el esquema oficial del SII");
+    }
+
+    /** Valida el sobre EnvioBOLETA firmado, antes de enviarlo al SII. */
+    public void validarEnvioBoleta(String xmlEnvio) {
+        validarContra(schemaBoleta, xmlEnvio,
+                "El sobre EnvioBOLETA no cumple el esquema oficial del SII");
+    }
+
+    /** Valida el sobre EnvioDTE firmado (facturas/notas), antes de enviarlo al SII. */
+    public void validarEnvioDte(String xmlEnvio) {
+        validarContra(schemaFactura, xmlEnvio,
+                "El sobre EnvioDTE no cumple el esquema oficial del SII");
+    }
+
+    private void validarContra(Schema schema, String xml, String mensaje) {
         if (!habilitado) {
             return;
         }
@@ -90,7 +154,7 @@ public class DteXmlValidator {
             validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         } catch (SAXException e) {
-            throw new IllegalStateException("No se pudo endurecer el Validator XSD del DTE", e);
+            throw new IllegalStateException("No se pudo endurecer el Validator XSD", e);
         }
 
         ColectorErrores colector = new ColectorErrores();
@@ -105,15 +169,46 @@ public class DteXmlValidator {
             colector.errores.add(new ApiError.CampoInvalido(
                     "xml", "Error fatal al validar el XML: " + e.getMessage()));
         } catch (IOException e) {
-            throw new IllegalStateException("Error de E/S validando el XML del DTE", e);
+            throw new IllegalStateException("Error de E/S validando el XML", e);
         }
 
         if (!colector.errores.isEmpty()) {
             throw new DteInvalidoException(
-                    "El XML del DTE generado no cumple el esquema XSD ("
-                            + colector.errores.size() + " error(es))",
+                    mensaje + " (" + colector.errores.size() + " error(es))",
                     List.copyOf(colector.errores));
         }
+    }
+
+    /** LSInput minimo: entrega el XSD como stream del classpath; setters no-op. */
+    private static final class XsdClasspathInput implements LSInput {
+        private final InputStream byteStream;
+        private final String systemId;
+        private final String publicId;
+        private final String baseURI;
+
+        private XsdClasspathInput(InputStream byteStream, String systemId, String publicId, String baseURI) {
+            this.byteStream = byteStream;
+            this.systemId = systemId;
+            this.publicId = publicId;
+            this.baseURI = baseURI;
+        }
+
+        @Override public InputStream getByteStream() { return byteStream; }
+        @Override public String getSystemId() { return systemId; }
+        @Override public String getPublicId() { return publicId; }
+        @Override public String getBaseURI() { return baseURI; }
+        @Override public java.io.Reader getCharacterStream() { return null; }
+        @Override public String getStringData() { return null; }
+        @Override public String getEncoding() { return null; }
+        @Override public boolean getCertifiedText() { return false; }
+        @Override public void setCharacterStream(java.io.Reader r) { }
+        @Override public void setByteStream(InputStream b) { }
+        @Override public void setStringData(String s) { }
+        @Override public void setSystemId(String s) { }
+        @Override public void setPublicId(String p) { }
+        @Override public void setBaseURI(String b) { }
+        @Override public void setEncoding(String e) { }
+        @Override public void setCertifiedText(boolean c) { }
     }
 
     /** Acumula todos los errores de esquema en lugar de fallar en el primero. */
