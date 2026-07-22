@@ -125,6 +125,7 @@ public class DocumentoService {
 
         validarReferenciasDeNota(doc);
         validarImpuestos(doc);
+        aplicarDescuentoGlobal(doc, req.descuentoGlobalPct());
 
         aplicarTotales(doc);
         documentoRepository.save(doc);
@@ -525,7 +526,19 @@ public class DocumentoService {
         }
 
         double cantidad = normalizarCantidad(lr.cantidad());
-        long descuento = lr.descuentoMonto() != null ? lr.descuentoMonto() : 0L;
+        Double pct = normalizarPct(lr.descuentoPct(), "El descuento porcentual de la linea");
+        long descuento;
+        if (pct != null) {
+            if (lr.descuentoMonto() != null && lr.descuentoMonto() > 0) {
+                throw new ReglaNegocioException(
+                        "Una linea admite descuento porcentual O en pesos, no ambos");
+            }
+            // El monto derivado se persiste junto al % para que XML/PDF/totales
+            // usen exactamente la misma cifra.
+            descuento = calculadora.descuentoPorcentual(cantidad, precio, pct);
+        } else {
+            descuento = lr.descuentoMonto() != null ? lr.descuentoMonto() : 0L;
+        }
         long monto = calculadora.montoLinea(cantidad, precio, descuento);
 
         return LineaDetalle.builder()
@@ -535,10 +548,49 @@ public class DocumentoService {
                 .unidad(unidad)
                 .precioUnitario(precio)
                 .descuentoMonto(descuento)
+                .descuentoPct(pct)
                 .afecto(afecto)
                 .codImpAdic(lr.codImpAdic())
                 .montoLinea(monto)
                 .build();
+    }
+
+    /**
+     * Valida y fija el descuento global % sobre afectos (DscRcgGlobal TpoMov=D
+     * TpoValor=%). Solo documentos de precios netos (el sobre de boleta usa otro
+     * modelo) y con al menos una linea afecta sobre la cual aplicar la rebaja.
+     */
+    private void aplicarDescuentoGlobal(DocumentoTributario doc, Double pctSolicitado) {
+        Double pct = normalizarPct(pctSolicitado, "El descuento global");
+        if (pct == null) {
+            return;
+        }
+        if (doc.getTipoDte().preciosBrutos()) {
+            throw new ReglaNegocioException(
+                    "El descuento global no esta soportado en boletas");
+        }
+        boolean hayAfecto = doc.getLineas().stream().anyMatch(LineaDetalle::isAfecto);
+        if (!hayAfecto) {
+            throw new ReglaNegocioException(
+                    "El descuento global aplica sobre las lineas afectas y este documento no tiene ninguna");
+        }
+        doc.setDescuentoGlobalPct(pct);
+    }
+
+    /**
+     * Normaliza un porcentaje de descuento a la escala del esquema (PctType: 2
+     * decimales) y lo acota a (0, 100]: mas de 100% dejaria montos negativos.
+     */
+    private static Double normalizarPct(Double pct, String contexto) {
+        if (pct == null) {
+            return null;
+        }
+        java.math.BigDecimal bd = java.math.BigDecimal.valueOf(pct)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        if (bd.signum() <= 0 || bd.compareTo(new java.math.BigDecimal("100")) > 0) {
+            throw new ReglaNegocioException(contexto + " debe estar entre 0,01% y 100%");
+        }
+        return bd.doubleValue();
     }
 
     /**
@@ -626,7 +678,8 @@ public class DocumentoService {
 
     private void aplicarTotales(DocumentoTributario doc) {
         var t = calculadora.calcular(
-                doc.getLineas(), doc.getTasaIva(), doc.getTipoDte().preciosBrutos());
+                doc.getLineas(), doc.getTasaIva(), doc.getTipoDte().preciosBrutos(),
+                doc.getDescuentoGlobalPct());
         doc.setNeto(t.neto());
         doc.setExento(t.exento());
         doc.setIva(t.iva());

@@ -2,9 +2,13 @@ package cl.nexosoftware.factura.tributario;
 
 import cl.nexosoftware.factura.documento.DocumentoTributario;
 import cl.nexosoftware.factura.documento.LineaDetalle;
+import cl.nexosoftware.factura.documento.Referencia;
 import cl.nexosoftware.factura.documento.TipoDte;
+import cl.nexosoftware.factura.documento.TipoReferencia;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -132,6 +136,78 @@ class XmlDteGeneratorXsdTest {
         // Sin el adaptador JAXB emitiria "1.0E7", invalido como xs:decimal.
         assertThat(xml).contains("<QtyItem>10000000</QtyItem>");
         assertThatCode(() -> validator.validar(xml, TipoDte.FACTURA_AFECTA)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("una factura con DescuentoPct por linea y DscRcgGlobal cumple el XSD y el orden oficial")
+    void facturaConDescuentosDelSetEsValida() {
+        // Caso basico-2/-4 del set de certificacion: % por linea + global 24%.
+        DocumentoTributario doc = DteFixtures.factura(807.0, 6241L, true);
+        LineaDetalle l = doc.getLineas().get(0);
+        l.setDescuentoPct(10.0);
+        l.setDescuentoMonto(503649);
+        l.setMontoLinea(4532838);
+        doc.setDescuentoGlobalPct(24.0);
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.FACTURA_AFECTA)).doesNotThrowAnyException();
+        assertThat(xml)
+                .contains("<DescuentoPct>10.0</DescuentoPct>")
+                .contains("<DescuentoMonto>503649</DescuentoMonto>")
+                .contains("<DscRcgGlobal><NroLinDR>1</NroLinDR><TpoMov>D</TpoMov>"
+                        + "<TpoValor>%</TpoValor><ValorDR>24.0</ValorDR></DscRcgGlobal>");
+        // Orden del XSD: DescuentoPct < DescuentoMonto en el detalle; el bloque
+        // DscRcgGlobal va despues del detalle y antes del TED.
+        assertThat(xml.indexOf("<DescuentoPct>")).isLessThan(xml.indexOf("<DescuentoMonto>"));
+        assertThat(xml.indexOf("</Detalle>")).isLessThan(xml.indexOf("<DscRcgGlobal>"));
+        assertThat(xml.indexOf("<DscRcgGlobal>")).isLessThan(xml.indexOf("<TED"));
+    }
+
+    @Test
+    @DisplayName("una NC de correccion de texto (totales 0) cumple el XSD: MntTotal 0 sin MntNeto/IVA")
+    void notaCreditoCorrigeGiroConTotalesCeroEsValida() {
+        // Caso basico-5 del set: NC que corrige el giro del receptor, sin montos.
+        DocumentoTributario doc = DteFixtures.factura(1.0, 0L, true);
+        doc.setTipoDte(TipoDte.NOTA_CREDITO);
+        doc.getLineas().get(0).setNombre("DONDE DICE Comercio DEBE DECIR Servicios");
+        doc.agregarReferencia(Referencia.builder()
+                .tipoDocumentoRef(33).folioRef(5L).fechaRef(LocalDate.of(2026, 6, 26))
+                .tipoReferencia(TipoReferencia.CORRIGE_TEXTO)
+                .razon("CORRIGE GIRO DEL RECEPTOR")
+                .build());
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.NOTA_CREDITO)).doesNotThrowAnyException();
+        assertThat(xml)
+                .contains("<MntTotal>0</MntTotal>")
+                .contains("<CodRef>2</CodRef>")
+                .contains("<RazonRef>CORRIGE GIRO DEL RECEPTOR</RazonRef>");
+        // Sin monto afecto no se declara neto/IVA (y el precio 0 omite PrcItem).
+        assertThat(xml).doesNotContain("<MntNeto>").doesNotContain("<TasaIVA>")
+                .doesNotContain("<IVA>").doesNotContain("<PrcItem>");
+    }
+
+    @Test
+    @DisplayName("una NC 100% exenta (set exenta) emite MntExe sin IVA y cumple el XSD")
+    void notaCreditoExentaOmiteIva() {
+        // Caso exenta-2 del set: NC que modifica el monto de una exenta 34.
+        DocumentoTributario doc = DteFixtures.factura(10.0, 773L, false);
+        doc.setTipoDte(TipoDte.NOTA_CREDITO);
+        doc.getLineas().get(0).setNombre("HORAS PROGRAMADOR");
+        doc.agregarReferencia(Referencia.builder()
+                .tipoDocumentoRef(34).folioRef(3L).fechaRef(LocalDate.of(2026, 6, 26))
+                .tipoReferencia(TipoReferencia.CORRIGE_MONTO)
+                .razon("MODIFICA MONTO")
+                .build());
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.NOTA_CREDITO)).doesNotThrowAnyException();
+        assertThat(xml)
+                .contains("<MntExe>7730</MntExe>")
+                .contains("<MntTotal>7730</MntTotal>")
+                .contains("<IndExe>1</IndExe>")
+                .contains("<CodRef>3</CodRef>");
+        assertThat(xml).doesNotContain("<MntNeto>").doesNotContain("<TasaIVA>").doesNotContain("<IVA>");
     }
 
     @Test

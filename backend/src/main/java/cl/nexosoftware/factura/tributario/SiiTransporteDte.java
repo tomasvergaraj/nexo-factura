@@ -32,8 +32,10 @@ import java.util.Set;
 public class SiiTransporteDte extends SiiTransporteBase {
 
     private static final Set<Integer> TIPOS = Set.of(33, 34, 56, 61);
-    // Estados finales de rechazo del envio clasico (QueryEstUp).
-    private static final Set<String> RECHAZADOS = Set.of("RSC", "RCH", "RPT", "RFR", "VOF", "RCT");
+    // Estados finales de rechazo del envio clasico (QueryEstUp). LRH/LRF/LRS:
+    // rechazos de LIBRO IECV (contenido, firma, esquema), mismo servicio.
+    private static final Set<String> RECHAZADOS = Set.of("RSC", "RCH", "RPT", "RFR", "VOF", "RCT",
+            "LRH", "LRF", "LRS");
     // Aceptado con reparos (graves/leves) a nivel de envio.
     private static final Set<String> REPAROS = Set.of("RPR", "RLV");
     private static final Set<String> EN_PROCESO = Set.of("REC", "SOK", "FOK", "PDR", "PRD", "CRT", "-11");
@@ -69,8 +71,28 @@ public class SiiTransporteDte extends SiiTransporteBase {
         return conReintentoDeToken(token -> upload(envio, sobre, token));
     }
 
+    /**
+     * Sube el libro IECV firmado por el MISMO upload del canal clasico: el
+     * DTEUpload acepta tanto sobres EnvioDTE como LibroCompraVenta, con la misma
+     * semantica de STATUS/TRACKID; el estado posterior se consulta por QueryEstUp.
+     */
+    @Override
+    public String enviarLibro(SiiGateway.EnvioLibroSii envio) {
+        String nombre = "LibroCV_" + envio.tipoOperacion() + "_" + envio.periodo() + ".xml";
+        return conReintentoDeToken(token -> subirSobre(
+                envio.rutEmisor(), nombre, envio.xmlFirmado(), token,
+                "el libro IECV " + envio.tipoOperacion() + " " + envio.periodo()));
+    }
+
     private String upload(SiiGateway.EnvioSii envio, String sobre, String token) {
-        MultipartUpload subida = multipartUpload(envio, sobre);
+        return subirSobre(envio.rutEmisor(),
+                "EnvioDTE_T" + envio.tipoDte() + "F" + envio.folio() + ".xml",
+                sobre, token, "el EnvioDTE T" + envio.tipoDte() + "F" + envio.folio());
+    }
+
+    private String subirSobre(String rutEmisor, String nombreArchivo, String sobre,
+                              String token, String contexto) {
+        MultipartUpload subida = multipartUpload(rutEmisor, nombreArchivo, sobre);
         byte[] respuesta;
         try {
             respuesta = http.post()
@@ -81,7 +103,7 @@ public class SiiTransporteDte extends SiiTransporteBase {
                     .retrieve()
                     .body(byte[].class);
         } catch (ResourceAccessException e) {
-            throw new SiiNoDisponibleException("SII no disponible al subir el EnvioDTE: " + e.getMessage());
+            throw new SiiNoDisponibleException("SII no disponible al subir " + contexto + ": " + e.getMessage());
         } catch (RestClientResponseException e) {
             // Mismo contrato que el canal de boleta: 401/403 = token, 5xx =
             // no disponible, otro 4xx = rechazo duro.
@@ -90,20 +112,20 @@ public class SiiTransporteDte extends SiiTransporteBase {
                 throw new TokenInvalidoSii();
             }
             if (e.getStatusCode().is5xxServerError()) {
-                throw new SiiNoDisponibleException("SII respondio " + codigo + " al subir el EnvioDTE");
+                throw new SiiNoDisponibleException("SII respondio " + codigo + " al subir " + contexto);
             }
             throw new ReglaNegocioException(
-                    "El SII rechazo el upload del EnvioDTE (HTTP " + codigo + ")");
+                    "El SII rechazo el upload de " + contexto + " (HTTP " + codigo + ")");
         } catch (RestClientException e) {
             // Conexion cortada LEYENDO la respuesta (no viene como
             // ResourceAccessException): transporte -> contingencia.
-            throw new SiiNoDisponibleException("SII interrumpio la respuesta al subir el EnvioDTE: " + e.getMessage());
+            throw new SiiNoDisponibleException("SII interrumpio la respuesta al subir " + contexto + ": " + e.getMessage());
         }
 
         String status = soap.textoElemento(respuesta, "STATUS");
         String trackId = soap.textoElemento(respuesta, "TRACKID");
         if ("0".equals(status) && trackId != null && !trackId.isBlank()) {
-            log.info("EnvioDTE T{}F{} recibido por el SII: TrackID={}", envio.tipoDte(), envio.folio(), trackId);
+            log.info("Upload de {} recibido por el SII: TrackID={}", contexto, trackId);
             return trackId.trim();
         }
         if ("5".equals(status)) {
@@ -123,7 +145,7 @@ public class SiiTransporteDte extends SiiTransporteBase {
                             + "contingencia y la reconciliacion por folio adoptara su estado al reintentarlo");
         }
         String detalle = soap.textoElemento(respuesta, "DETAIL");
-        throw new ReglaNegocioException("El SII rechazo el upload del EnvioDTE (STATUS="
+        throw new ReglaNegocioException("El SII rechazo el upload de " + contexto + " (STATUS="
                 + status + "): " + glosaStatus(status) + (detalle != null ? " — " + detalle.trim() : ""));
     }
 
@@ -215,6 +237,10 @@ public class SiiTransporteDte extends SiiTransporteBase {
 
         if (TOKEN_INVALIDO.contains(estado)) {
             throw new TokenInvalidoSii();
+        }
+        // LOK: libro IECV recibido y aceptado (QueryEstUp tambien responde libros).
+        if ("LOK".equals(estado)) {
+            return SiiGateway.EstadoEnvio.ACEPTADO;
         }
         if (REPAROS.contains(estado)) {
             return SiiGateway.EstadoEnvio.ACEPTADO_CON_REPARO;

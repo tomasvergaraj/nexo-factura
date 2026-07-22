@@ -17,8 +17,18 @@ public final class DocumentoDtos {
             LocalDate fechaEmision,
             String observacion,
             @NotEmpty(message = "El documento debe tener al menos una linea") @Valid List<LineaRequest> lineas,
-            @Valid List<ReferenciaRequest> referencias
-    ) {}
+            @Valid List<ReferenciaRequest> referencias,
+            // Descuento global % sobre las lineas afectas (DscRcgGlobal); null = sin
+            // descuento. Rango y compatibilidad con el tipo se validan en el servicio.
+            @Positive Double descuentoGlobalPct
+    ) {
+        /** Forma sin descuento global (compatibilidad con los usos previos). */
+        public CrearDocumentoRequest(TipoDte tipoDte, Long clienteId, LocalDate fechaEmision,
+                                     String observacion, List<LineaRequest> lineas,
+                                     List<ReferenciaRequest> referencias) {
+            this(tipoDte, clienteId, fechaEmision, observacion, lineas, referencias, null);
+        }
+    }
 
     public record LineaRequest(
             Long productoId,
@@ -27,12 +37,20 @@ public final class DocumentoDtos {
             // 0 permitido (linea de regalo: PrcItem se omite en el XML); negativo no.
             @PositiveOrZero Long precioUnitario,
             @PositiveOrZero Long descuentoMonto,
+            // Descuento % de la linea (DescuentoPct); excluyente con descuentoMonto.
+            @Positive Double descuentoPct,
             Boolean afecto,
             // Codigo de otro impuesto (catalogo TipoImpuesto); null = solo IVA. La
             // validez del codigo y su compatibilidad con el tipo/linea se chequean
             // en DocumentoService (regla de negocio, no Bean Validation).
             Integer codImpAdic
-    ) {}
+    ) {
+        /** Forma sin descuento porcentual (compatibilidad con los usos previos). */
+        public LineaRequest(Long productoId, String nombre, Double cantidad, Long precioUnitario,
+                            Long descuentoMonto, Boolean afecto, Integer codImpAdic) {
+            this(productoId, nombre, cantidad, precioUnitario, descuentoMonto, null, afecto, codImpAdic);
+        }
+    }
 
     public record ReferenciaRequest(
             @NotNull Integer tipoDocumentoRef,
@@ -49,6 +67,7 @@ public final class DocumentoDtos {
             String unidad,
             long precioUnitario,
             long descuentoMonto,
+            Double descuentoPct,
             boolean afecto,
             Integer codImpAdic,
             long montoLinea
@@ -84,6 +103,9 @@ public final class DocumentoDtos {
             String receptorRazonSocial,
             long neto,
             long exento,
+            // Descuento global sobre afectos: porcentaje y monto rebajado (0 si no hay).
+            Double descuentoGlobalPct,
+            long descuentoGlobal,
             double tasaIva,
             long iva,
             long impuestosAdicionales,

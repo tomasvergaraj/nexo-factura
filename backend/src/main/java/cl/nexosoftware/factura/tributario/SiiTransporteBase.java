@@ -57,10 +57,14 @@ abstract class SiiTransporteBase implements SiiTransporte {
      * cuerpo ya materializado, el largo es conocido y el header sale fijo.
      */
     protected final MultipartUpload multipartUpload(SiiGateway.EnvioSii envio, String sobre) {
-        Rut emisor = Rut.de(envio.rutEmisor());
+        return multipartUpload(envio.rutEmisor(),
+                nombreSobre + "_T" + envio.tipoDte() + "F" + envio.folio() + ".xml", sobre);
+    }
+
+    protected final MultipartUpload multipartUpload(String rutEmisor, String nombre, String sobre) {
+        Rut emisor = Rut.de(rutEmisor);
         // RutEnvia del multipart: el firmante autorizado (mismo de la caratula).
         Rut firmante = Rut.de(rutEnviaDeCaratula(sobre));
-        String nombre = nombreSobre + "_T" + envio.tipoDte() + "F" + envio.folio() + ".xml";
         String boundary = "----NexoFactura" + UUID.randomUUID().toString().replace("-", "");
 
         ByteArrayOutputStream cuerpo = new ByteArrayOutputStream(sobre.length() + 1024);

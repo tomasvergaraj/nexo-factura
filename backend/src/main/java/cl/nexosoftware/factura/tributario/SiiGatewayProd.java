@@ -40,6 +40,12 @@ public class SiiGatewayProd implements SiiGateway {
     }
 
     @Override
+    public String enviarLibro(EnvioLibroSii envio) {
+        // El IECV viaja SIEMPRE por el canal clasico (mismo upload que las facturas).
+        return transporte(33).enviarLibro(envio);
+    }
+
+    @Override
     public EstadoEnvio consultarEstado(ConsultaSii consulta) {
         return transporte(consulta.tipoDte()).consultarEstado(consulta);
     }

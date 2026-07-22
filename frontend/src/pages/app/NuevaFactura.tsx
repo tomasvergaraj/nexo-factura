@@ -45,6 +45,8 @@ export function NuevaFactura() {
   const [tipoDte, setTipoDte] = useState<TipoDte>("FACTURA_AFECTA");
   const [clienteId, setClienteId] = useState<number | "">("");
   const [lineas, setLineas] = useState<LineaEditable[]>([]);
+  // Descuento global % sobre las líneas afectas (DscRcgGlobal). Solo facturas/notas.
+  const [descuentoGlobalPct, setDescuentoGlobalPct] = useState<number | "">("");
   const [emitiendo, setEmitiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -88,6 +90,10 @@ export function NuevaFactura() {
     // Si el nuevo tipo no admite otros impuestos (boletas/exentas), limpiamos el código.
     if (!PERMITE_IMPUESTOS[nuevo]) {
       setLineas((prev) => prev.map((l) => ({ ...l, codImpAdic: undefined })));
+    }
+    // El descuento global no está soportado en boletas.
+    if (ES_BOLETA[nuevo]) {
+      setDescuentoGlobalPct("");
     }
     // Si dejamos de ser nota, limpiamos la referencia.
     if (!esNota(nuevo)) {
@@ -149,6 +155,17 @@ export function NuevaFactura() {
     setLineas((prev) => prev.map((l) => (l.uid === uid ? { ...l, codImpAdic: codigo } : l)));
   }
 
+  // Descuento de una línea: con % se deriva del bruto (round una sola vez,
+  // espejo de CalculadoraImpuestos.descuentoPorcentual); si no, el monto directo.
+  function descuentoLinea(l: LineaEditable): number {
+    const bruto = Math.round(l.cantidad * l.precioUnitario);
+    return l.descuentoPct ? Math.round(bruto * (l.descuentoPct / 100)) : l.descuentoMonto || 0;
+  }
+
+  function montoLinea(l: LineaEditable): number {
+    return Math.max(0, Math.round(l.cantidad * l.precioUnitario) - descuentoLinea(l));
+  }
+
   // Cálculo en vivo (espejo exacto de CalculadoraImpuestos del backend). En boletas
   // los precios son brutos (IVA incluido): el neto se desglosa una sola vez del
   // subtotal afecto y el IVA es la diferencia, igual que en el backend.
@@ -158,7 +175,7 @@ export function NuevaFactura() {
     // Base agregada por código de otro impuesto (solo líneas afectas).
     const basePorCodigo = new Map<number, number>();
     for (const l of lineas) {
-      const monto = Math.max(0, Math.round(l.cantidad * l.precioUnitario) - (l.descuentoMonto || 0));
+      const monto = montoLinea(l);
       if (l.afecto) {
         afecto += monto;
         if (permiteImpuestos && l.codImpAdic != null) {
@@ -170,11 +187,17 @@ export function NuevaFactura() {
     }
     let neto: number;
     let iva: number;
+    let descuentoGlobal = 0;
     if (esBoleta) {
       neto = Math.round(afecto / (1 + TASA_IVA / 100));
       iva = afecto - neto;
     } else {
-      neto = afecto;
+      // Descuento global % sobre el afecto agregado (round una sola vez); el IVA
+      // se calcula sobre el neto ya rebajado, igual que el backend.
+      if (descuentoGlobalPct) {
+        descuentoGlobal = Math.round(afecto * (descuentoGlobalPct / 100));
+      }
+      neto = afecto - descuentoGlobal;
       // Mismo orden de operaciones que el backend (neto * (tasa/100)) para que el
       // redondeo sea idéntico bit a bit (IEEE-754) y el preview no se desvíe.
       iva = Math.round(neto * (TASA_IVA / 100));
@@ -195,8 +218,11 @@ export function NuevaFactura() {
       if (d.esRetencion) retenido += d.monto;
       else adicionales += d.monto;
     }
-    return { neto, exento, iva, adicionales, retenido, desglose, total: neto + iva + exento + adicionales - retenido };
-  }, [lineas, esBoleta, permiteImpuestos]);
+    return {
+      neto, exento, iva, adicionales, retenido, desglose, descuentoGlobal,
+      total: neto + iva + exento + adicionales - retenido,
+    };
+  }, [lineas, esBoleta, permiteImpuestos, descuentoGlobalPct]);
 
   const requiereReferencia = esNota(tipoDte);
   const referenciaCompleta = !requiereReferencia
@@ -204,11 +230,13 @@ export function NuevaFactura() {
 
   // En boletas el cliente es opcional (se emite a Consumidor final).
   const clienteOk = esBoleta || clienteId !== "";
-  const puedeEmitir = clienteOk && lineas.length > 0 && totales.total > 0 && referenciaCompleta;
+  // Una nota de corrección de texto (corrige giro) es válida con total 0.
+  const totalOk = totales.total > 0 || (esNota(tipoDte) && tipoReferencia === "CORRIGE_TEXTO");
+  const puedeEmitir = clienteOk && lineas.length > 0 && totalOk && referenciaCompleta;
 
   async function emitir() {
     setError(null);
-    if ((!esBoleta && clienteId === "") || lineas.length === 0 || totales.total <= 0) return;
+    if ((!esBoleta && clienteId === "") || lineas.length === 0 || !totalOk) return;
 
     let referencias: ReferenciaRequest[] | undefined;
     if (requiereReferencia) {
@@ -230,8 +258,11 @@ export function NuevaFactura() {
       const creado = await crearDocumento(empresaIdActual(), {
         tipoDte,
         clienteId: clienteId === "" ? null : (clienteId as number),
-        lineas: lineas.map(({ uid: _uid, ...l }) => l),
+        // Con descuento % la línea viaja sin monto (el backend lo deriva del bruto).
+        lineas: lineas.map(({ uid: _uid, ...l }) =>
+          l.descuentoPct ? { ...l, descuentoMonto: 0 } : l),
         ...(referencias ? { referencias } : {}),
+        ...(descuentoGlobalPct ? { descuentoGlobalPct } : {}),
       });
       navigate(`/app/documentos/${creado.id}`);
     } catch (e) {
@@ -357,6 +388,17 @@ export function NuevaFactura() {
                 </Button>
               </div>
 
+              {!esBoleta && (
+                <label className="mb-4 block text-xs font-medium text-slate-soft">
+                  Descuento global % (sobre líneas afectas)
+                  <Input
+                    type="number" min={0} max={100} step="any" value={descuentoGlobalPct}
+                    className="mt-1.5 h-9 w-40 tnum"
+                    onChange={(e) => setDescuentoGlobalPct(e.target.value === "" ? "" : Number(e.target.value))}
+                  />
+                </label>
+              )}
+
               {lineas.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-line px-6 py-10 text-center">
                   <p className="text-sm text-slate-soft">Agrega productos o servicios al documento.</p>
@@ -364,7 +406,7 @@ export function NuevaFactura() {
               ) : (
                 <div className="space-y-3">
                   {lineas.map((l) => {
-                    const monto = Math.max(0, Math.round(l.cantidad * l.precioUnitario) - (l.descuentoMonto || 0));
+                    const monto = montoLinea(l);
                     return (
                       <div key={l.uid} className="rounded-lg border border-line p-4">
                         <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -385,7 +427,7 @@ export function NuevaFactura() {
                             <Trash2 className="h-4 w-4" />
                           </IconButton>
                         </div>
-                        <div className="mt-3 grid grid-cols-3 gap-3">
+                        <div className="mt-3 grid grid-cols-4 gap-3">
                           <label className="block text-xs font-medium text-slate-soft">
                             Cantidad
                             <Input
@@ -398,6 +440,16 @@ export function NuevaFactura() {
                             <Input
                               type="number" min={0} value={l.precioUnitario} className="mt-1.5 h-9 tnum"
                               onChange={(e) => actualizar(l.uid, "precioUnitario", Number(e.target.value))}
+                            />
+                          </label>
+                          <label className="block text-xs font-medium text-slate-soft">
+                            Desc. %
+                            <Input
+                              type="number" min={0} max={100} step="any" value={l.descuentoPct ?? ""}
+                              className="mt-1.5 h-9 tnum"
+                              onChange={(e) =>
+                                actualizar(l.uid, "descuentoPct", e.target.value === "" ? (undefined as unknown as number) : Number(e.target.value))
+                              }
                             />
                           </label>
                           <div className="text-xs font-medium text-slate-soft">
@@ -440,6 +492,12 @@ export function NuevaFactura() {
               <h2 className="font-display text-base font-semibold text-ink">Resumen</h2>
               <p className="mt-1 text-xs text-slate-soft">{TIPO_DTE_LABEL[tipoDte]}</p>
               <div className="mt-5 space-y-2.5 text-sm">
+                {totales.descuentoGlobal > 0 && (
+                  <Linea
+                    label={`Desc. global ${descuentoGlobalPct}%`}
+                    valor={`-${formatCLP(totales.descuentoGlobal)}`}
+                  />
+                )}
                 <Linea label="Neto" valor={formatCLP(totales.neto)} />
                 {totales.exento > 0 && <Linea label="Exento" valor={formatCLP(totales.exento)} />}
                 <Linea label={`IVA ${TASA_IVA}%`} valor={formatCLP(totales.iva)} />

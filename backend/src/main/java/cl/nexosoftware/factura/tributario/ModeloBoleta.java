@@ -96,6 +96,8 @@ public final class ModeloBoleta {
         // Dec5Type exige minimo 0.000001: con precio 0 el elemento se OMITE (null).
         @XmlElement(name = "PrcItem") public Long precioUnitario;
         // Sin descuento el elemento se omite (coherente con la rama factura).
+        // PctType: sin porcentaje se OMITE (null); va ANTES de DescuentoMonto.
+        @XmlElement(name = "DescuentoPct") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double descuentoPct;
         @XmlElement(name = "DescuentoMonto") public Long descuento;
         /** MontoItem de boleta: monto BRUTO de la linea (IVA incluido). */
         @XmlElement(name = "MontoItem") public long montoItem;

@@ -23,10 +23,26 @@ public final class CompraDtos {
             // 46); opcional, null = 0. Resta del total.
             @PositiveOrZero Long ivaRetenido,
             @NotNull @Positive Long total,
-            String observacion
+            String observacion,
+            // IVA de uso comun (credito proporcional con el factor del periodo).
+            Boolean ivaUsoComun,
+            // Codigo IVA no recuperable (1/2/3/4/9); null = con derecho a credito.
+            Integer codIvaNoRec
     ) {
+        /** Forma sin uso comun / no recuperable (compatibilidad con usos previos). */
+        public CompraRequest(Integer tipoDte, Long folio, String rutProveedor, String razonSocial,
+                             LocalDate fechaEmision, Long neto, Long exento, Long iva,
+                             Long ivaRetenido, Long total, String observacion) {
+            this(tipoDte, folio, rutProveedor, razonSocial, fechaEmision, neto, exento, iva,
+                    ivaRetenido, total, observacion, null, null);
+        }
+
         public long ivaRetenidoODefecto() {
             return ivaRetenido != null ? ivaRetenido : 0L;
+        }
+
+        public boolean esIvaUsoComun() {
+            return Boolean.TRUE.equals(ivaUsoComun);
         }
     }
 
@@ -43,6 +59,8 @@ public final class CompraDtos {
             long ivaRetenido,
             long total,
             String observacion,
+            boolean ivaUsoComun,
+            Integer codIvaNoRec,
             OffsetDateTime creadoEn
     ) {}
 }

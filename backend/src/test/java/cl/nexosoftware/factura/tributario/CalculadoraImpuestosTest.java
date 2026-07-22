@@ -60,6 +60,42 @@ class CalculadoraImpuestosTest {
         assertThat(calculadora.montoLinea(1, 1000, 5000)).isZero();
     }
 
+    // ---- Descuentos del set de certificacion (DescuentoPct y DscRcgGlobal) ----
+
+    @Test
+    @DisplayName("Descuento porcentual por linea: round(bruto * pct / 100), una sola vez")
+    void descuentoPorcentualPorLinea() {
+        // Caso basico-2 del set: Panuelo 807 x 6241 con 10%.
+        assertThat(calculadora.descuentoPorcentual(807, 6241, 10.0)).isEqualTo(503649);
+        assertThat(calculadora.montoLinea(807, 6241, 503649)).isEqualTo(4532838);
+        // ITEM 2: 753 x 5291 con 24% (956189,52 redondea half-up).
+        assertThat(calculadora.descuentoPorcentual(753, 5291, 24.0)).isEqualTo(956190);
+        assertThat(calculadora.montoLinea(753, 5291, 956190)).isEqualTo(3027933);
+    }
+
+    @Test
+    @DisplayName("Descuento global % rebaja el neto afecto y el IVA se calcula sobre el neto rebajado")
+    void descuentoGlobalSobreAfectos() {
+        // Caso basico-4 del set: afectos 445x6313 + 188x7742, exento 2x6839, global 24%.
+        var t = calculadora.calcular(
+                List.of(linea(2809285, true), linea(1455496, true), linea(13678, false)),
+                19.0, false, 24.0);
+        assertThat(t.descuentoGlobal()).isEqualTo(1023547); // round(4264781 * 0,24)
+        assertThat(t.neto()).isEqualTo(3241234);
+        assertThat(t.iva()).isEqualTo(615834);              // round(3241234 * 0,19)
+        assertThat(t.exento()).isEqualTo(13678);            // el exento no se rebaja
+        assertThat(t.total()).isEqualTo(3870746);
+    }
+
+    @Test
+    @DisplayName("Sin descuento global (null) el calculo es identico al de siempre")
+    void sinDescuentoGlobal() {
+        var t = calculadora.calcular(List.of(linea(10000, true)), 19.0, false, null);
+        assertThat(t.descuentoGlobal()).isZero();
+        assertThat(t.neto()).isEqualTo(10000);
+        assertThat(t.total()).isEqualTo(11900);
+    }
+
     // ---- Boletas: precios brutos (IVA incluido) — se desglosa el neto del total afecto ----
 
     @Test

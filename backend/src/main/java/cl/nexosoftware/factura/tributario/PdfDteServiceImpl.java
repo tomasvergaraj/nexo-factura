@@ -49,20 +49,66 @@ public class PdfDteServiceImpl implements PdfDteService {
             PdfWriter.getInstance(pdf, out);
             pdf.open();
 
-            pdf.add(encabezado(doc, emisor));
-            pdf.add(new Paragraph(" "));
-            pdf.add(receptor(doc));
-            pdf.add(new Paragraph(" "));
-            pdf.add(detalle(doc));
-            pdf.add(totales(doc));
-
-            agregarTimbre(pdf, extraerTed(doc.getXmlDte()));
+            agregarEjemplar(pdf, doc, emisor, false);
+            // Las facturas (33/34) llevan ademas el ejemplar CEDIBLE: misma
+            // representacion en una segunda pagina, rotulada y con el recuadro
+            // de acuse de recibo de la Ley 19.983 (exigido para ceder el credito).
+            if (llevaCedible(doc)) {
+                pdf.newPage();
+                agregarEjemplar(pdf, doc, emisor, true);
+            }
 
             pdf.close();
             return out.toByteArray();
         } catch (Exception e) {
             throw new IllegalStateException("No se pudo generar el PDF del DTE", e);
         }
+    }
+
+    private static boolean llevaCedible(DocumentoTributario doc) {
+        int codigo = doc.getTipoDte().getCodigo();
+        return codigo == 33 || codigo == 34;
+    }
+
+    private void agregarEjemplar(Document pdf, DocumentoTributario doc, Empresa emisor,
+                                 boolean cedible) throws DocumentException {
+        pdf.add(encabezado(doc, emisor));
+        if (cedible) {
+            Paragraph rotulo = new Paragraph("CEDIBLE", font(12, Font.BOLD, ROJO));
+            rotulo.setAlignment(Element.ALIGN_RIGHT);
+            pdf.add(rotulo);
+        }
+        pdf.add(new Paragraph(" "));
+        pdf.add(receptor(doc));
+        pdf.add(new Paragraph(" "));
+        pdf.add(detalle(doc));
+        pdf.add(totales(doc));
+
+        agregarTimbre(pdf, extraerTed(doc.getXmlDte()));
+        if (cedible) {
+            pdf.add(new Paragraph(" "));
+            pdf.add(acuseRecibo());
+        }
+    }
+
+    /** Recuadro de acuse de recibo (Ley 19.983) del ejemplar cedible. */
+    private PdfPTable acuseRecibo() {
+        PdfPTable tabla = new PdfPTable(1);
+        tabla.setWidthPercentage(100);
+        Font etiqueta = font(8, Font.BOLD, Color.BLACK);
+        Font leyenda = font(6.5f, Font.NORMAL, GRIS);
+        Phrase p = new Phrase();
+        p.add(new Chunk("ACUSE DE RECIBO\n\n", etiqueta));
+        p.add(new Chunk("NOMBRE: ______________________________  R.U.T.: ______________  FECHA: ______________\n\n", etiqueta));
+        p.add(new Chunk("RECINTO: _____________________________  FIRMA: ________________________\n\n", etiqueta));
+        p.add(new Chunk("El acuse de recibo que se declara en este acto, de acuerdo a lo dispuesto en la letra b) "
+                + "del Art. 4° y la letra c) del Art. 5° de la Ley 19.983, acredita que la entrega de mercaderias "
+                + "o servicio(s) prestado(s) ha(n) sido recibido(s).", leyenda));
+        PdfPCell celda = new PdfPCell(p);
+        celda.setPadding(8f);
+        celda.setBorderColor(Color.BLACK);
+        tabla.addCell(celda);
+        return tabla;
     }
 
     private PdfPTable encabezado(DocumentoTributario doc, Empresa emisor) {
@@ -137,8 +183,12 @@ public class PdfDteServiceImpl implements PdfDteService {
             tabla.addCell(celdaCuerpo(fmt(l.getCantidad()), cuerpo, Element.ALIGN_CENTER));
             tabla.addCell(celdaCuerpo(l.getNombre(), cuerpo, Element.ALIGN_LEFT));
             tabla.addCell(celdaCuerpo("$" + CLP.format(l.getPrecioUnitario()), cuerpo, Element.ALIGN_RIGHT));
-            tabla.addCell(celdaCuerpo(l.getDescuentoMonto() > 0 ? "$" + CLP.format(l.getDescuentoMonto()) : "-",
-                    cuerpo, Element.ALIGN_RIGHT));
+            // El SII exige los descuentos visibles en la representacion impresa:
+            // con % se muestran ambos (porcentaje y monto rebajado).
+            String desc = l.getDescuentoPct() != null
+                    ? fmt(l.getDescuentoPct()) + "% ($" + CLP.format(l.getDescuentoMonto()) + ")"
+                    : (l.getDescuentoMonto() > 0 ? "$" + CLP.format(l.getDescuentoMonto()) : "-");
+            tabla.addCell(celdaCuerpo(desc, cuerpo, Element.ALIGN_RIGHT));
             tabla.addCell(celdaCuerpo("$" + CLP.format(l.getMontoLinea()), cuerpo, Element.ALIGN_RIGHT));
         }
         return tabla;
@@ -156,8 +206,21 @@ public class PdfDteServiceImpl implements PdfDteService {
 
         PdfPTable montos = new PdfPTable(2);
         if (doc.getExento() > 0) fila(montos, "Exento", doc.getExento(), false);
-        fila(montos, "Neto", doc.getNeto(), false);
-        fila(montos, "IVA " + (int) doc.getTasaIva() + "%", doc.getIva(), false);
+        // Descuento global sobre afectos: subtotal antes de la rebaja y el monto
+        // descontado, visibles como exige el SII; el Neto ya viene rebajado.
+        if (doc.getDescuentoGlobalPct() != null) {
+            long descuentoGlobal = cl.nexosoftware.factura.documento.DocumentoMapper.descuentoGlobal(doc);
+            fila(montos, "Subtotal afecto", doc.getNeto() + descuentoGlobal, false);
+            filaTexto(montos, "Desc. global " + fmt(doc.getDescuentoGlobalPct()) + "%",
+                    "-$" + CLP.format(descuentoGlobal), false);
+        }
+        // Documento sin monto afecto (exenta 34, nota 100% exenta): no se señala
+        // Neto ni IVA, solo Exento y Total (indicacion del SII, espejo del XML).
+        boolean conAfecto = doc.getNeto() != 0 || doc.getIva() != 0;
+        if (conAfecto) {
+            fila(montos, "Neto", doc.getNeto(), false);
+            fila(montos, "IVA " + (int) doc.getTasaIva() + "%", doc.getIva(), false);
+        }
         // Otros impuestos (P1-6): un renglon por codigo. Los adicionales suman (+),
         // la retencion de IVA resta (-), para que el TOTAL cuadre con lo visible.
         for (var imp : CalculadoraImpuestos.desglosarImpuestos(doc.getLineas())) {

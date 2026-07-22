@@ -58,7 +58,7 @@ class LibroCompraVentaIT extends AbstractIntegrationTest {
         compraService.crear(empresaId, compra(33, 101, LocalDate.of(2026, 7, 20)));
         compraService.crear(empresaId, compra(33, 50, LocalDate.of(2026, 6, 30))); // otro periodo
 
-        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO);
+        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO, null);
 
         assertThat(libro.detalle()).hasSize(2);
         assertThat(libro.resumen()).hasSize(1);
@@ -83,15 +83,16 @@ class LibroCompraVentaIT extends AbstractIntegrationTest {
         guardarDocumento(TipoDte.FACTURA_AFECTA, 3L, EstadoDte.RECHAZADO);
         guardarDocumento(TipoDte.BOLETA_AFECTA, 10L, EstadoDte.ACEPTADO);
 
-        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.VENTA, PERIODO);
+        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.VENTA, PERIODO, null);
 
-        // Resumen: facturas (1 vigente + 1 anulado; el rechazado fuera) y boletas.
+        // Resumen: facturas (la ACEPTADA y la ANULADA suman; el rechazado fuera)
+        // y boletas. La anulada va con montos: su reversa la materializa la NC.
         assertThat(libro.resumen()).hasSize(2);
-        assertThat(libro.resumen().get(0).documentos()).isEqualTo(1);
-        assertThat(libro.resumen().get(0).anulados()).isEqualTo(1);
+        assertThat(libro.resumen().get(0).documentos()).isEqualTo(2);
+        assertThat(libro.resumen().get(0).anulados()).isZero();
         // Detalle: las facturas van detalladas (incluida la anulada); la boleta no.
         assertThat(libro.detalle()).hasSize(2);
-        assertThat(libro.detalle()).filteredOn(LibroDtos.LibroDetalleDoc::anulado).hasSize(1);
+        assertThat(libro.detalle()).noneMatch(LibroDtos.LibroDetalleDoc::anulado);
     }
 
     @Test
@@ -99,7 +100,7 @@ class LibroCompraVentaIT extends AbstractIntegrationTest {
     void xmlDelLibro() {
         compraService.crear(empresaId, compra(33, 100, LocalDate.of(2026, 7, 10)));
 
-        String xml = libroService.libroXml(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO);
+        String xml = libroService.libroXml(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO, null);
 
         assertThat(xml)
                 .startsWith("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>")

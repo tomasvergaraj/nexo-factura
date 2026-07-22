@@ -57,6 +57,20 @@ public class DocumentoCompra {
     @Column(name = "iva_retenido", nullable = false, updatable = false)
     private long ivaRetenido;
 
+    /**
+     * IVA de uso comun (compra destinada en parte a ventas exentas): el credito
+     * se calcula con el factor de proporcionalidad al construir el libro.
+     */
+    @Column(name = "iva_uso_comun", nullable = false, updatable = false)
+    private boolean ivaUsoComun;
+
+    /**
+     * Codigo de IVA no recuperable del SII (1 op. exentas, 2 fuera de plazo,
+     * 3 gasto rechazado, 4 entrega gratuita, 9 otros); null = con derecho a credito.
+     */
+    @Column(name = "cod_iva_no_rec", updatable = false)
+    private Integer codIvaNoRec;
+
     @Column(nullable = false, updatable = false)
     private long total;
 

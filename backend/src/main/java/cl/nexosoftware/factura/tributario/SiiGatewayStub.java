@@ -56,6 +56,17 @@ public class SiiGatewayStub implements SiiGateway {
     }
 
     @Override
+    public String enviarLibro(EnvioLibroSii envio) {
+        if (!disponible) {
+            throw new SiiNoDisponibleException("SII no disponible (simulado por el stub)");
+        }
+        long trackId = ThreadLocalRandom.current().nextLong(1_000_000, 9_999_999);
+        log.info("Stub SII: envio de libro simulado ({} {}), TrackID={}",
+                envio.tipoOperacion(), envio.periodo(), trackId);
+        return String.valueOf(trackId);
+    }
+
+    @Override
     public EstadoEnvio consultarEstado(ConsultaSii consulta) {
         if (!disponible) {
             throw new SiiNoDisponibleException("SII no disponible (simulado por el stub)");

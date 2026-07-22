@@ -9,11 +9,19 @@ import java.util.List;
  * Reglas del libro de VENTAS:
  * - Entran los documentos foliados del periodo, excepto los RECHAZADOS (un DTE
  *   rechazado por el SII no es una emision valida).
- * - Los ANULADOS aparecen marcados pero NO suman montos (igual que en el RCOF).
+ * - Un documento ANULADO por nota de credito va CON sus montos: la anulacion
+ *   tributaria la materializa la propia NC (el SII computa el signo por tipo),
+ *   no una marca en el libro. La marca "A" del IECV es para folios inutilizados,
+ *   que este sistema no produce.
  * - Las boletas (39/41) van solo RESUMIDAS por tipo, sin detalle por documento,
  *   como en el IECV real; el resto de los tipos va detallado.
- * - Las notas de credito (61) van con sus montos positivos: el tipo de documento
- *   determina el signo con que el SII las computa.
+ * - Las notas de credito (60/61) van con sus montos positivos: el tipo de
+ *   documento determina el signo con que el SII las computa.
+ *
+ * Reglas del libro de COMPRAS:
+ * - {@code iva} es el IVA con derecho a credito. El IVA de uso comun va aparte
+ *   (credito proporcional segun {@code fctProp}) y el no recuperable va con su
+ *   codigo del catalogo del SII (4 = entrega gratuita).
  */
 public final class LibroDtos {
 
@@ -27,7 +35,10 @@ public final class LibroDtos {
             List<LibroResumenTipo> resumen,    // un registro por tipo con movimiento
             List<LibroDetalleDoc> detalle,     // por documento (ventas: sin boletas)
             LibroTotales totales,
-            boolean sinMovimiento
+            boolean sinMovimiento,
+            // Factor de proporcionalidad del IVA uso comun del periodo (compras);
+            // null si no se informo.
+            Double fctProp
     ) {}
 
     public record LibroResumenTipo(
@@ -36,11 +47,18 @@ public final class LibroDtos {
             long anulados,
             long neto,
             long exento,
-            long iva,
+            long iva,                 // ventas: IVA debito; compras: IVA recuperable
             long otrosImpuestos,      // adicionales (+); solo ventas
-            long ivaRetenido,         // retencion cambio de sujeto (-); solo ventas
-            long total
+            long ivaRetenido,         // retencion cambio de sujeto; ventas y compras (46)
+            long total,
+            long ivaUsoComun,               // compras: IVA de uso comun del tipo
+            long operacionesIvaUsoComun,    // compras: numero de operaciones uso comun
+            long creditoIvaUsoComun,        // compras: round(ivaUsoComun * fctProp); 0 sin factor
+            List<IvaNoRecResumen> ivaNoRec  // compras: IVA no recuperable por codigo
     ) {}
+
+    /** IVA no recuperable agregado por codigo del SII (compras). */
+    public record IvaNoRecResumen(int codigo, long operaciones, long monto) {}
 
     public record LibroDetalleDoc(
             int tipoDocumento,
@@ -50,11 +68,14 @@ public final class LibroDtos {
             String razonSocial,
             long neto,
             long exento,
-            long iva,
+            long iva,                 // ventas: IVA debito; compras: IVA recuperable
             long otrosImpuestos,
             long ivaRetenido,
             long total,
-            boolean anulado           // marcado y con montos excluidos de los totales
+            boolean anulado,          // reservado para folios inutilizados (hoy siempre false)
+            long ivaUsoComun,         // compras: IVA de uso comun del documento
+            long ivaNoRec,            // compras: IVA no recuperable del documento
+            Integer codIvaNoRec       // compras: codigo del IVA no recuperable
     ) {}
 
     public record LibroTotales(
@@ -66,5 +87,12 @@ public final class LibroDtos {
             long otrosImpuestos,
             long ivaRetenido,
             long total
+    ) {}
+
+    /** Resultado del envio del libro firmado al SII. */
+    public record LibroEnvioResponse(
+            String periodo,
+            TipoOperacion tipoOperacion,
+            String trackId
     ) {}
 }

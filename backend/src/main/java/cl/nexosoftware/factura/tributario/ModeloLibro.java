@@ -1,16 +1,20 @@
 package cl.nexosoftware.factura.tributario;
 
 import jakarta.xml.bind.annotation.*;
+import jakarta.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 import java.util.List;
 
 /**
- * Modelo JAXB del libro de compra/venta (LibroCompraVenta / IECV) del SII,
- * subconjunto representativo. Reproduce EnvioLibro con Caratula, un
- * TotalesPeriodo por tipo de documento y un Detalle por documento (las boletas
- * del libro de ventas van solo resumidas). Los documentos anulados llevan
- * {@code <Anulado>A</Anulado>} y montos en cero. NO se firma ni se envia al SII
- * (requiere certificado real), igual que el DTE y el RCOF.
+ * Modelo JAXB del libro de compra/venta (IECV) alineado al esquema OFICIAL
+ * {@code LibroCV_v10.xsd} del SII (namespace SiiDte via package-info): caratula
+ * completa (RutEnvia, FchResol/NroResol, TipoLibro/TipoEnvio/FolioNotificacion),
+ * ResumenPeriodo con IVA uso comun (FctProp/TotCredIVAUsoComun), IVA no
+ * recuperable y otros impuestos, Detalle por documento y TmstFirma. El atributo
+ * ID del EnvioLibro es la referencia de la firma XMLDSig enveloped.
+ *
+ * El orden de los campos replica el orden del XSD (JAXB marshalla en orden de
+ * declaracion); los opcionales son wrappers nulos para omitirse del XML.
  */
 public final class ModeloLibro {
 
@@ -25,18 +29,25 @@ public final class ModeloLibro {
 
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class EnvioLibro {
+        @XmlAttribute(name = "ID") public String id;
         @XmlElement(name = "Caratula") public Caratula caratula;
         @XmlElement(name = "ResumenPeriodo") public ResumenPeriodo resumenPeriodo;
         @XmlElement(name = "Detalle") public List<Detalle> detalle;
+        @XmlElement(name = "TmstFirma") public String tmstFirma;
     }
 
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class Caratula {
         @XmlElement(name = "RutEmisorLibro") public String rutEmisorLibro;
-        @XmlElement(name = "PeriodoTributario") public String periodoTributario; // YYYY-MM
+        @XmlElement(name = "RutEnvia") public String rutEnvia;
+        @XmlElement(name = "PeriodoTributario") public String periodoTributario; // AAAA-MM
+        @XmlElement(name = "FchResol") public String fchResol;                   // AAAA-MM-DD
+        @XmlElement(name = "NroResol") public int nroResol;
         @XmlElement(name = "TipoOperacion") public String tipoOperacion;         // VENTA | COMPRA
-        @XmlElement(name = "TipoLibro") public String tipoLibro = "MENSUAL";
-        @XmlElement(name = "TipoEnvio") public String tipoEnvio = "TOTAL";
+        @XmlElement(name = "TipoLibro") public String tipoLibro;                 // MENSUAL | ESPECIAL | RECTIFICA
+        @XmlElement(name = "TipoEnvio") public String tipoEnvio;                 // TOTAL | PARCIAL | FINAL | AJUSTE
+        /** Folio de la notificacion del SII que solicita un libro ESPECIAL. */
+        @XmlElement(name = "FolioNotificacion") public Long folioNotificacion;
     }
 
     @XmlAccessorType(XmlAccessType.FIELD)
@@ -52,9 +63,31 @@ public final class ModeloLibro {
         @XmlElement(name = "TotMntExe") public long totMntExe;
         @XmlElement(name = "TotMntNeto") public long totMntNeto;
         @XmlElement(name = "TotMntIVA") public long totMntIva;
-        @XmlElement(name = "TotOtrosImp") public Long totOtrosImp;
-        @XmlElement(name = "TotIVARet") public Long totIvaRet;
+        // IVA no recuperable por codigo (LC): antes del uso comun en el XSD.
+        @XmlElement(name = "TotIVANoRec") public List<TotIvaNoRec> totIvaNoRec;
+        @XmlElement(name = "TotOpIVAUsoComun") public Long totOpIvaUsoComun;
+        @XmlElement(name = "TotIVAUsoComun") public Long totIvaUsoComun;
+        // Factor de proporcionalidad del IVA uso comun (LC), 3 decimales.
+        @XmlElement(name = "FctProp") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double fctProp;
+        @XmlElement(name = "TotCredIVAUsoComun") public Long totCredIvaUsoComun;
+        // Otros impuestos agregados por codigo (adicionales y retenciones).
+        @XmlElement(name = "TotOtrosImp") public List<TotOtroImp> totOtrosImp;
+        @XmlElement(name = "TotOpIVARetTotal") public Long totOpIvaRetTotal;
+        @XmlElement(name = "TotIVARetTotal") public Long totIvaRetTotal;
         @XmlElement(name = "TotMntTotal") public long totMntTotal;
+    }
+
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class TotIvaNoRec {
+        @XmlElement(name = "CodIVANoRec") public int codIvaNoRec;
+        @XmlElement(name = "TotOpIVANoRec") public Long totOpIvaNoRec;
+        @XmlElement(name = "TotMntIVANoRec") public long totMntIvaNoRec;
+    }
+
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class TotOtroImp {
+        @XmlElement(name = "CodImp") public int codImp;
+        @XmlElement(name = "TotMntImp") public long totMntImp;
     }
 
     @XmlAccessorType(XmlAccessType.FIELD)
@@ -62,14 +95,35 @@ public final class ModeloLibro {
         @XmlElement(name = "TpoDoc") public int tpoDoc;
         @XmlElement(name = "NroDoc") public long nroDoc;
         @XmlElement(name = "Anulado") public String anulado; // "A" si esta anulado
-        @XmlElement(name = "FchDoc") public String fchDoc;   // yyyy-MM-dd
+        @XmlElement(name = "TpoImp") public Integer tpoImp;  // 1 = IVA (LC)
+        @XmlElement(name = "FchDoc") public String fchDoc;   // AAAA-MM-DD
         @XmlElement(name = "RUTDoc") public String rutDoc;
         @XmlElement(name = "RznSoc") public String rznSoc;
         @XmlElement(name = "MntExe") public Long mntExe;
-        @XmlElement(name = "MntNeto") public long mntNeto;
-        @XmlElement(name = "MntIVA") public long mntIva;
-        @XmlElement(name = "OtrosImp") public Long otrosImp;
-        @XmlElement(name = "IVARet") public Long ivaRet;
-        @XmlElement(name = "MntTotal") public long mntTotal;
+        @XmlElement(name = "MntNeto") public Long mntNeto;
+        @XmlElement(name = "MntIVA") public Long mntIva;
+        // IVA no recuperable del documento (LC), con su codigo.
+        @XmlElement(name = "IVANoRec") public List<IvaNoRec> ivaNoRec;
+        // IVA de uso comun del documento (LC).
+        @XmlElement(name = "IVAUsoComun") public Long ivaUsoComun;
+        // Otros impuestos del documento (codigo, tasa, monto).
+        @XmlElement(name = "OtrosImp") public List<OtroImp> otrosImp;
+        // IVA retenido total (cambio de sujeto), en el libro de VENTAS.
+        @XmlElement(name = "IVARetTotal") public Long ivaRetTotal;
+        @XmlElement(name = "MntTotal") public Long mntTotal;
+    }
+
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class IvaNoRec {
+        @XmlElement(name = "CodIVANoRec") public int codIvaNoRec;
+        @XmlElement(name = "MntIVANoRec") public long mntIvaNoRec;
+    }
+
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class OtroImp {
+        @XmlElement(name = "CodImp") public int codImp;
+        // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
+        @XmlElement(name = "TasaImp") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double tasaImp;
+        @XmlElement(name = "MntImp") public long mntImp;
     }
 }

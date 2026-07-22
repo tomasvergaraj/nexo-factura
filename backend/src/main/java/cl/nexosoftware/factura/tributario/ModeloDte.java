@@ -33,7 +33,8 @@ public final class ModeloDte {
         @XmlAttribute(name = "ID") public String id;
         @XmlElement(name = "Encabezado") public Encabezado encabezado;
         @XmlElement(name = "Detalle") public List<Detalle> detalle;
-        // Orden del XSD: Detalle*, Referencia*, TED, TmstFirma.
+        // Orden del XSD: Detalle*, DscRcgGlobal*, Referencia*, TED, TmstFirma.
+        @XmlElement(name = "DscRcgGlobal") public List<DscRcgGlobal> dscRcgGlobal;
         @XmlElement(name = "Referencia") public List<Referencia> referencias;
         /** TED aplanado y firmado, insertado como DOM para no re-serializarlo. */
         @XmlAnyElement public Element ted;
@@ -114,11 +115,29 @@ public final class ModeloDte {
         @XmlElement(name = "UnmdItem") public String unidad;
         // Dec12_6Type exige minimo 0.000001: con precio 0 el elemento se OMITE (null).
         @XmlElement(name = "PrcItem") public Long precioUnitario;
+        // PctType (0.01-999.99): sin porcentaje el elemento se OMITE (null). Va
+        // ANTES de DescuentoMonto en el orden del XSD.
+        @XmlElement(name = "DescuentoPct") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double descuentoPct;
         // MntImpType exige minimo 1: sin descuento el elemento se OMITE (null).
         @XmlElement(name = "DescuentoMonto") public Long descuento;
         // Codigo del otro impuesto de la linea: va ANTES de MontoItem. Null -> omitido.
         @XmlElement(name = "CodImpAdic") public Integer codImpAdic;
         @XmlElement(name = "MontoItem") public long montoItem;
+    }
+
+    /**
+     * Descuento o recargo global del documento (DscRcgGlobal). Sin IndExeDR el
+     * D/R aplica sobre el monto afecto/neto, que es el unico caso soportado.
+     */
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class DscRcgGlobal {
+        @XmlElement(name = "NroLinDR") public int numeroLinea;
+        /** "D" descuento, "R" recargo. */
+        @XmlElement(name = "TpoMov") public String tipoMovimiento;
+        /** "%" porcentaje, "$" pesos. */
+        @XmlElement(name = "TpoValor") public String tipoValor;
+        // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
+        @XmlElement(name = "ValorDR") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double valor;
     }
 
     /** Referencia a otro documento (obligatoria en notas 56/61). */

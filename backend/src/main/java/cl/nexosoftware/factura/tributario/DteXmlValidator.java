@@ -55,15 +55,20 @@ public class DteXmlValidator {
     // de factura/notas como el sobre EnvioDTE completo.
     private static final String XSD_FACTURA = "sii/oficial/EnvioDTE_v10.xsd";
     private static final String XSD_BOLETA = "sii/oficial/BoletaDte-local.xsd";
+    // Esquema del IECV: define sus propios tipos del namespace SiiDte, por eso
+    // se compila como un tercer Schema independiente.
+    private static final String XSD_LIBRO = "sii/oficial/LibroCV_v10.xsd";
 
     private final Schema schemaFactura;
     private final Schema schemaBoleta;
+    private final Schema schemaLibro;
     private final boolean habilitado;
 
     public DteXmlValidator(@Value("${app.dte.validar-xsd:true}") boolean habilitado) {
         this.habilitado = habilitado;
         this.schemaFactura = compilarSchema(XSD_FACTURA);
         this.schemaBoleta = compilarSchema(XSD_BOLETA);
+        this.schemaLibro = compilarSchema(XSD_LIBRO);
         if (!habilitado) {
             log.warn("Validacion XSD del DTE DESHABILITADA (app.dte.validar-xsd=false). "
                     + "Solo para diagnostico, nunca en produccion.");
@@ -143,6 +148,12 @@ public class DteXmlValidator {
     public void validarEnvioDte(String xmlEnvio) {
         validarContra(schemaFactura, xmlEnvio,
                 "El sobre EnvioDTE no cumple el esquema oficial del SII");
+    }
+
+    /** Valida el LibroCompraVenta (IECV) firmado contra LibroCV_v10, antes de enviarlo. */
+    public void validarLibro(String xmlLibro) {
+        validarContra(schemaLibro, xmlLibro,
+                "El libro IECV no cumple el esquema oficial del SII (LibroCV_v10)");
     }
 
     private void validarContra(Schema schema, String xml, String mensaje) {

@@ -21,11 +21,15 @@ import java.util.Set;
 public class CompraService {
 
     /**
-     * Tipos de documento recibido admitidos (subconjunto representativo del
-     * libro de compras): factura afecta (33), factura exenta (34), factura de
-     * compra electronica (46) y notas de debito/credito (56/61).
+     * Tipos de documento recibido admitidos: facturas de papel (30/32) y
+     * electronicas (33/34), facturas de compra (45/46) y notas de debito/credito
+     * de papel (55/60) y electronicas (56/61) — los tipos que exige el libro de
+     * compras del set de certificacion del SII.
      */
-    static final Set<Integer> TIPOS_PERMITIDOS = Set.of(33, 34, 46, 56, 61);
+    static final Set<Integer> TIPOS_PERMITIDOS = Set.of(30, 32, 33, 34, 45, 46, 55, 56, 60, 61);
+
+    /** Codigos de IVA no recuperable del catalogo del SII. */
+    static final Set<Integer> CODIGOS_IVA_NO_REC = Set.of(1, 2, 3, 4, 9);
 
     private final CompraRepository compraRepository;
     private final EmpresaService empresaService;
@@ -48,6 +52,8 @@ public class CompraService {
                 .ivaRetenido(req.ivaRetenidoODefecto())
                 .total(req.total())
                 .observacion(req.observacion())
+                .ivaUsoComun(req.esIvaUsoComun())
+                .codIvaNoRec(req.codIvaNoRec())
                 .build();
 
         compraRepository.save(compra);
@@ -86,6 +92,23 @@ public class CompraService {
             throw new ReglaNegocioException(
                     "El IVA retenido (" + retenido + ") no puede exceder el IVA del documento (" + req.iva() + ")");
         }
+        if (req.codIvaNoRec() != null && !CODIGOS_IVA_NO_REC.contains(req.codIvaNoRec())) {
+            throw new ReglaNegocioException(
+                    "Codigo de IVA no recuperable desconocido: " + req.codIvaNoRec()
+                            + " (admitidos: 1, 2, 3, 4, 9)");
+        }
+        // Un mismo IVA no puede ser a la vez de uso comun, no recuperable o retenido:
+        // son destinos excluyentes del credito.
+        int destinos = (req.esIvaUsoComun() ? 1 : 0) + (req.codIvaNoRec() != null ? 1 : 0)
+                + (retenido > 0 ? 1 : 0);
+        if (destinos > 1) {
+            throw new ReglaNegocioException(
+                    "IVA uso comun, IVA no recuperable e IVA retenido son excluyentes entre si");
+        }
+        if ((req.esIvaUsoComun() || req.codIvaNoRec() != null) && req.iva() <= 0) {
+            throw new ReglaNegocioException(
+                    "IVA uso comun o no recuperable requieren un monto de IVA mayor que cero");
+        }
         long esperado = req.neto() + req.exento() + req.iva() - retenido;
         if (req.total() != esperado) {
             throw new ReglaNegocioException(
@@ -98,6 +121,6 @@ public class CompraService {
         return new CompraResponse(
                 c.getId(), c.getTipoDte(), c.getFolio(), c.getRutProveedor(), c.getRazonSocial(),
                 c.getFechaEmision(), c.getNeto(), c.getExento(), c.getIva(), c.getIvaRetenido(),
-                c.getTotal(), c.getObservacion(), c.getCreadoEn());
+                c.getTotal(), c.getObservacion(), c.isIvaUsoComun(), c.getCodIvaNoRec(), c.getCreadoEn());
     }
 }

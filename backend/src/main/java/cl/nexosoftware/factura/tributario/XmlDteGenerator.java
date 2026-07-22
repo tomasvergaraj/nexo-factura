@@ -133,12 +133,24 @@ public class XmlDteGenerator {
             d.cantidad = l.getCantidad();
             d.unidad = t(l.getUnidad(), 4);
             d.precioUnitario = l.getPrecioUnitario() > 0 ? l.getPrecioUnitario() : null;
+            d.descuentoPct = l.getDescuentoPct();
             d.descuento = l.getDescuentoMonto() > 0 ? l.getDescuentoMonto() : null;
             d.codImpAdic = l.getCodImpAdic();
             d.montoItem = l.getMontoLinea();
             detalles.add(d);
         }
         documento.detalle = detalles;
+
+        // Descuento global sobre afectos (DscRcgGlobal D/%): sin IndExeDR aplica
+        // al monto afecto; los totales del encabezado ya vienen rebajados.
+        if (doc.getDescuentoGlobalPct() != null) {
+            ModeloDte.DscRcgGlobal dr = new ModeloDte.DscRcgGlobal();
+            dr.numeroLinea = 1;
+            dr.tipoMovimiento = "D";
+            dr.tipoValor = "%";
+            dr.valor = doc.getDescuentoGlobalPct();
+            documento.dscRcgGlobal = List.of(dr);
+        }
 
         // Bloque <Referencia> (obligatorio en notas 56/61): despues del detalle,
         // antes del TED, en el orden de insercion del documento.
@@ -214,6 +226,7 @@ public class XmlDteGenerator {
             d.cantidad = l.getCantidad();
             d.unidad = t(l.getUnidad(), 4);
             d.precioUnitario = l.getPrecioUnitario() > 0 ? l.getPrecioUnitario() : null;
+            d.descuentoPct = l.getDescuentoPct();
             d.descuento = l.getDescuentoMonto() > 0 ? l.getDescuentoMonto() : null;
             d.montoItem = l.getMontoLinea();
             detalles.add(d);

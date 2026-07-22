@@ -78,22 +78,21 @@ class LibroServiceTest {
     }
 
     @Test
-    @DisplayName("un documento ANULADO va marcado, con montos en cero y sin sumar a los totales")
-    void ventasMarcaAnuladosSinSumar() {
+    @DisplayName("un documento ANULADO por NC va CON montos: la reversa la materializa la propia NC")
+    void ventasIncluyeAnuladosConMontos() {
         LibroResponse libro = LibroService.construirVentas(List.of(
                 factura(1, EstadoDte.ACEPTADO, 100000, 0, 19000, 119000),
-                factura(2, EstadoDte.ANULADO, 999999, 0, 189999, 1189998)), PERIODO);
+                factura(2, EstadoDte.ANULADO, 50000, 0, 9500, 59500)), PERIODO);
 
         LibroResumenTipo facturas = libro.resumen().get(0);
-        assertThat(facturas.documentos()).isEqualTo(1);
-        assertThat(facturas.anulados()).isEqualTo(1);
-        assertThat(facturas.total()).isEqualTo(119000);
+        assertThat(facturas.documentos()).isEqualTo(2);
+        assertThat(facturas.anulados()).isZero();
+        assertThat(facturas.total()).isEqualTo(119000 + 59500);
 
-        var anulado = libro.detalle().stream().filter(LibroDetalleDoc::anulado).findFirst().orElseThrow();
-        assertThat(anulado.folio()).isEqualTo(2);
-        assertThat(anulado.neto()).isZero();
-        assertThat(anulado.total()).isZero();
-        assertThat(libro.totales().total()).isEqualTo(119000);
+        // Sin marca "A": la factura anulada va como un documento mas (el SII la
+        // tiene ACEPTADA; la NC de anulacion aparece por su propio tipo).
+        assertThat(libro.detalle()).noneMatch(LibroDetalleDoc::anulado);
+        assertThat(libro.totales().total()).isEqualTo(119000 + 59500);
     }
 
     @Test
@@ -162,7 +161,7 @@ class LibroServiceTest {
         LibroResponse libro = LibroService.construirCompras(List.of(
                 compra(33, 100, "76543210-9", 100000, 0, 19000, 0, 119000),
                 compra(33, 101, "76543210-9", 50000, 0, 9500, 0, 59500),
-                compra(34, 7, "60910000-1", 0, 30000, 0, 0, 30000)), PERIODO);
+                compra(34, 7, "60910000-1", 0, 30000, 0, 0, 30000)), PERIODO, null);
 
         assertThat(libro.tipoOperacion()).isEqualTo(TipoOperacion.COMPRA);
         assertThat(libro.resumen()).extracting(LibroResumenTipo::tipoDocumento).containsExactly(33, 34);
@@ -178,11 +177,60 @@ class LibroServiceTest {
     void comprasIncluyeRetencion() {
         // Cambio de sujeto: el comprador retiene el IVA -> total = neto.
         LibroResponse libro = LibroService.construirCompras(List.of(
-                compra(46, 12, "76543210-9", 100000, 0, 19000, 19000, 100000)), PERIODO);
+                compra(46, 12, "76543210-9", 100000, 0, 19000, 19000, 100000)), PERIODO, null);
 
         assertThat(libro.resumen().get(0).ivaRetenido()).isEqualTo(19000);
         assertThat(libro.detalle().get(0).ivaRetenido()).isEqualTo(19000);
         assertThat(libro.totales().total()).isEqualTo(100000);
+    }
+
+    @Test
+    @DisplayName("el IVA de uso comun sale del credito normal y su credito usa el factor")
+    void comprasIvaUsoComun() {
+        // Caso del set: factura 781, neto 29774, IVA 5657 de uso comun, factor 0,60.
+        DocumentoCompra usoComun = compra(30, 781, "76543210-9", 29774, 0, 5657, 0, 35431);
+        usoComun.setIvaUsoComun(true);
+
+        LibroResponse libro = LibroService.construirCompras(List.of(usoComun), PERIODO, 0.60);
+
+        LibroResumenTipo r = libro.resumen().get(0);
+        assertThat(r.iva()).isZero();                       // no es credito directo
+        assertThat(r.ivaUsoComun()).isEqualTo(5657);
+        assertThat(r.operacionesIvaUsoComun()).isEqualTo(1);
+        assertThat(r.creditoIvaUsoComun()).isEqualTo(3394); // round(5657 * 0,60)
+        assertThat(libro.fctProp()).isEqualTo(0.60);
+        assertThat(libro.detalle().get(0).ivaUsoComun()).isEqualTo(5657);
+        assertThat(libro.detalle().get(0).iva()).isZero();
+    }
+
+    @Test
+    @DisplayName("la entrega gratuita (cod 4) va como IVA no recuperable, fuera del credito")
+    void comprasEntregaGratuita() {
+        // Caso del set: FE 67, neto 9962, IVA 1893 sin derecho a credito.
+        DocumentoCompra gratuita = compra(33, 67, "76543210-9", 9962, 0, 1893, 0, 11855);
+        gratuita.setCodIvaNoRec(4);
+
+        LibroResponse libro = LibroService.construirCompras(List.of(gratuita), PERIODO, null);
+
+        LibroResumenTipo r = libro.resumen().get(0);
+        assertThat(r.iva()).isZero();
+        assertThat(r.ivaNoRec()).hasSize(1);
+        assertThat(r.ivaNoRec().get(0).codigo()).isEqualTo(4);
+        assertThat(r.ivaNoRec().get(0).operaciones()).isEqualTo(1);
+        assertThat(r.ivaNoRec().get(0).monto()).isEqualTo(1893);
+        assertThat(libro.detalle().get(0).ivaNoRec()).isEqualTo(1893);
+        assertThat(libro.detalle().get(0).codIvaNoRec()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("una nota de credito de compra (60) entra al libro como su propio tipo")
+    void comprasNotaCredito() {
+        LibroResponse libro = LibroService.construirCompras(List.of(
+                compra(30, 234, "76543210-9", 20325, 0, 3862, 0, 24187),
+                compra(60, 451, "76543210-9", 2712, 0, 515, 0, 3227)), PERIODO, null);
+
+        assertThat(libro.resumen()).extracting(LibroResumenTipo::tipoDocumento).containsExactly(30, 60);
+        assertThat(libro.resumen().get(1).iva()).isEqualTo(515);
     }
 
     // ---------- fabricas ----------

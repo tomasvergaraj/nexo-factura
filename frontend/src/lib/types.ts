@@ -48,6 +48,8 @@ export interface LineaResponse {
   unidad: string;
   precioUnitario: number;
   descuentoMonto: number;
+  /** Descuento porcentual de la línea (DescuentoPct); null = sin porcentaje. */
+  descuentoPct: number | null;
   afecto: boolean;
   /** Código del otro impuesto de la línea (catálogo CATALOGO_IMPUESTOS); null = solo IVA. */
   codImpAdic: number | null;
@@ -93,6 +95,10 @@ export interface DocumentoResponse extends DocumentoResumen {
   receptorRut: string;
   neto: number;
   exento: number;
+  /** Descuento global % sobre afectos (DscRcgGlobal); null = sin descuento. */
+  descuentoGlobalPct: number | null;
+  /** Monto rebajado por el descuento global (0 si no hay). */
+  descuentoGlobal: number;
   tasaIva: number;
   iva: number;
   /** Suma de impuestos adicionales (suben el total). */

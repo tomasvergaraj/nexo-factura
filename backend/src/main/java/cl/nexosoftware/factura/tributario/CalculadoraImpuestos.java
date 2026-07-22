@@ -35,6 +35,18 @@ public class CalculadoraImpuestos {
     }
 
     public Totales calcular(List<LineaDetalle> lineas, double tasaIva, boolean preciosBrutos) {
+        return calcular(lineas, tasaIva, preciosBrutos, null);
+    }
+
+    /**
+     * Calculo con descuento global porcentual sobre las lineas AFECTAS
+     * (DscRcgGlobal TpoMov=D TpoValor=%): el descuento se redondea UNA vez
+     * sobre el afecto agregado, el neto queda rebajado y el IVA se calcula
+     * sobre ese neto rebajado (regla del SII: MntNeto = detalle afecto -
+     * descuentos globales). Solo aplica a documentos de precios netos.
+     */
+    public Totales calcular(List<LineaDetalle> lineas, double tasaIva, boolean preciosBrutos,
+                            Double descuentoGlobalPct) {
         long afecto = 0;
         long exento = 0;
         for (LineaDetalle l : lineas) {
@@ -46,12 +58,16 @@ public class CalculadoraImpuestos {
         }
         long neto;
         long iva;
+        long descuentoGlobal = 0;
         if (preciosBrutos) {
             // El total afecto ya incluye IVA: se desglosa el neto y el IVA es el resto.
             neto = Math.round(afecto / (1.0 + tasaIva / 100.0));
             iva = afecto - neto;
         } else {
-            neto = afecto;
+            if (descuentoGlobalPct != null) {
+                descuentoGlobal = Math.round(afecto * (descuentoGlobalPct / 100.0));
+            }
+            neto = afecto - descuentoGlobal;
             iva = Math.round(neto * (tasaIva / 100.0));
         }
 
@@ -69,7 +85,7 @@ public class CalculadoraImpuestos {
         }
 
         long total = neto + iva + exento + adicionales - retenido;
-        return new Totales(neto, exento, tasaIva, iva, adicionales, retenido, total, impuestos);
+        return new Totales(neto, exento, tasaIva, iva, adicionales, retenido, total, descuentoGlobal, impuestos);
     }
 
     /**
@@ -105,9 +121,18 @@ public class CalculadoraImpuestos {
         return Math.max(0, bruto - descuento);
     }
 
+    /**
+     * Descuento en pesos derivado de un porcentaje por linea (DescuentoPct):
+     * round(bruto * pct / 100), redondeado UNA vez sobre el bruto de la linea.
+     */
+    public long descuentoPorcentual(double cantidad, long precioUnitario, double pct) {
+        long bruto = Math.round(cantidad * precioUnitario);
+        return Math.round(bruto * (pct / 100.0));
+    }
+
     public record Totales(long neto, long exento, double tasaIva, long iva,
                           long impuestosAdicionales, long ivaRetenido, long total,
-                          List<ImpuestoCalculado> impuestos) {}
+                          long descuentoGlobal, List<ImpuestoCalculado> impuestos) {}
 
     /** Desglose de un otro-impuesto por codigo: base agregada y monto redondeado. */
     public record ImpuestoCalculado(int codigo, String nombre, double tasa, boolean esRetencion,

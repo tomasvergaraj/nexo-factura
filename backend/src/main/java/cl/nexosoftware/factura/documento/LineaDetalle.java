@@ -40,6 +40,15 @@ public class LineaDetalle {
     @Column(name = "descuento_monto", nullable = false)
     private long descuentoMonto;
 
+    /**
+     * Descuento porcentual de la linea (DescuentoPct del SII); null = sin
+     * porcentaje. Cuando esta presente, {@code descuentoMonto} guarda el monto
+     * derivado (round(bruto * pct / 100)) para que XML, PDF y totales usen la
+     * misma cifra.
+     */
+    @Column(name = "descuento_pct")
+    private Double descuentoPct;
+
     /** Si es false, la linea es exenta de IVA. */
     @Column(nullable = false)
     private boolean afecto;

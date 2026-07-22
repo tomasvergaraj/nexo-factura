@@ -13,6 +13,13 @@ public interface SiiGateway {
     /** Envia el documento firmado al SII y devuelve el TrackID asignado. */
     String enviar(EnvioSii envio);
 
+    /**
+     * Envia el libro IECV firmado (LibroCompraVenta) al SII por el canal clasico
+     * y devuelve el TrackID; el estado del envio se consulta despues con
+     * {@link #consultarEstado} (QueryEstUp, mismo servicio que los DTE).
+     */
+    String enviarLibro(EnvioLibroSii envio);
+
     /** Consulta el estado de un envio por su TrackID. */
     EstadoEnvio consultarEstado(ConsultaSii consulta);
 
@@ -35,6 +42,9 @@ public interface SiiGateway {
 
     /** El tipo decide el canal y el RUT emisor es parte de la URL de consulta. */
     record ConsultaSii(String trackId, int tipoDte, String rutEmisor) {}
+
+    /** Libro IECV firmado; periodo (AAAA-MM) y operacion solo nombran el archivo. */
+    record EnvioLibroSii(String xmlFirmado, String rutEmisor, String periodo, String tipoOperacion) {}
 
     /**
      * Identificacion del documento para la consulta por folio. El canal clasico

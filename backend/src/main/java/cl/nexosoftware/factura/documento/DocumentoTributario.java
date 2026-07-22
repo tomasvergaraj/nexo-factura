@@ -82,6 +82,14 @@ public class DocumentoTributario {
     @Column(nullable = false, updatable = false)
     private long total;
 
+    /**
+     * Descuento global porcentual sobre las lineas AFECTAS (DscRcgGlobal TpoMov=D
+     * TpoValor=%); null = sin descuento global. El neto/IVA almacenados ya lo
+     * descuentan; el monto rebajado se deriva (suma de lineas afectas - neto).
+     */
+    @Column(name = "descuento_global_pct", updatable = false)
+    private Double descuentoGlobalPct;
+
     // --- Trazas del proceso tributario ---
     @Column(name = "xml_dte", columnDefinition = "text")
     private String xmlDte;

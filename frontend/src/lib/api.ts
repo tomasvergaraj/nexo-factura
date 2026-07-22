@@ -314,6 +314,8 @@ export interface NuevaLinea {
   cantidad: number;
   precioUnitario: number;
   descuentoMonto: number;
+  /** Descuento % de la línea (DescuentoPct); excluyente con descuentoMonto. */
+  descuentoPct?: number;
   afecto: boolean;
   /** Código del otro impuesto (catálogo CATALOGO_IMPUESTOS); omitido = solo IVA. */
   codImpAdic?: number;
@@ -327,6 +329,8 @@ export async function crearDocumento(
     observacion?: string;
     lineas: NuevaLinea[];
     referencias?: ReferenciaRequest[];
+    /** Descuento global % sobre las líneas afectas (DscRcgGlobal). */
+    descuentoGlobalPct?: number;
   },
 ): Promise<DocumentoResponse> {
   if (USE_MOCK) {

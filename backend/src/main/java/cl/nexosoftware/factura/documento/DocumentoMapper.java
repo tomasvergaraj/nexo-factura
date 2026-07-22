@@ -29,10 +29,26 @@ public final class DocumentoMapper {
         return new DocumentoResponse(
                 d.getId(), d.getTipoDte(), d.getTipoDte().getCodigo(), d.getFolio(), d.getEstado(),
                 d.getFechaEmision(), d.getReceptorRut(), d.getReceptorRazonSocial(),
-                d.getNeto(), d.getExento(), d.getTasaIva(), d.getIva(),
+                d.getNeto(), d.getExento(), d.getDescuentoGlobalPct(), descuentoGlobal(d),
+                d.getTasaIva(), d.getIva(),
                 d.getImpuestosAdicionales(), d.getIvaRetenido(), d.getTotal(),
                 d.getTrackId(), d.getObservacion(), lineas, d.getCreadoEn(), referencias, impuestos, d.getSello(),
                 d.getIntentosEnvio(), d.getUltimoEnvioEn(), d.getUltimoErrorEnvio());
+    }
+
+    /**
+     * Monto rebajado por el descuento global: suma de las lineas afectas menos el
+     * neto almacenado (que ya viene descontado). 0 si el documento no lo tiene.
+     */
+    public static long descuentoGlobal(DocumentoTributario d) {
+        if (d.getDescuentoGlobalPct() == null) {
+            return 0;
+        }
+        long afecto = d.getLineas().stream()
+                .filter(LineaDetalle::isAfecto)
+                .mapToLong(LineaDetalle::getMontoLinea)
+                .sum();
+        return afecto - d.getNeto();
     }
 
     public static DocumentoResumen toResumen(DocumentoTributario d) {
@@ -44,7 +60,8 @@ public final class DocumentoMapper {
     private static LineaResponse toLinea(LineaDetalle l) {
         return new LineaResponse(
                 l.getNumeroLinea(), l.getNombre(), l.getCantidad(), l.getUnidad(),
-                l.getPrecioUnitario(), l.getDescuentoMonto(), l.isAfecto(), l.getCodImpAdic(), l.getMontoLinea());
+                l.getPrecioUnitario(), l.getDescuentoMonto(), l.getDescuentoPct(),
+                l.isAfecto(), l.getCodImpAdic(), l.getMontoLinea());
     }
 
     private static ReferenciaResponse toReferencia(Referencia r) {

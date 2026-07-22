@@ -16,18 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.LongUnaryOperator;
 
 /**
  * Construye los libros de compra y venta (IECV) de un periodo tributario.
  *
  * El libro de VENTAS se deriva de los DTE emitidos (via una proyeccion que no
  * carga el XML de cada documento); el de COMPRAS, de los documentos recibidos
- * registrados manualmente. El XML LibroCompraVenta se materializa sin firmar
- * (el envio al SII requiere certificado real), igual que el RCOF y el DTE.
+ * registrados manualmente. El XML LibroCompraVenta se genera con la estructura
+ * del esquema OFICIAL LibroCV_v10; la firma y el envio al SII los orquesta
+ * {@link LibroEnvioService}.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,32 +40,37 @@ public class LibroService {
     private final LibroXmlGenerator xmlGenerator;
 
     @Transactional(readOnly = true)
-    public LibroResponse libro(Long empresaId, TipoOperacion operacion, YearMonth periodo) {
+    public LibroResponse libro(Long empresaId, TipoOperacion operacion, YearMonth periodo, Double fctProp) {
         empresaService.buscar(empresaId);
-        return construir(empresaId, operacion, periodo);
+        return construir(empresaId, operacion, periodo, fctProp);
+    }
+
+    /** XML LibroCompraVenta con caratula oficial, SIN firmar (para inspeccion). */
+    @Transactional(readOnly = true)
+    public String libroXml(Long empresaId, TipoOperacion operacion, YearMonth periodo, Double fctProp) {
+        Empresa emisor = empresaService.buscar(empresaId);
+        return xmlGenerator.generar(
+                construir(empresaId, operacion, periodo, fctProp), emisor,
+                LibroXmlGenerator.CaratulaLibro.mensual(emisor.getRut()));
     }
 
     @Transactional(readOnly = true)
-    public String libroXml(Long empresaId, TipoOperacion operacion, YearMonth periodo) {
-        Empresa emisor = empresaService.buscar(empresaId);
-        return xmlGenerator.generar(construir(empresaId, operacion, periodo), emisor);
-    }
-
-    private LibroResponse construir(Long empresaId, TipoOperacion operacion, YearMonth periodo) {
+    public LibroResponse construir(Long empresaId, TipoOperacion operacion, YearMonth periodo, Double fctProp) {
         return operacion == TipoOperacion.VENTA
                 ? construirVentas(documentoRepository.findLibroByEmpresaIdAndFolioNotNullAndFechaEmisionBetween(
                         empresaId, periodo.atDay(1), periodo.atEndOfMonth()), periodo)
-                : construirCompras(compraRepository.delPeriodo(empresaId, periodo), periodo);
+                : construirCompras(compraRepository.delPeriodo(empresaId, periodo), periodo, fctProp);
     }
 
     // ---------- agregacion (pura, testeable como unidad) ----------
 
     /**
      * Libro de ventas a partir de los documentos foliados del periodo. Excluye
-     * RECHAZADOS; los ANULADOS van marcados con montos en cero; las boletas van
-     * solo resumidas (sin detalle), como en el IECV real. El detalle se ordena
-     * por codigo SII y folio (la consulta no puede ordenar por tipo: ordenaria
-     * por el nombre del enum).
+     * RECHAZADOS. Un documento ANULADO por nota de credito va CON montos (la NC
+     * materializa la reversa; la marca "A" del IECV es para folios inutilizados,
+     * que no producimos). Las boletas van solo resumidas (sin detalle), como en
+     * el IECV real. El detalle se ordena por codigo SII y folio (la consulta no
+     * puede ordenar por tipo: ordenaria por el nombre del enum).
      */
     static LibroResponse construirVentas(List<VentaLibroView> docs, YearMonth periodo) {
         List<VentaLibroView> ordenados = new ArrayList<>(docs);
@@ -79,53 +85,53 @@ public class LibroService {
             if (d.getEstado() == EstadoDte.RECHAZADO) {
                 continue;
             }
-            boolean anulado = d.getEstado() == EstadoDte.ANULADO;
             int tipo = d.getTipoDte().getCodigo();
             Acumulador acc = porTipo.computeIfAbsent(tipo, t -> new Acumulador());
-            if (anulado) {
-                acc.anulados++;
-            } else {
-                acc.sumar(d.getNeto(), d.getExento(), d.getIva(),
-                        d.getImpuestosAdicionales(), d.getIvaRetenido(), d.getTotal());
-            }
+            acc.sumar(d.getNeto(), d.getExento(), d.getIva(),
+                    d.getImpuestosAdicionales(), d.getIvaRetenido(), d.getTotal());
             if (!d.getTipoDte().preciosBrutos()) {
-                // Un documento anulado se lista con montos en cero (como el IECV).
-                LongUnaryOperator monto = v -> anulado ? 0 : v;
                 detalle.add(new LibroDetalleDoc(
                         tipo, d.getFolio(), d.getFechaEmision(),
                         d.getReceptorRut(), d.getReceptorRazonSocial(),
-                        monto.applyAsLong(d.getNeto()),
-                        monto.applyAsLong(d.getExento()),
-                        monto.applyAsLong(d.getIva()),
-                        monto.applyAsLong(d.getImpuestosAdicionales()),
-                        monto.applyAsLong(d.getIvaRetenido()),
-                        monto.applyAsLong(d.getTotal()),
-                        anulado));
+                        d.getNeto(), d.getExento(), d.getIva(),
+                        d.getImpuestosAdicionales(), d.getIvaRetenido(), d.getTotal(),
+                        false, 0, 0, null));
             }
         }
-        return armar(TipoOperacion.VENTA, periodo, porTipo, detalle);
+        return armar(TipoOperacion.VENTA, periodo, porTipo, detalle, null);
     }
 
     /** Libro de compras a partir de los documentos recibidos registrados. */
-    static LibroResponse construirCompras(List<DocumentoCompra> compras, YearMonth periodo) {
+    static LibroResponse construirCompras(List<DocumentoCompra> compras, YearMonth periodo, Double fctProp) {
         Map<Integer, Acumulador> porTipo = new TreeMap<>();
         List<LibroDetalleDoc> detalle = new ArrayList<>();
 
         for (DocumentoCompra c : compras) {
-            porTipo.computeIfAbsent(c.getTipoDte(), t -> new Acumulador())
-                    .sumar(c.getNeto(), c.getExento(), c.getIva(), 0, c.getIvaRetenido(), c.getTotal());
+            // El IVA del documento va a UN destino: credito normal, uso comun o
+            // no recuperable (CompraService valida la exclusion mutua).
+            long ivaUsoComun = c.isIvaUsoComun() ? c.getIva() : 0;
+            long ivaNoRec = c.getCodIvaNoRec() != null ? c.getIva() : 0;
+            long ivaRecuperable = c.getIva() - ivaUsoComun - ivaNoRec;
+
+            Acumulador acc = porTipo.computeIfAbsent(c.getTipoDte(), t -> new Acumulador());
+            acc.sumar(c.getNeto(), c.getExento(), ivaRecuperable, 0, c.getIvaRetenido(), c.getTotal());
+            acc.sumarUsoComun(ivaUsoComun);
+            acc.sumarNoRec(c.getCodIvaNoRec(), ivaNoRec);
+
             detalle.add(new LibroDetalleDoc(
                     c.getTipoDte(), c.getFolio(), c.getFechaEmision(),
                     c.getRutProveedor(), c.getRazonSocial(),
-                    c.getNeto(), c.getExento(), c.getIva(), 0, c.getIvaRetenido(), c.getTotal(), false));
+                    c.getNeto(), c.getExento(), ivaRecuperable, 0, c.getIvaRetenido(), c.getTotal(),
+                    false, ivaUsoComun, ivaNoRec, c.getCodIvaNoRec()));
         }
-        return armar(TipoOperacion.COMPRA, periodo, porTipo, detalle);
+        return armar(TipoOperacion.COMPRA, periodo, porTipo, detalle, fctProp);
     }
 
     private static LibroResponse armar(TipoOperacion operacion, YearMonth periodo,
-                                       Map<Integer, Acumulador> porTipo, List<LibroDetalleDoc> detalle) {
+                                       Map<Integer, Acumulador> porTipo, List<LibroDetalleDoc> detalle,
+                                       Double fctProp) {
         List<LibroResumenTipo> resumen = porTipo.entrySet().stream()
-                .map(e -> e.getValue().aResumen(e.getKey()))
+                .map(e -> e.getValue().aResumen(e.getKey(), fctProp))
                 .toList();
 
         LibroTotales totales = new LibroTotales(
@@ -139,12 +145,15 @@ public class LibroService {
                 resumen.stream().mapToLong(LibroResumenTipo::total).sum());
 
         return new LibroResponse(
-                periodo.toString(), operacion, resumen, detalle, totales, resumen.isEmpty());
+                periodo.toString(), operacion, resumen, detalle, totales, resumen.isEmpty(), fctProp);
     }
 
     /** Acumulador mutable por tipo de documento. */
     private static final class Acumulador {
         long documentos, anulados, neto, exento, iva, otrosImpuestos, ivaRetenido, total;
+        long ivaUsoComun, operacionesIvaUsoComun;
+        // LinkedHashMap: el orden de insercion de los codigos es estable.
+        final Map<Integer, long[]> ivaNoRecPorCodigo = new LinkedHashMap<>();
 
         void sumar(long neto, long exento, long iva, long otrosImpuestos, long ivaRetenido, long total) {
             this.documentos++;
@@ -156,9 +165,30 @@ public class LibroService {
             this.total += total;
         }
 
-        LibroResumenTipo aResumen(int tipo) {
+        void sumarUsoComun(long monto) {
+            if (monto > 0) {
+                this.ivaUsoComun += monto;
+                this.operacionesIvaUsoComun++;
+            }
+        }
+
+        void sumarNoRec(Integer codigo, long monto) {
+            if (codigo != null) {
+                long[] acc = ivaNoRecPorCodigo.computeIfAbsent(codigo, c -> new long[2]);
+                acc[0]++;
+                acc[1] += monto;
+            }
+        }
+
+        LibroResumenTipo aResumen(int tipo, Double fctProp) {
+            long credito = (fctProp != null && ivaUsoComun > 0)
+                    ? Math.round(ivaUsoComun * fctProp) : 0;
+            List<IvaNoRecResumen> noRec = ivaNoRecPorCodigo.entrySet().stream()
+                    .map(e -> new IvaNoRecResumen(e.getKey(), e.getValue()[0], e.getValue()[1]))
+                    .toList();
             return new LibroResumenTipo(
-                    tipo, documentos, anulados, neto, exento, iva, otrosImpuestos, ivaRetenido, total);
+                    tipo, documentos, anulados, neto, exento, iva, otrosImpuestos, ivaRetenido, total,
+                    ivaUsoComun, operacionesIvaUsoComun, credito, noRec);
         }
     }
 }
