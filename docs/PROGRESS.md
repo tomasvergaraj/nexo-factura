@@ -1,6 +1,6 @@
 # Progreso
 
-> Última actualización: 2026-07-22. Sprints 1 a 6 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5). E2E de certificación cumplido en ambos canales y en **los cinco tipos de DTE soportados: factura 33, boleta 39, factura exenta 34, nota de débito 56 y nota de crédito 61 — todas ACEPTADAS por el SII**.
+> Última actualización: 2026-07-22. Sprints 1 a 6 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5) y la **reconciliación por folio antes de reenviar** (post-Sprint 6). E2E de certificación cumplido en ambos canales y en **los cinco tipos de DTE soportados: factura 33, boleta 39, factura exenta 34, nota de débito 56 y nota de crédito 61 — todas ACEPTADAS por el SII**.
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -350,5 +350,26 @@ La ronda de cierre del E2E (34/56/61, 2026-07-22) cazó dos más:
 | **E2E certificación — nota de débito 56** (canal clásico, referencia ANULA_DOCUMENTO a la NC folio 1) | ✅ **ACEPTADA por el SII** (folio 1, TrackID `0253261842`) |
 | **E2E certificación — factura exenta 34** (canal clásico) | ✅ **ACEPTADA por el SII** (folio 2, TrackID `0253261856`). El folio 1 rechazó por el hallazgo 7 (abajo), corregido y validado en el mismo E2E. |
 
+# Reconciliación por folio antes de reenviar (post-Sprint 6)
+
+## Resumen
+Cierra el **límite conocido del Sprint 6** (timeout-tras-recepción): un documento EN_CONTINGENCIA **sin TrackID** pudo haber llegado al SII aunque su respuesta se perdió, y reenviarlo a ciegas duplicaba el envío (STATUS=99 en el canal clásico; folio repetido en boleta). Ahora, antes de subir el sobre otra vez, se consulta al SII el estado del **documento por folio** y solo un "no recibido" explícito habilita el reenvío.
+
+## Qué se implementó
+- **`SiiGateway.consultarDocumento`** (nueva operación, por folio — no por TrackID) con contrato conservador: cualquier fallo en DETERMINAR el estado → `SiiNoDisponibleException`; jamás un falso `NO_RECIBIDO`. Canal clásico: **`QueryEstDte.jws` (getEstDte)** — orden de parámetros, formato de fecha (DDMMAAAA) y códigos de ESTADO verificados contra el manual oficial `estado_dte.pdf` del SII: `FAU`→NO_RECIBIDO; `DOK`/`TMD`/`TMC`/`MMD`/`MMC`/`AND`/`ANC`→ACEPTADO (registrado); `FNA`/`FAN`/`EMP`→RECHAZADO; `DNK`→DESCONOCIDO; `001-003`→renovación de token. Canal boleta: recurso **`/boleta.electronica/{rut}-{dv}-{tipo}-{folio}/estado`** (404 = no recibido; 200 con estado no concluyente = EN_PROCESO/DESCONOCIDO, nunca reenvía; el schema exacto de la respuesta se validará en el E2E de apicert — ante cualquier forma inesperada degrada a "no reenviar").
+- **Reconciliación en `DocumentoService`**: aplica a todo reenvío (individual y masivo) de un EN_CONTINGENCIA sin TrackID. Estados adoptados: ACEPTADO/REPARO (transiciones nuevas `EN_CONTINGENCIA → ACEPTADO|REPARO`), RECHAZADO (sale de la cola con el motivo), EN_PROCESO/DESCONOCIDO (permanece en contingencia con la explicación, sin subir el sobre). Si la consulta misma falla, permanece en cola con la traza. `POST /{id}/reenviar?forzar=true` (documentado en OpenAPI) salta la reconciliación cuando el usuario ya verificó en el portal.
+- **STATUS=99 del upload clásico** (sobre duplicado) pasa de rechazo duro a **contingencia**: el primer sobre SÍ llegó; en el siguiente reintento la reconciliación adopta su estado final. Esto elimina el caso "RECHAZADO falso por duplicado" del reenvío masivo.
+- **Conteo del reenvío masivo corregido**: `enContingencia` ahora es el conteo real (un documento reconciliado a ACEPTADO no es "enviado" ni "sigue en contingencia"; antes se calculaba por diferencia y contaba mal los rechazados).
+- **Stub/dev**: `app.sii.stub.estado-documento` (default `NO_RECIBIDO`) + campo `estadoDocumento` en `PUT /api/dev/sii-stub` para ejercitar el flujo E2E sin SII real.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| `mvn test` en Docker | ✅ 273 tests, 0 fallos (el único error es `FolioServiceConcurrencyTest`, Testcontainers no ejecutable en este host — limitación conocida) |
+| Matrices nuevas de mapeo | ✅ `SiiTransporteDteTest` 41 (getEstDte completo), `SiiTransporteBoletaTest` 40 (documento por folio), transiciones ampliadas |
+| Fidelidad SII | ✅ getEstDte verificado contra el manual oficial (parámetros, DDMMAAAA, códigos); el recurso de boleta por folio queda para validar en el E2E de apicert (degrada seguro) |
+| ITs (`ContingenciaReenvioIT` +6 casos de reconciliación) | ⚠️ compilan; corren en CI |
+
 # Pendiente
-Ver [ROADMAP.md](ROADMAP.md). Con P0-4/5/6 implementados y el E2E de certificación aceptado en los cinco tipos, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, **reconciliación por folio antes de reenviar** (cierra el caso timeout-tras-recepción que hoy puede duplicar un envío, ver el límite conocido del Sprint 6), el set de pruebas formal de certificación → autorización de producción (trámite administrativo), y `MedioPago`/`GeoRefEmision`. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.
+Ver [ROADMAP.md](ROADMAP.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

@@ -82,10 +82,54 @@ class SiiTransporteDteTest {
                 .isInstanceOf(SiiNoDisponibleException.class);
     }
 
+    // ---------- matriz de getEstDte (reconciliacion por folio) ----------
+
+    @Test
+    @DisplayName("getEstDte FAU -> NO_RECIBIDO (el unico veredicto que habilita reenviar)")
+    void estDteNoRecibido() {
+        assertThat(mapearDoc(respuesta("FAU"))).isEqualTo(SiiGateway.EstadoDocumento.NO_RECIBIDO);
+    }
+
+    @ParameterizedTest(name = "getEstDte {0} -> ACEPTADO (registrado en el SII)")
+    @ValueSource(strings = {"DOK", "TMD", "TMC", "MMD", "MMC", "AND", "ANC"})
+    void estDteRegistrado(String estado) {
+        assertThat(mapearDoc(respuesta(estado))).isEqualTo(SiiGateway.EstadoDocumento.ACEPTADO);
+    }
+
+    @ParameterizedTest(name = "getEstDte {0} -> RECHAZADO (reenviar no lo sana)")
+    @ValueSource(strings = {"FNA", "FAN", "EMP"})
+    void estDteNoAutorizado(String estado) {
+        assertThat(mapearDoc(respuesta(estado))).isEqualTo(SiiGateway.EstadoDocumento.RECHAZADO);
+    }
+
+    @ParameterizedTest(name = "getEstDte {0} -> DESCONOCIDO (no concluyente: no reenviar)")
+    @ValueSource(strings = {"DNK", "ZZZ"})
+    void estDteNoConcluyente(String estado) {
+        assertThat(mapearDoc(respuesta(estado))).isEqualTo(SiiGateway.EstadoDocumento.DESCONOCIDO);
+    }
+
+    @ParameterizedTest(name = "getEstDte estado {0} -> token invalido (renueva y reintenta)")
+    @ValueSource(strings = {"001", "002", "003"})
+    void estDteTokenInvalido(String estado) {
+        assertThatThrownBy(() -> mapearDoc(respuesta(estado)))
+                .isInstanceOf(TokenInvalidoSii.class);
+    }
+
+    @Test
+    @DisplayName("getEstDte sin ESTADO -> SiiNoDisponibleException (jamas un falso NO_RECIBIDO)")
+    void estDteIlegible() {
+        assertThatThrownBy(() -> mapearDoc("<SII:RESPUESTA xmlns:SII=\"http://www.sii.cl/XMLSchema\"/>"))
+                .isInstanceOf(SiiNoDisponibleException.class);
+    }
+
     // ---------- helpers ----------
 
     private EstadoEnvio mapear(String respuestaXml) {
         return SiiTransporteDte.mapearEstUp(respuestaXml, "123456");
+    }
+
+    private SiiGateway.EstadoDocumento mapearDoc(String respuestaXml) {
+        return SiiTransporteDte.mapearEstDte(respuestaXml, 33, 42);
     }
 
     /** Respuesta de QueryEstUp con solo el header (ESTADO + GLOSA). */

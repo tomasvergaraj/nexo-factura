@@ -75,6 +75,9 @@ app:
     stub:
       disponible: ${APP_SII_STUB_DISPONIBLE:true}
       estado-consulta: ${APP_SII_STUB_ESTADO:ACEPTADO}
+      # Reconciliacion por folio previa al reenvio: NO_RECIBIDO deja reenviar;
+      # ACEPTADO simula un folio que el SII ya tenia (timeout tras recepcion).
+      estado-documento: ${APP_SII_STUB_ESTADO_DOCUMENTO:NO_RECIBIDO}
   dte:
     # Validacion XSD del XML del DTE antes de firmar. Mantener en true salvo
     # diagnostico puntual; en false se emiten DTE sin validar el esquema.

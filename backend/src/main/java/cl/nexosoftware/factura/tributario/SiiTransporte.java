@@ -14,4 +14,7 @@ public interface SiiTransporte {
     String enviar(SiiGateway.EnvioSii envio);
 
     SiiGateway.EstadoEnvio consultarEstado(SiiGateway.ConsultaSii consulta);
+
+    /** Estado del documento por folio (reconciliacion; ver {@link SiiGateway#consultarDocumento}). */
+    SiiGateway.EstadoDocumento consultarDocumento(SiiGateway.ConsultaDocumento consulta);
 }

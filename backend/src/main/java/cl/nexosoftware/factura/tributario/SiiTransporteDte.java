@@ -12,12 +12,14 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Set;
 
 /**
  * Canal CLASICO de DTE (facturas/notas 33/34/56/61): upload multipart del
  * sobre EnvioDTE a {@code cgi_dte/UPL/DTEUpload} (maullin cert / palena prod)
- * con Cookie TOKEN, y consulta de estado por {@code QueryEstUp.jws} (SOAP).
+ * con Cookie TOKEN, consulta de estado del envio por {@code QueryEstUp.jws} y
+ * consulta del documento por folio por {@code QueryEstDte.jws} (ambas SOAP).
  *
  * Contrato de errores identico al canal de boleta: transporte/5xx →
  * {@link SiiNoDisponibleException} (contingencia); rechazo de negocio → error
@@ -36,18 +38,23 @@ public class SiiTransporteDte extends SiiTransporteBase {
     private static final Set<String> REPAROS = Set.of("RPR", "RLV");
     private static final Set<String> EN_PROCESO = Set.of("REC", "SOK", "FOK", "PDR", "PRD", "CRT", "-11");
     private static final Set<String> TOKEN_INVALIDO = Set.of("001", "002", "003");
+    // getEstDte exige la fecha de emision como ddMMyyyy.
+    private static final DateTimeFormatter FECHA_GETESTDTE = DateTimeFormatter.ofPattern("ddMMyyyy");
 
     private final RestClient http;
     private final SiiSoap soap;
     private final EnvioDteGenerator envioGenerator;
+    private final CertificadoDigital certificado;
     private final SiiAmbiente ambiente;
 
     public SiiTransporteDte(SiiHttp siiHttp, SiiSoap soap, SiiDteAuthClient auth,
-                            EnvioDteGenerator envioGenerator, AppProperties props) {
+                            EnvioDteGenerator envioGenerator, CertificadoDigital certificado,
+                            AppProperties props) {
         super(auth, "EnvioDTE");
         this.http = siiHttp.cliente();
         this.soap = soap;
         this.envioGenerator = envioGenerator;
+        this.certificado = certificado;
         this.ambiente = SiiAmbiente.desde(props.sii().ambiente());
     }
 
@@ -106,9 +113,80 @@ public class SiiTransporteDte extends SiiTransporteBase {
             // Bloqueo transitorio del lado del SII: contingencia, no rechazo.
             throw new SiiNoDisponibleException("El sistema del SII esta bloqueado (STATUS=9)");
         }
+        if ("99".equals(status)) {
+            // Sobre duplicado: un intento previo SI llego aunque su respuesta se
+            // perdio. No es un rechazo del documento — el documento queda en
+            // contingencia y la reconciliacion por folio adoptara el estado
+            // cuando el SII termine de procesar el primer sobre.
+            throw new SiiNoDisponibleException(
+                    "El SII ya habia recibido este envio antes (STATUS=99); el documento queda en "
+                            + "contingencia y la reconciliacion por folio adoptara su estado al reintentarlo");
+        }
         String detalle = soap.textoElemento(respuesta, "DETAIL");
         throw new ReglaNegocioException("El SII rechazo el upload del EnvioDTE (STATUS="
                 + status + "): " + glosaStatus(status) + (detalle != null ? " — " + detalle.trim() : ""));
+    }
+
+    /**
+     * Reconciliacion por folio via {@code QueryEstDte.jws} (getEstDte): el SII
+     * responde si un documento con ese folio/receptor/fecha/monto esta
+     * registrado. El RutConsultante es el firmante del certificado (el mismo
+     * autorizado que envia). Fecha en formato ddMMyyyy, como exige el servicio.
+     */
+    @Override
+    public SiiGateway.EstadoDocumento consultarDocumento(SiiGateway.ConsultaDocumento consulta) {
+        return conReintentoDeToken(token -> getEstDte(consulta, token));
+    }
+
+    private SiiGateway.EstadoDocumento getEstDte(SiiGateway.ConsultaDocumento consulta, String token) {
+        Rut consultante = Rut.de(certificado.rutFirmante());
+        Rut emisor = Rut.de(consulta.rutEmisor());
+        Rut receptor = Rut.de(consulta.rutReceptor());
+        String respuesta = soap.invocar(ambiente.hostDte() + "/DTEWS/QueryEstDte.jws", "getEstDte",
+                new String[]{"RutConsultante", consultante.numero()},
+                new String[]{"DvConsultante", consultante.dv()},
+                new String[]{"RutCompania", emisor.numero()},
+                new String[]{"DvCompania", emisor.dv()},
+                new String[]{"RutReceptor", receptor.numero()},
+                new String[]{"DvReceptor", receptor.dv()},
+                new String[]{"TipoDte", String.valueOf(consulta.tipoDte())},
+                new String[]{"FolioDte", String.valueOf(consulta.folio())},
+                new String[]{"FechaEmisionDte", consulta.fechaEmision().format(FECHA_GETESTDTE)},
+                new String[]{"MontoDte", String.valueOf(consulta.monto())},
+                new String[]{"Token", token});
+        return mapearEstDte(respuesta, consulta.tipoDte(), consulta.folio());
+    }
+
+    /** Package-private: la matriz de mapeo se cubre directo en el test unitario. */
+    static SiiGateway.EstadoDocumento mapearEstDte(String respuesta, int tipoDte, long folio) {
+        String estado = SiiXml.textoElemento(respuesta, "ESTADO");
+        if (estado == null) {
+            throw new SiiNoDisponibleException(
+                    "Respuesta ilegible del SII al consultar el documento T" + tipoDte + "F" + folio);
+        }
+        estado = estado.trim().toUpperCase();
+        if (TOKEN_INVALIDO.contains(estado)) {
+            throw new TokenInvalidoSii();
+        }
+        return switch (estado) {
+            // Documento no recibido por el SII: el UNICO caso que habilita reenviar.
+            case "FAU" -> SiiGateway.EstadoDocumento.NO_RECIBIDO;
+            // Recibido y datos coinciden; o registrado con notas que lo
+            // modifican/anulan (solo existen sobre un documento ya aceptado).
+            case "DOK", "TMD", "TMC", "MMD", "MMC", "AND", "ANC" ->
+                    SiiGateway.EstadoDocumento.ACEPTADO;
+            // No autorizado (folio fuera de rango / anulado / empresa no
+            // autorizada): reenviar el mismo XML jamas lo va a sanar.
+            case "FNA", "FAN", "EMP" -> SiiGateway.EstadoDocumento.RECHAZADO;
+            // Recibido pero los datos no coinciden con lo registrado: existe en
+            // el SII (no reenviar) pero requiere revision manual.
+            case "DNK" -> SiiGateway.EstadoDocumento.DESCONOCIDO;
+            default -> {
+                log.warn("Estado getEstDte desconocido para T{}F{}: '{}' (glosa: {}) — no concluyente",
+                        tipoDte, folio, estado, SiiXml.textoElemento(respuesta, "GLOSA_ERR"));
+                yield SiiGateway.EstadoDocumento.DESCONOCIDO;
+            }
+        };
     }
 
     @Override
@@ -185,10 +263,8 @@ public class SiiTransporteDte extends SiiTransporteBase {
             case "6" -> "la empresa no esta autorizada a enviar en este ambiente";
             case "7" -> "el sobre no cumple el schema del SII";
             case "8" -> "error en la firma del documento";
-            // STATUS=9 (sistema bloqueado) se maneja antes como contingencia.
-            case "99" -> "este envio ya fue recibido antes por el SII (un intento previo llego "
-                    + "aunque su respuesta se perdio); concilie el TrackID en el portal del SII "
-                    + "antes de volver a enviar";
+            // STATUS=9 (sistema bloqueado) y STATUS=99 (sobre duplicado) se
+            // manejan antes como contingencia.
             default -> "error no catalogado";
         };
     }

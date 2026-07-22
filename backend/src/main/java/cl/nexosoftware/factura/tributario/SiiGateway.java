@@ -17,6 +17,17 @@ public interface SiiGateway {
     EstadoEnvio consultarEstado(ConsultaSii consulta);
 
     /**
+     * Consulta el estado de un DOCUMENTO por folio (sin TrackID): la
+     * reconciliacion previa al reenvio de un documento en contingencia, que
+     * evita duplicar un envio cuya respuesta se perdio tras la recepcion.
+     * Contrato: cualquier fallo en DETERMINAR el estado (transporte, respuesta
+     * ilegible, 4xx inesperado) lanza
+     * {@link cl.nexosoftware.factura.common.exception.SiiNoDisponibleException}
+     * — jamas se responde un falso NO_RECIBIDO, que habilitaria el duplicado.
+     */
+    EstadoDocumento consultarDocumento(ConsultaDocumento consulta);
+
+    /**
      * Datos de un envio. El XML es el DTE firmado tal como se almaceno; el
      * sobre (EnvioBOLETA/EnvioDTE) lo arma el gateway en cada envio.
      */
@@ -25,10 +36,32 @@ public interface SiiGateway {
     /** El tipo decide el canal y el RUT emisor es parte de la URL de consulta. */
     record ConsultaSii(String trackId, int tipoDte, String rutEmisor) {}
 
+    /**
+     * Identificacion del documento para la consulta por folio. El canal clasico
+     * (getEstDte) exige ademas receptor, fecha de emision y monto total: el SII
+     * los cruza contra lo registrado.
+     */
+    record ConsultaDocumento(int tipoDte, long folio, String rutEmisor,
+                             String rutReceptor, java.time.LocalDate fechaEmision, long monto) {}
+
     enum EstadoEnvio {
         RECIBIDO,
         ACEPTADO,
         ACEPTADO_CON_REPARO,
         RECHAZADO
+    }
+
+    /** Resultado de la consulta por folio. Solo NO_RECIBIDO habilita un reenvio. */
+    enum EstadoDocumento {
+        /** El SII declara explicitamente que no recibio el documento. */
+        NO_RECIBIDO,
+        ACEPTADO,
+        ACEPTADO_CON_REPARO,
+        /** Registrado pero rechazado/no autorizado: corresponde emitir uno nuevo. */
+        RECHAZADO,
+        /** El SII conoce el folio pero aun lo procesa: no reenviar (duplicaria). */
+        EN_PROCESO,
+        /** El SII conoce el folio pero el estado no es concluyente: revisar en el portal. */
+        DESCONOCIDO
     }
 }

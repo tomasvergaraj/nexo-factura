@@ -20,6 +20,9 @@ import java.util.concurrent.ThreadLocalRandom;
  *       {@link SiiNoDisponibleException} (SII caido).</li>
  *   <li>{@code estadoConsulta}: resultado fijo de {@code consultarEstado}
  *       (ACEPTADO por defecto; RECHAZADO permite probar el reenvio).</li>
+ *   <li>{@code estadoDocumento}: resultado fijo de la reconciliacion por folio
+ *       (NO_RECIBIDO por defecto = el reenvio procede como siempre; ACEPTADO
+ *       simula el caso timeout-tras-recepcion: el SII ya tenia el folio).</li>
  * </ul>
  */
 @Component
@@ -29,12 +32,15 @@ public class SiiGatewayStub implements SiiGateway {
 
     private volatile boolean disponible;
     private volatile EstadoEnvio estadoConsulta;
+    private volatile EstadoDocumento estadoDocumento;
 
     public SiiGatewayStub(
             @Value("${app.sii.stub.disponible:true}") boolean disponible,
-            @Value("${app.sii.stub.estado-consulta:ACEPTADO}") EstadoEnvio estadoConsulta) {
+            @Value("${app.sii.stub.estado-consulta:ACEPTADO}") EstadoEnvio estadoConsulta,
+            @Value("${app.sii.stub.estado-documento:NO_RECIBIDO}") EstadoDocumento estadoDocumento) {
         this.disponible = disponible;
         this.estadoConsulta = estadoConsulta;
+        this.estadoDocumento = estadoDocumento;
     }
 
     @Override
@@ -57,9 +63,21 @@ public class SiiGatewayStub implements SiiGateway {
         return estadoConsulta;
     }
 
+    @Override
+    public EstadoDocumento consultarDocumento(ConsultaDocumento consulta) {
+        if (!disponible) {
+            throw new SiiNoDisponibleException("SII no disponible (simulado por el stub)");
+        }
+        log.info("Stub SII: reconciliacion por folio simulada (tipo {} folio {}) -> {}",
+                consulta.tipoDte(), consulta.folio(), estadoDocumento);
+        return estadoDocumento;
+    }
+
     public boolean isDisponible() { return disponible; }
     public EstadoEnvio getEstadoConsulta() { return estadoConsulta; }
+    public EstadoDocumento getEstadoDocumento() { return estadoDocumento; }
 
     public void setDisponible(boolean disponible) { this.disponible = disponible; }
     public void setEstadoConsulta(EstadoEnvio estadoConsulta) { this.estadoConsulta = estadoConsulta; }
+    public void setEstadoDocumento(EstadoDocumento estadoDocumento) { this.estadoDocumento = estadoDocumento; }
 }

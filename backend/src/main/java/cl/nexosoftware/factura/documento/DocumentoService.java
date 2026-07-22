@@ -196,16 +196,23 @@ public class DocumentoService {
      * consumido); ante un rechazo de fondo corresponde emitir un documento nuevo.
      * Si el SII sigue caido, el documento conserva su estado (un RECHAZADO no
      * entra a la cola de contingencia) y el motivo queda en la traza de envio.
+     *
+     * Antes de subir el sobre de un EN_CONTINGENCIA sin TrackID se RECONCILIA
+     * por folio (ver {@link #reconciliarPorFolio}); {@code forzar} salta esa
+     * reconciliacion cuando el usuario ya verifico en el portal del SII que el
+     * documento no fue recibido.
      */
     @Transactional
-    public DocumentoResponse reenviarSii(Long empresaId, Long id) {
+    public DocumentoResponse reenviarSii(Long empresaId, Long id, boolean forzar) {
         DocumentoTributario doc = buscarConDetalle(empresaId, id);
         if (doc.getEstado() != EstadoDte.EN_CONTINGENCIA && doc.getEstado() != EstadoDte.RECHAZADO) {
             throw new ReglaNegocioException(
                     "Solo se puede reenviar un documento EN_CONTINGENCIA o RECHAZADO; este esta "
                             + doc.getEstado());
         }
-        intentarEnvio(doc);
+        if (forzar || !necesitaReconciliacion(doc) || !reconciliarPorFolio(doc)) {
+            intentarEnvio(doc);
+        }
         documentoRepository.save(doc);
         return DocumentoMapper.toResponse(doc);
     }
@@ -226,6 +233,7 @@ public class DocumentoService {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         List<DocumentoResumen> resultados = new ArrayList<>();
         int enviados = 0;
+        int enContingencia = 0;
         for (Long id : ids) {
             DocumentoTributario doc = tx.execute(status -> reintentarUno(id));
             if (doc == null) {
@@ -234,9 +242,15 @@ public class DocumentoService {
             if (doc.getEstado() == EstadoDte.ENVIADO) {
                 enviados++;
             }
+            // Un documento puede salir de la cola sin ser reenviado (la
+            // reconciliacion por folio lo encontro ACEPTADO/REPARO/RECHAZADO):
+            // no es "enviado" ni sigue "en contingencia".
+            if (doc.getEstado() == EstadoDte.EN_CONTINGENCIA) {
+                enContingencia++;
+            }
             resultados.add(DocumentoMapper.toResumen(doc));
         }
-        return new ReenvioMasivoResponse(resultados.size(), enviados, resultados.size() - enviados, resultados);
+        return new ReenvioMasivoResponse(resultados.size(), enviados, enContingencia, resultados);
     }
 
     /**
@@ -253,7 +267,9 @@ public class DocumentoService {
             return null;
         }
         try {
-            intentarEnvio(doc);
+            if (!necesitaReconciliacion(doc) || !reconciliarPorFolio(doc)) {
+                intentarEnvio(doc);
+            }
         } catch (ReglaNegocioException | DteInvalidoException e) {
             doc.setUltimoErrorEnvio(e.getMessage());
             transicionar(doc, EstadoDte.RECHAZADO);
@@ -338,6 +354,67 @@ public class DocumentoService {
                 transicionar(doc, EstadoDte.EN_CONTINGENCIA);
             }
         }
+    }
+
+    /**
+     * Un EN_CONTINGENCIA sin TrackID pudo haber llegado al SII aunque su
+     * respuesta se perdio (timeout leyendo la respuesta del envio): antes de
+     * subir el sobre otra vez hay que reconciliar por folio. Un documento CON
+     * TrackID no lo necesita (su recepcion esta confirmada) y un RECHAZADO ya
+     * tiene un veredicto de fondo del SII.
+     */
+    private static boolean necesitaReconciliacion(DocumentoTributario doc) {
+        return doc.getEstado() == EstadoDte.EN_CONTINGENCIA && doc.getTrackId() == null;
+    }
+
+    /**
+     * Consulta al SII el estado del DOCUMENTO por folio y, si el SII ya lo
+     * conoce, adopta ese estado en vez de reenviar (evita duplicar el envio).
+     *
+     * @return {@code true} si el caso quedo resuelto sin reenviar (estado
+     *         adoptado, folio aun en proceso, o la consulta misma no estuvo
+     *         disponible); {@code false} solo ante un NO_RECIBIDO explicito,
+     *         el unico veredicto que habilita subir el sobre otra vez.
+     */
+    private boolean reconciliarPorFolio(DocumentoTributario doc) {
+        Empresa emisor = empresaService.buscar(doc.getEmpresaId());
+        SiiGateway.EstadoDocumento estado;
+        try {
+            estado = siiGateway.consultarDocumento(new SiiGateway.ConsultaDocumento(
+                    doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut(),
+                    doc.getReceptorRut(), doc.getFechaEmision(), doc.getTotal()));
+        } catch (SiiNoDisponibleException e) {
+            // Sin reconciliacion no hay reenvio seguro: el documento sigue en
+            // la cola con la traza del porque.
+            doc.setUltimoErrorEnvio("No se pudo reconciliar el folio antes de reenviar: " + e.getMessage());
+            return true;
+        }
+        switch (estado) {
+            case NO_RECIBIDO -> {
+                return false;
+            }
+            case ACEPTADO -> {
+                doc.setUltimoErrorEnvio(null);
+                transicionar(doc, EstadoDte.ACEPTADO);
+            }
+            case ACEPTADO_CON_REPARO -> {
+                doc.setUltimoErrorEnvio(null);
+                transicionar(doc, EstadoDte.REPARO);
+            }
+            case RECHAZADO -> {
+                doc.setUltimoErrorEnvio(
+                        "Reconciliado por folio: el SII ya registro este folio y lo rechazo o no lo autoriza; "
+                                + "corresponde emitir un documento nuevo");
+                transicionar(doc, EstadoDte.RECHAZADO);
+            }
+            case EN_PROCESO -> doc.setUltimoErrorEnvio(
+                    "El SII ya recibio este folio y aun lo esta procesando; no se reenvia para no "
+                            + "duplicarlo. Reintente mas tarde: la reconciliacion adoptara el estado final.");
+            case DESCONOCIDO -> doc.setUltimoErrorEnvio(
+                    "El SII conoce este folio pero su estado no es concluyente; verifiquelo en el portal "
+                            + "del SII (si confirma que no fue recibido, reenvie con forzar=true)");
+        }
+        return true;
     }
 
     private static boolean esBoleta(TipoDte tipo) {

@@ -23,14 +23,19 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Test de integracion (PostgreSQL real via Testcontainers) de la contingencia de
  * envio al SII y el reenvio de rechazados en {@link DocumentoService}: caida del
- * SII -> EN_CONTINGENCIA con traza, reintento individual y masivo, y reenvio del
- * mismo XML de un documento RECHAZADO. El unico mock es {@link SiiGateway}; la
- * emision (TED, XML, firma stub y XSD) es real con el CAF de {@link DteFixtures}.
+ * SII -> EN_CONTINGENCIA con traza, reintento individual y masivo, reenvio del
+ * mismo XML de un documento RECHAZADO y la RECONCILIACION POR FOLIO previa al
+ * reenvio de un EN_CONTINGENCIA sin TrackID (el caso timeout-tras-recepcion).
+ * El unico mock es {@link SiiGateway}; la emision (TED, XML, firma stub y XSD)
+ * es real con el CAF de {@link DteFixtures}.
  */
 class ContingenciaReenvioIT extends AbstractIntegrationTest {
 
@@ -51,6 +56,12 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         // su RUT es unico en la BD, asi que se reutiliza y se limpia su estado
         // (clave para que reenviarPendientes no arrastre documentos de otro test).
         empresaId = empresaEmisora("Empresa Contingencia").getId();
+
+        // Por defecto la reconciliacion por folio dice "no recibido": el unico
+        // veredicto que habilita el reenvio (los tests de reconciliacion lo
+        // sobreescriben caso a caso).
+        when(siiGateway.consultarDocumento(any(SiiGateway.ConsultaDocumento.class)))
+                .thenReturn(SiiGateway.EstadoDocumento.NO_RECIBIDO);
 
         Cliente cliente = clienteRepository.save(Cliente.builder()
                 .empresaId(empresaId)
@@ -99,7 +110,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         DocumentoResponse doc = emitido();
         documentoService.enviarSii(empresaId, doc.id()); // EN_CONTINGENCIA
 
-        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id());
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
 
         assertThat(resultado.estado()).isEqualTo(EstadoDte.ENVIADO);
         assertThat(resultado.trackId()).isEqualTo("TRACK-77");
@@ -115,7 +126,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         DocumentoResponse doc = emitido();
         documentoService.enviarSii(empresaId, doc.id());
 
-        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id());
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
 
         assertThat(resultado.estado()).isEqualTo(EstadoDte.EN_CONTINGENCIA);
         assertThat(resultado.intentosEnvio()).isEqualTo(2);
@@ -142,6 +153,116 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("reconciliacion por folio: si el SII ya tenia el documento ACEPTADO, se adopta ese estado sin reenviar")
+    void reconciliacionAdoptaAceptadoSinReenviar() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("timeout leyendo la respuesta"));
+        DocumentoResponse doc = emitido();
+        documentoService.enviarSii(empresaId, doc.id()); // EN_CONTINGENCIA sin TrackID
+
+        when(siiGateway.consultarDocumento(any(SiiGateway.ConsultaDocumento.class)))
+                .thenReturn(SiiGateway.EstadoDocumento.ACEPTADO);
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
+
+        assertThat(resultado.estado()).isEqualTo(EstadoDte.ACEPTADO);
+        assertThat(resultado.ultimoErrorEnvio()).isNull();
+        // El sobre NO se subio otra vez: el unico enviar() fue el intento original.
+        verify(siiGateway, times(1)).enviar(any(SiiGateway.EnvioSii.class));
+        assertThat(resultado.intentosEnvio()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("reconciliacion por folio: un folio EN_PROCESO en el SII bloquea el reenvio y conserva la contingencia")
+    void reconciliacionEnProcesoBloqueaElReenvio() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("timeout leyendo la respuesta"));
+        DocumentoResponse doc = emitido();
+        documentoService.enviarSii(empresaId, doc.id());
+
+        when(siiGateway.consultarDocumento(any(SiiGateway.ConsultaDocumento.class)))
+                .thenReturn(SiiGateway.EstadoDocumento.EN_PROCESO);
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
+
+        assertThat(resultado.estado()).isEqualTo(EstadoDte.EN_CONTINGENCIA);
+        assertThat(resultado.ultimoErrorEnvio()).contains("no se reenvia");
+        verify(siiGateway, times(1)).enviar(any(SiiGateway.EnvioSii.class));
+    }
+
+    @Test
+    @DisplayName("reconciliacion por folio: RECHAZADO en el SII saca el documento de la cola con el motivo")
+    void reconciliacionRechazadaSacaDeLaCola() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("timeout leyendo la respuesta"));
+        DocumentoResponse doc = emitido();
+        documentoService.enviarSii(empresaId, doc.id());
+
+        when(siiGateway.consultarDocumento(any(SiiGateway.ConsultaDocumento.class)))
+                .thenReturn(SiiGateway.EstadoDocumento.RECHAZADO);
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
+
+        assertThat(resultado.estado()).isEqualTo(EstadoDte.RECHAZADO);
+        assertThat(resultado.ultimoErrorEnvio()).contains("Reconciliado por folio");
+        verify(siiGateway, times(1)).enviar(any(SiiGateway.EnvioSii.class));
+    }
+
+    @Test
+    @DisplayName("forzar=true salta la reconciliacion y sube el sobre directamente")
+    void forzarSaltaLaReconciliacion() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("timeout leyendo la respuesta"))
+                .thenReturn("TRACK-F");
+        DocumentoResponse doc = emitido();
+        documentoService.enviarSii(empresaId, doc.id());
+
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), true);
+
+        assertThat(resultado.estado()).isEqualTo(EstadoDte.ENVIADO);
+        assertThat(resultado.trackId()).isEqualTo("TRACK-F");
+        verify(siiGateway, never()).consultarDocumento(any(SiiGateway.ConsultaDocumento.class));
+    }
+
+    @Test
+    @DisplayName("si la reconciliacion misma no esta disponible, el documento permanece EN_CONTINGENCIA sin reenviarse")
+    void reconciliacionNoDisponibleConservaLaContingencia() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("timeout leyendo la respuesta"));
+        DocumentoResponse doc = emitido();
+        documentoService.enviarSii(empresaId, doc.id());
+
+        when(siiGateway.consultarDocumento(any(SiiGateway.ConsultaDocumento.class)))
+                .thenThrow(new SiiNoDisponibleException("SII caido"));
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
+
+        assertThat(resultado.estado()).isEqualTo(EstadoDte.EN_CONTINGENCIA);
+        assertThat(resultado.ultimoErrorEnvio()).contains("No se pudo reconciliar");
+        verify(siiGateway, times(1)).enviar(any(SiiGateway.EnvioSii.class));
+    }
+
+    @Test
+    @DisplayName("reenviar-pendientes tambien reconcilia: un folio que el SII ya tenia queda ACEPTADO y no cuenta como enviado")
+    void reenvioMasivoReconciliaPorFolio() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("timeout leyendo la respuesta"));
+        DocumentoResponse doc1 = emitido();
+        DocumentoResponse doc2 = emitido();
+        documentoService.enviarSii(empresaId, doc1.id());
+        documentoService.enviarSii(empresaId, doc2.id());
+
+        // El primero ya estaba en el SII; el segundo no fue recibido y se reenvia.
+        when(siiGateway.consultarDocumento(any(SiiGateway.ConsultaDocumento.class)))
+                .thenReturn(SiiGateway.EstadoDocumento.ACEPTADO,
+                        SiiGateway.EstadoDocumento.NO_RECIBIDO);
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-B");
+        ReenvioMasivoResponse resumen = documentoService.reenviarPendientes(empresaId);
+
+        assertThat(resumen.procesados()).isEqualTo(2);
+        assertThat(resumen.enviados()).isEqualTo(1);
+        assertThat(resumen.enContingencia()).isZero();
+        assertThat(resumen.documentos()).extracting(DocumentoResumen::estado)
+                .containsExactlyInAnyOrder(EstadoDte.ACEPTADO, EstadoDte.ENVIADO);
+    }
+
+    @Test
     @DisplayName("un documento RECHAZADO por el SII puede reenviarse y vuelve a ENVIADO")
     void reenvioDeRechazadoVuelveAEnviado() {
         when(siiGateway.enviar(any(SiiGateway.EnvioSii.class))).thenReturn("TRACK-1", "TRACK-2");
@@ -152,7 +273,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         DocumentoResponse rechazado = documentoService.consultarEstadoSii(empresaId, doc.id());
         assertThat(rechazado.estado()).isEqualTo(EstadoDte.RECHAZADO);
 
-        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id());
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
 
         assertThat(resultado.estado()).isEqualTo(EstadoDte.ENVIADO);
         assertThat(resultado.trackId()).isEqualTo("TRACK-2");
@@ -170,7 +291,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         documentoService.enviarSii(empresaId, doc.id());
         documentoService.consultarEstadoSii(empresaId, doc.id()); // RECHAZADO
 
-        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id());
+        DocumentoResponse resultado = documentoService.reenviarSii(empresaId, doc.id(), false);
 
         // El rechazo es de fondo: el fallo transitorio queda en la traza pero el
         // documento no entra a la cola de reintento automatico.
@@ -198,7 +319,7 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
     void reenvioEnEstadoInvalidoLanzaReglaNegocio() {
         DocumentoResponse doc = emitido(); // FIRMADO
 
-        assertThatThrownBy(() -> documentoService.reenviarSii(empresaId, doc.id()))
+        assertThatThrownBy(() -> documentoService.reenviarSii(empresaId, doc.id(), false))
                 .isInstanceOf(ReglaNegocioException.class);
     }
 

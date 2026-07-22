@@ -62,10 +62,14 @@ public class DocumentoController {
 
     @PostMapping("/{id}/reenviar")
     @Operation(summary = "Reenviar al SII un documento EN_CONTINGENCIA o RECHAZADO. "
-            + "Reenvia el mismo XML firmado; si el SII sigue caido, queda EN_CONTINGENCIA.")
+            + "Reenvia el mismo XML firmado; si el SII sigue caido, queda EN_CONTINGENCIA. "
+            + "Un EN_CONTINGENCIA sin TrackID se reconcilia por folio antes de subir el sobre "
+            + "(si el SII ya lo tiene, se adopta su estado en vez de duplicar el envio); "
+            + "forzar=true salta esa reconciliacion.")
     @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
-    public DocumentoResponse reenviar(@PathVariable Long empresaId, @PathVariable Long id) {
-        return service.reenviarSii(empresaId, id);
+    public DocumentoResponse reenviar(@PathVariable Long empresaId, @PathVariable Long id,
+                                      @RequestParam(defaultValue = "false") boolean forzar) {
+        return service.reenviarSii(empresaId, id, forzar);
     }
 
     @PostMapping("/reenviar-pendientes")

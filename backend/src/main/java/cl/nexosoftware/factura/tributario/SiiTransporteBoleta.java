@@ -134,6 +134,76 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
         return mapear(r, consulta.trackId());
     }
 
+    /**
+     * Reconciliacion por folio: el recurso por documento de la API de boleta
+     * ({@code /boleta.electronica/{rut}-{dv}-{tipo}-{folio}/estado}). Un 404 es
+     * la senal explicita de que el SII no conoce el folio (habilita reenviar);
+     * un 200 significa que el folio YA esta registrado, y el estado decide.
+     */
+    @Override
+    public SiiGateway.EstadoDocumento consultarDocumento(SiiGateway.ConsultaDocumento consulta) {
+        return conReintentoDeToken(token -> getEstadoDocumento(consulta, token));
+    }
+
+    private SiiGateway.EstadoDocumento getEstadoDocumento(SiiGateway.ConsultaDocumento c, String token) {
+        Rut emisor = Rut.de(c.rutEmisor());
+        String id = emisor.numero() + "-" + emisor.dv() + "-" + c.tipoDte() + "-" + c.folio();
+        String respuesta;
+        try {
+            respuesta = http.get()
+                    .uri(ambiente.apiBoleta() + "/boleta.electronica/" + id + "/estado")
+                    .header(HttpHeaders.COOKIE, "TOKEN=" + token)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+        } catch (ResourceAccessException e) {
+            throw new SiiNoDisponibleException(
+                    "SII no disponible al reconciliar la boleta " + id + ": " + e.getMessage());
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 404) {
+                return SiiGateway.EstadoDocumento.NO_RECIBIDO;
+            }
+            if (e.getStatusCode().value() == 401 || e.getResponseBodyAsString().contains("NO ESTA AUTENTICADO")) {
+                throw new TokenInvalidoSii();
+            }
+            // Cualquier otro codigo no determina el estado del documento: jamas
+            // degradar a un falso NO_RECIBIDO (habilitaria duplicar el envio).
+            throw new SiiNoDisponibleException("El SII respondio " + e.getStatusCode().value()
+                    + " al reconciliar la boleta " + id + ": " + resumen(e.getResponseBodyAsString()));
+        } catch (RestClientException e) {
+            throw new SiiNoDisponibleException(
+                    "SII interrumpio la respuesta al reconciliar la boleta " + id + ": " + e.getMessage());
+        }
+        return mapearDocumento(parsear(respuesta, RespuestaDocumento.class), id);
+    }
+
+    /** Package-private: la matriz de mapeo se cubre directo en el test unitario. */
+    static SiiGateway.EstadoDocumento mapearDocumento(RespuestaDocumento r, String id) {
+        String estado = (r == null || r.estado == null) ? null : r.estado.trim().toUpperCase();
+        if (estado == null) {
+            // El recurso existe (200) pero sin estado legible: el folio esta en
+            // el SII — lo seguro es no reenviar y esperar un estado concluyente.
+            log.warn("La boleta {} existe en el SII pero la respuesta no trae estado; se trata como en proceso", id);
+            return SiiGateway.EstadoDocumento.EN_PROCESO;
+        }
+        if (RECHAZADOS.contains(estado) || "RECHAZADO".equals(estado)) {
+            return SiiGateway.EstadoDocumento.RECHAZADO;
+        }
+        if ("RPR".equals(estado) || "REPARO".equals(estado)) {
+            return SiiGateway.EstadoDocumento.ACEPTADO_CON_REPARO;
+        }
+        if ("ACE".equals(estado) || "ACEPTADO".equals(estado) || "DOK".equals(estado)) {
+            return SiiGateway.EstadoDocumento.ACEPTADO;
+        }
+        if (EN_PROCESO.contains(estado) || "EPR".equals(estado)) {
+            // A nivel de documento no hay estadistica que desambigue un EPR:
+            // se espera al estado final en vez de arriesgar un falso aceptado.
+            return SiiGateway.EstadoDocumento.EN_PROCESO;
+        }
+        log.warn("Estado de documento desconocido del SII para la boleta {}: '{}' — no concluyente", id, estado);
+        return SiiGateway.EstadoDocumento.DESCONOCIDO;
+    }
+
     /** Package-private: la matriz de mapeo se cubre directo en el test unitario. */
     static SiiGateway.EstadoEnvio mapear(RespuestaEstado r, String trackId) {
         String estado = r.estado.trim().toUpperCase();
@@ -202,6 +272,11 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static final class RespuestaEnvio {
         public Long trackid;
+        public String estado;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static final class RespuestaDocumento {
         public String estado;
     }
 

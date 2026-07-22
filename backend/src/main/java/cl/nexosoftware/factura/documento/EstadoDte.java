@@ -9,9 +9,17 @@ import java.util.Set;
  *   FIRMADO -> EN_CONTINGENCIA        (el SII no estaba disponible al enviar)
  *   EN_CONTINGENCIA -> ENVIADO        (reintento de envio exitoso)
  *   EN_CONTINGENCIA -> RECHAZADO      (el SII rechazo el envio en el reintento)
+ *   EN_CONTINGENCIA -> ACEPTADO       (reconciliacion por folio: el SII ya lo tenia)
+ *   EN_CONTINGENCIA -> REPARO         (reconciliacion por folio, con reparos)
  *   RECHAZADO -> ENVIADO              (reenvio del mismo XML firmado)
  *   ACEPTADO -> ANULADO               (via nota de credito)
  * </pre>
+ *
+ * Las salidas directas EN_CONTINGENCIA -> ACEPTADO/REPARO existen por la
+ * reconciliacion por folio: si el primer envio llego al SII pero su respuesta
+ * se perdio (el documento quedo en contingencia SIN TrackID), la consulta por
+ * folio previa al reenvio puede encontrar el documento ya procesado y adopta
+ * ese estado en vez de subir el sobre otra vez (lo que lo duplicaria).
  *
  * Un RECHAZADO no vuelve a BORRADOR: el contenido tributario del DTE es
  * inmutable y su folio ya fue consumido, asi que la unica correccion posible
@@ -38,7 +46,7 @@ public enum EstadoDte {
     private static final java.util.Map<EstadoDte, Set<EstadoDte>> TRANSICIONES = java.util.Map.of(
             BORRADOR, Set.of(FIRMADO),
             FIRMADO, Set.of(ENVIADO, BORRADOR, EN_CONTINGENCIA),
-            EN_CONTINGENCIA, Set.of(ENVIADO, RECHAZADO),
+            EN_CONTINGENCIA, Set.of(ENVIADO, RECHAZADO, ACEPTADO, REPARO),
             ENVIADO, Set.of(ACEPTADO, RECHAZADO, REPARO),
             ACEPTADO, Set.of(ANULADO),
             RECHAZADO, Set.of(ENVIADO),

@@ -44,6 +44,11 @@ public class SiiGatewayProd implements SiiGateway {
         return transporte(consulta.tipoDte()).consultarEstado(consulta);
     }
 
+    @Override
+    public EstadoDocumento consultarDocumento(ConsultaDocumento consulta) {
+        return transporte(consulta.tipoDte()).consultarDocumento(consulta);
+    }
+
     private SiiTransporte transporte(int tipoDte) {
         return transportes.stream()
                 .filter(t -> t.soporta(tipoDte))
