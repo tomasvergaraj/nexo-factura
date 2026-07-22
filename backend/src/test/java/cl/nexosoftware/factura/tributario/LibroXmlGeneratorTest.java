@@ -37,7 +37,11 @@ class LibroXmlGeneratorTest {
         assertThat(xml).startsWith("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>");
         assertThatCode(() -> parsear(xml)).doesNotThrowAnyException();
         assertThat(xml)
-                .contains("<LibroCompraVenta version=\"1.0\" xmlns=\"http://www.sii.cl/SiiDte\">")
+                // El upload del SII identifica el archivo por el schemaLocation:
+                // sin el rechaza con STATUS=7 "Invalid Schema Name".
+                .contains("<LibroCompraVenta version=\"1.0\" xmlns=\"http://www.sii.cl/SiiDte\" "
+                        + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                        + "xsi:schemaLocation=\"http://www.sii.cl/SiiDte LibroCV_v10.xsd\">")
                 .contains("<EnvioLibro ID=\"" + LibroXmlGenerator.ID_ENVIO_LIBRO + "\">")
                 .contains("<RutEmisorLibro>91000000-0</RutEmisorLibro>")
                 .contains("<RutEnvia>11111111-1</RutEnvia>")

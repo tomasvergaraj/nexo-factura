@@ -92,6 +92,14 @@ public class LibroXmlGenerator {
         envio.tmstFirma = LocalDateTime.now(clock).format(TIMESTAMP);
 
         String xml = JaxbXml.marshalPlano(lcv, "No se pudo generar el XML del libro");
+        // xsi:schemaLocation ANTES de firmar: el upload del SII identifica el tipo
+        // de archivo por esta declaracion y sin ella rechaza con STATUS=7
+        // "SCH-00001: Invalid Schema Name" (hallado al enviar el primer IECV).
+        xml = xml.replace(
+                "<LibroCompraVenta version=\"1.0\" xmlns=\"http://www.sii.cl/SiiDte\">",
+                "<LibroCompraVenta version=\"1.0\" xmlns=\"http://www.sii.cl/SiiDte\" "
+                        + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                        + "xsi:schemaLocation=\"http://www.sii.cl/SiiDte LibroCV_v10.xsd\">");
         JaxbXml.exigirLatin1(xml, "el libro IECV");
         return xml;
     }
