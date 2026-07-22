@@ -103,6 +103,8 @@ public final class ModeloLibro {
         @XmlElement(name = "NroDoc") public long nroDoc;
         @XmlElement(name = "Anulado") public String anulado; // "A" si esta anulado
         @XmlElement(name = "TpoImp") public Integer tpoImp;  // 1 = IVA (LC)
+        // Tasa del IVA de la operacion (LC): el SII repara las filas afectas sin ella.
+        @XmlElement(name = "TasaImp") public String tasaImp;
         @XmlElement(name = "FchDoc") public String fchDoc;   // AAAA-MM-DD
         @XmlElement(name = "RUTDoc") public String rutDoc;
         @XmlElement(name = "RznSoc") public String rznSoc;

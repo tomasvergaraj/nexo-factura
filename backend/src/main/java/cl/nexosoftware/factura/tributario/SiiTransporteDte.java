@@ -33,9 +33,11 @@ public class SiiTransporteDte extends SiiTransporteBase {
 
     private static final Set<Integer> TIPOS = Set.of(33, 34, 56, 61);
     // Estados finales de rechazo del envio clasico (QueryEstUp). LRH/LRF/LRS:
-    // rechazos de LIBRO IECV (contenido, firma, esquema), mismo servicio.
+    // rechazos de LIBRO IECV (contenido, firma, esquema); LNC: el tipo de envio
+    // no corresponde (p.ej. TOTAL sobre un periodo ya cerrado/cuadrado); LRC:
+    // caratula invalida (p.ej. periodo tributario futuro).
     private static final Set<String> RECHAZADOS = Set.of("RSC", "RCH", "RPT", "RFR", "VOF", "RCT",
-            "LRH", "LRF", "LRS");
+            "LRH", "LRF", "LRS", "LNC", "LRC");
     // Aceptado con reparos (graves/leves) a nivel de envio.
     private static final Set<String> REPAROS = Set.of("RPR", "RLV");
     private static final Set<String> EN_PROCESO = Set.of("REC", "SOK", "FOK", "PDR", "PRD", "CRT", "-11");
