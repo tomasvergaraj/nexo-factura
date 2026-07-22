@@ -56,6 +56,9 @@ class LibroXmlGeneratorTest {
                 .contains("<TotDoc>1</TotDoc>")
                 .contains("<NroDoc>7</NroDoc>")
                 .contains("<RUTDoc>77111222-3</RUTDoc>")
+                // Fila afecta con TasaImp tambien en VENTAS: el libro 2026-06
+                // (track 0253270554) fue aceptado con reparos "Falta [TasaImp]".
+                .contains("<TasaImp>19</TasaImp>")
                 .contains("<TmstFirma>");
         // Orden del documento: Caratula < ResumenPeriodo < Detalle < TmstFirma.
         assertThat(xml.indexOf("<Caratula>")).isLessThan(xml.indexOf("<ResumenPeriodo>"));

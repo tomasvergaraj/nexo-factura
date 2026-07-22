@@ -182,8 +182,10 @@ public class LibroXmlGenerator {
         det.tpoImp = compras ? 1 : null;
         // Con IVA en cualquiera de sus destinos (credito, uso comun, no rec o
         // retenido), la fila lleva la tasa; sin ella el SII repara "Falta TasaImp".
+        // Aplica a AMBOS libros: el de ventas 2026-06 (track 0253270554) fue
+        // aceptado con 9 reparos LBR-2 "Falta [TasaImp]" en las filas 33.
         boolean conIva = d.iva() > 0 || d.ivaUsoComun() > 0 || d.ivaNoRec() > 0 || d.ivaRetenido() > 0;
-        det.tasaImp = (compras && conIva) ? "19" : null;
+        det.tasaImp = conIva ? "19" : null;
         det.fchDoc = d.fecha().format(FECHA);
         det.rutDoc = d.rutContraparte();
         det.rznSoc = d.razonSocial();
