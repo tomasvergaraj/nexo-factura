@@ -164,6 +164,43 @@ class XmlDteGeneratorXsdTest {
     }
 
     @Test
+    @DisplayName("un DTE con setCaso emite la Referencia SET (sin CodRef) y cumple el XSD")
+    void referenciaAlSetDeCertificacionEsValida() {
+        // El revisor del set asocia el DTE a su caso por esta referencia; sin
+        // ella rechaza con "El Documento No Esta en el Envio".
+        DocumentoTributario doc = DteFixtures.factura(172.0, 3728L, true);
+        doc.setSetCaso("4965879-1");
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.FACTURA_AFECTA)).doesNotThrowAnyException();
+        assertThat(xml).contains("<Referencia><NroLinRef>1</NroLinRef><TpoDocRef>SET</TpoDocRef>"
+                + "<FolioRef>4965879-1</FolioRef>");
+        assertThat(xml).contains("<RazonRef>CASO 4965879-1</RazonRef>");
+        // La referencia SET no lleva CodRef (no corrige ni anula nada).
+        assertThat(xml).doesNotContain("<CodRef>");
+    }
+
+    @Test
+    @DisplayName("una NC con setCaso mantiene la referencia SET primero y la del documento despues")
+    void notaConSetCasoLlevaAmbasReferencias() {
+        DocumentoTributario doc = DteFixtures.factura(1.0, 0L, true);
+        doc.setTipoDte(TipoDte.NOTA_CREDITO);
+        doc.setSetCaso("4965879-5");
+        doc.agregarReferencia(Referencia.builder()
+                .tipoDocumentoRef(33).folioRef(16L).fechaRef(LocalDate.of(2026, 7, 22))
+                .tipoReferencia(TipoReferencia.CORRIGE_TEXTO)
+                .razon("CORRIGE GIRO DEL RECEPTOR")
+                .build());
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.NOTA_CREDITO)).doesNotThrowAnyException();
+        assertThat(xml)
+                .contains("<NroLinRef>1</NroLinRef><TpoDocRef>SET</TpoDocRef><FolioRef>4965879-5</FolioRef>")
+                .contains("<NroLinRef>2</NroLinRef><TpoDocRef>33</TpoDocRef><FolioRef>16</FolioRef>")
+                .contains("<CodRef>2</CodRef>");
+    }
+
+    @Test
     @DisplayName("una NC de correccion de texto (totales 0) cumple el XSD: MntTotal 0 sin MntNeto/IVA")
     void notaCreditoCorrigeGiroConTotalesCeroEsValida() {
         // Caso basico-5 del set: NC que corrige el giro del receptor, sin montos.

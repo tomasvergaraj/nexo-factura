@@ -105,6 +105,7 @@ public class DocumentoService {
                 .receptorDireccion(receptorDireccion)
                 .receptorComuna(receptorComuna)
                 .observacion(req.observacion())
+                .setCaso(req.setCaso())
                 .tasaIva(TASA_IVA)
                 .build();
 

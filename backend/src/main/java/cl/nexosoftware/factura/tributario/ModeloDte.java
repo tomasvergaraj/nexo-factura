@@ -140,14 +140,19 @@ public final class ModeloDte {
         @XmlElement(name = "ValorDR") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double valor;
     }
 
-    /** Referencia a otro documento (obligatoria en notas 56/61). */
+    /**
+     * Referencia a otro documento (obligatoria en notas 56/61). TpoDocRef y
+     * FolioRef son strings en el esquema: ademas de codigos numericos admiten
+     * "SET" + numero de caso (referencia al set de pruebas de certificacion),
+     * que va sin CodRef (null lo omite).
+     */
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class Referencia {
         @XmlElement(name = "NroLinRef") public int numeroLinea;
-        @XmlElement(name = "TpoDocRef") public int tipoDocumentoRef;
-        @XmlElement(name = "FolioRef") public long folioRef;
+        @XmlElement(name = "TpoDocRef") public String tipoDocumentoRef;
+        @XmlElement(name = "FolioRef") public String folioRef;
         @XmlElement(name = "FchRef") public String fechaRef;
-        @XmlElement(name = "CodRef") public int codigoReferencia;
+        @XmlElement(name = "CodRef") public Integer codigoReferencia;
         @XmlElement(name = "RazonRef") public String razon;
     }
 }

@@ -20,13 +20,26 @@ public final class DocumentoDtos {
             @Valid List<ReferenciaRequest> referencias,
             // Descuento global % sobre las lineas afectas (DscRcgGlobal); null = sin
             // descuento. Rango y compatibilidad con el tipo se validan en el servicio.
-            @Positive Double descuentoGlobalPct
+            @Positive Double descuentoGlobalPct,
+            // Numero de caso del set de pruebas de certificacion (ej: "4965879-1");
+            // el DTE lo referencia con TpoDocRef=SET. Null = emision normal.
+            @Size(max = 18) @Pattern(regexp = "\\d+-\\d+",
+                    message = "setCaso debe tener la forma <atencion>-<caso>, ej: 4965879-1")
+            String setCaso
     ) {
         /** Forma sin descuento global (compatibilidad con los usos previos). */
         public CrearDocumentoRequest(TipoDte tipoDte, Long clienteId, LocalDate fechaEmision,
                                      String observacion, List<LineaRequest> lineas,
                                      List<ReferenciaRequest> referencias) {
-            this(tipoDte, clienteId, fechaEmision, observacion, lineas, referencias, null);
+            this(tipoDte, clienteId, fechaEmision, observacion, lineas, referencias, null, null);
+        }
+
+        /** Forma sin caso de certificacion (compatibilidad con los usos previos). */
+        public CrearDocumentoRequest(TipoDte tipoDte, Long clienteId, LocalDate fechaEmision,
+                                     String observacion, List<LineaRequest> lineas,
+                                     List<ReferenciaRequest> referencias, Double descuentoGlobalPct) {
+            this(tipoDte, clienteId, fechaEmision, observacion, lineas, referencias,
+                    descuentoGlobalPct, null);
         }
     }
 

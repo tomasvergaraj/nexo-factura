@@ -153,14 +153,26 @@ public class XmlDteGenerator {
         }
 
         // Bloque <Referencia> (obligatorio en notas 56/61): despues del detalle,
-        // antes del TED, en el orden de insercion del documento.
+        // antes del TED, en el orden de insercion del documento. En certificacion
+        // el revisor asocia cada DTE a su caso SOLO por la referencia al set
+        // (TpoDocRef=SET, FolioRef=numero de caso, sin CodRef); sin ella el set
+        // se rechaza con "El Documento No Esta en el Envio".
         List<ModeloDte.Referencia> referencias = new ArrayList<>();
         int nroRef = 1;
+        if (doc.getSetCaso() != null) {
+            ModeloDte.Referencia set = new ModeloDte.Referencia();
+            set.numeroLinea = nroRef++;
+            set.tipoDocumentoRef = "SET";
+            set.folioRef = doc.getSetCaso();
+            set.fechaRef = doc.getFechaEmision().format(FECHA);
+            set.razon = "CASO " + doc.getSetCaso();
+            referencias.add(set);
+        }
         for (cl.nexosoftware.factura.documento.Referencia r : doc.getReferencias()) {
             ModeloDte.Referencia ref = new ModeloDte.Referencia();
             ref.numeroLinea = nroRef++;
-            ref.tipoDocumentoRef = r.getTipoDocumentoRef();
-            ref.folioRef = r.getFolioRef();
+            ref.tipoDocumentoRef = String.valueOf(r.getTipoDocumentoRef());
+            ref.folioRef = String.valueOf(r.getFolioRef());
             ref.fechaRef = r.getFechaRef().format(FECHA);
             ref.codigoReferencia = r.getTipoReferencia().getCodigo();
             ref.razon = t(r.getRazon(), 90);

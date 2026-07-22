@@ -90,6 +90,14 @@ public class DocumentoTributario {
     @Column(name = "descuento_global_pct", updatable = false)
     private Double descuentoGlobalPct;
 
+    /**
+     * Numero de caso del set de pruebas de certificacion del SII (ej:
+     * "4965879-1"); null fuera de certificacion. Genera la primera Referencia
+     * del XML con TpoDocRef=SET, FolioRef=este valor y RazonRef="CASO <valor>".
+     */
+    @Column(name = "set_caso", updatable = false, length = 18)
+    private String setCaso;
+
     // --- Trazas del proceso tributario ---
     @Column(name = "xml_dte", columnDefinition = "text")
     private String xmlDte;
