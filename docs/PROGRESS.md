@@ -1,6 +1,6 @@
 # Progreso
 
-> Última actualización: 2026-07-20. Sprints 1, 2, 3, 4 y 5 **completados y verificados** (todo lo que no depende de certificado/CAF reales), más el **sitio público y la Configuración del emisor** (post-Sprint 5).
+> Última actualización: 2026-07-22. Sprints 1 a 6 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5). E2E de certificación cumplido en ambos canales: **factura 33 y boleta 39 ACEPTADAS por el SII**.
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -340,7 +340,7 @@ Bugs de fidelidad cazados por los tests durante la implementación (guardarraíl
 | Review multi-ángulo + correcciones | ✅ (ver arriba) |
 | ITs (Testcontainers) migrados al contrato nuevo | ⚠️ compilan; no ejecutables en este host (corren en CI) |
 | **E2E certificación — factura 33** (canal clásico maullin): emitir → TED real → firma real → EnvioDTE → upload → QueryEstUp | ✅ **ACEPTADA por el SII** (folio 4, TrackID `0253238320`; el folio 3 quedó REPARO por el hallazgo 6, ya corregido) |
-| **E2E certificación — boleta 39** (API REST pangal/apicert): semilla → token → EnvioBOLETA → envío → estado | 🟡 **Pipeline técnico completo validado** — schema del sobre OK, firma del SetDTE OK, firma del DTE OK y TED sin reparo (folio 4); el SII rechaza cada folio con **601 "Folio DTE Anulado"**: el CAF 39 cargado está **anulado en el SII** (estado administrativo del portal, no código — el riesgo previsto en el plan §6). Para cerrar: timbrar un CAF 39 nuevo en el portal de certificación, cargarlo por Folios y reintentar (el mismo código compartido ya aceptó la factura). |
+| **E2E certificación — boleta 39** (API REST pangal/apicert): semilla → token → EnvioBOLETA → envío → estado | ✅ **ACEPTADA por el SII** (folio 106, TrackID `30435211`). Los folios 1-4 habían rechazado con **601 "Folio DTE Anulado"** — el CAF 39 original (1-100) estaba superseded en el portal (estado administrativo, no código); con un CAF nuevo timbrado (folios 106-155) y el viejo marcado agotado en la BD, el primer envío fue aceptado sin reparos. |
 
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md). Con P0-4/5/6 implementados, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: E2E de notas 56/61 y factura exenta 34 (solo falta timbrar sus CAF en el portal), certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, **reconciliación por folio antes de reenviar** (cierra el caso timeout-tras-recepción que hoy puede duplicar un envío, ver el límite conocido del Sprint 6), el set de pruebas formal de certificación → autorización de producción (trámite administrativo), y `MedioPago`/`GeoRefEmision`. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.
