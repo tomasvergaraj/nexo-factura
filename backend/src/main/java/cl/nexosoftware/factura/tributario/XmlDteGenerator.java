@@ -130,9 +130,13 @@ public class XmlDteGenerator {
             d.numeroLinea = l.getNumeroLinea();
             d.indicadorExento = l.isAfecto() ? null : 1;
             d.nombre = t(l.getNombre(), 80);
-            d.cantidad = l.getCantidad();
-            d.unidad = t(l.getUnidad(), 4);
-            d.precioUnitario = l.getPrecioUnitario() > 0 ? l.getPrecioUnitario() : null;
+            // Con precio 0 (linea descriptiva: NC de texto, ND que anula) se omiten
+            // TAMBIEN cantidad y unidad: el revisor del SII exige QtyItem*PrcItem =
+            // MontoItem y una cantidad sin precio le "no cuadra" (reparo del set).
+            boolean conPrecio = l.getPrecioUnitario() > 0;
+            d.cantidad = conPrecio ? l.getCantidad() : null;
+            d.unidad = conPrecio ? t(l.getUnidad(), 4) : null;
+            d.precioUnitario = conPrecio ? l.getPrecioUnitario() : null;
             d.descuentoPct = l.getDescuentoPct();
             d.descuento = l.getDescuentoMonto() > 0 ? l.getDescuentoMonto() : null;
             d.codImpAdic = l.getCodImpAdic();

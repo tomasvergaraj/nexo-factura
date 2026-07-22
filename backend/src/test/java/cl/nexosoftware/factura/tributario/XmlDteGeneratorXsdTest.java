@@ -164,6 +164,18 @@ class XmlDteGeneratorXsdTest {
     }
 
     @Test
+    @DisplayName("la unidad de medida de la linea viaja en UnmdItem (caso exenta: Hora)")
+    void unidadDeMedidaPersonalizadaEsValida() {
+        DocumentoTributario doc = DteFixtures.factura(10.0, 6180L, false);
+        doc.setTipoDte(TipoDte.FACTURA_EXENTA);
+        doc.getLineas().get(0).setUnidad("Hora");
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.FACTURA_EXENTA)).doesNotThrowAnyException();
+        assertThat(xml).contains("<UnmdItem>Hora</UnmdItem>");
+    }
+
+    @Test
     @DisplayName("un DTE con setCaso emite la Referencia SET (sin CodRef) y cumple el XSD")
     void referenciaAlSetDeCertificacionEsValida() {
         // El revisor del set asocia el DTE a su caso por esta referencia; sin
@@ -219,9 +231,12 @@ class XmlDteGeneratorXsdTest {
                 .contains("<MntTotal>0</MntTotal>")
                 .contains("<CodRef>2</CodRef>")
                 .contains("<RazonRef>CORRIGE GIRO DEL RECEPTOR</RazonRef>");
-        // Sin monto afecto no se declara neto/IVA (y el precio 0 omite PrcItem).
+        // Sin monto afecto no se declara neto/IVA. La linea de precio 0 omite
+        // PrcItem Y TAMBIEN QtyItem/UnmdItem: el revisor del set exige
+        // QtyItem*PrcItem = MontoItem y una cantidad sin precio no le cuadra.
         assertThat(xml).doesNotContain("<MntNeto>").doesNotContain("<TasaIVA>")
-                .doesNotContain("<IVA>").doesNotContain("<PrcItem>");
+                .doesNotContain("<IVA>").doesNotContain("<PrcItem>")
+                .doesNotContain("<QtyItem>").doesNotContain("<UnmdItem>");
     }
 
     @Test

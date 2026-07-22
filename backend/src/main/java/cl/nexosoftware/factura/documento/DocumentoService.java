@@ -569,6 +569,9 @@ public class DocumentoService {
         if (nombre == null || nombre.isBlank()) {
             throw new ReglaNegocioException("Cada linea requiere un producto o un nombre");
         }
+        if (lr.unidad() != null && !lr.unidad().isBlank()) {
+            unidad = lr.unidad();
+        }
 
         double cantidad = normalizarCantidad(lr.cantidad());
         Double pct = normalizarPct(lr.descuentoPct(), "El descuento porcentual de la linea");

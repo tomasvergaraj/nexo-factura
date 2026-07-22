@@ -56,12 +56,21 @@ public final class DocumentoDtos {
             // Codigo de otro impuesto (catalogo TipoImpuesto); null = solo IVA. La
             // validez del codigo y su compatibilidad con el tipo/linea se chequean
             // en DocumentoService (regla de negocio, no Bean Validation).
-            Integer codImpAdic
+            Integer codImpAdic,
+            // Unidad de medida (UnmdItem, max 4 chars); null = "UN". El revisor del
+            // set compara la unidad contra el caso (ej: "Hora" en la exenta).
+            @Size(max = 4) String unidad
     ) {
         /** Forma sin descuento porcentual (compatibilidad con los usos previos). */
         public LineaRequest(Long productoId, String nombre, Double cantidad, Long precioUnitario,
                             Long descuentoMonto, Boolean afecto, Integer codImpAdic) {
-            this(productoId, nombre, cantidad, precioUnitario, descuentoMonto, null, afecto, codImpAdic);
+            this(productoId, nombre, cantidad, precioUnitario, descuentoMonto, null, afecto, codImpAdic, null);
+        }
+
+        /** Forma sin unidad de medida (compatibilidad con los usos previos). */
+        public LineaRequest(Long productoId, String nombre, Double cantidad, Long precioUnitario,
+                            Long descuentoMonto, Double descuentoPct, Boolean afecto, Integer codImpAdic) {
+            this(productoId, nombre, cantidad, precioUnitario, descuentoMonto, descuentoPct, afecto, codImpAdic, null);
         }
     }
 
