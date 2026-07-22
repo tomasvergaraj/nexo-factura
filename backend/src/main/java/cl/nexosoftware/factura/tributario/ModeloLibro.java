@@ -58,17 +58,24 @@ public final class ModeloLibro {
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class TotalesPeriodo {
         @XmlElement(name = "TpoDoc") public int tpoDoc;
+        // 1 = IVA. El Formato IECV lo hace OBLIGATORIO en el libro de compras
+        // (el XSD lo declara opcional, pero el validador del SII rechaza sin el).
+        @XmlElement(name = "TpoImp") public Integer tpoImp;
         @XmlElement(name = "TotDoc") public long totDoc;
         @XmlElement(name = "TotAnulado") public Long totAnulado;
+        // Numeros de operaciones exentas / con IVA recuperable (LC).
+        @XmlElement(name = "TotOpExe") public Long totOpExe;
         @XmlElement(name = "TotMntExe") public long totMntExe;
         @XmlElement(name = "TotMntNeto") public long totMntNeto;
+        @XmlElement(name = "TotOpIVARec") public Long totOpIvaRec;
         @XmlElement(name = "TotMntIVA") public long totMntIva;
         // IVA no recuperable por codigo (LC): antes del uso comun en el XSD.
         @XmlElement(name = "TotIVANoRec") public List<TotIvaNoRec> totIvaNoRec;
         @XmlElement(name = "TotOpIVAUsoComun") public Long totOpIvaUsoComun;
         @XmlElement(name = "TotIVAUsoComun") public Long totIvaUsoComun;
-        // Factor de proporcionalidad del IVA uso comun (LC), 3 decimales.
-        @XmlElement(name = "FctProp") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double fctProp;
+        // Factor de proporcionalidad del IVA uso comun (LC). String ya formateado
+        // con DOS decimales ("0.60"): el validador del SII rechaza "0.6" (LRS).
+        @XmlElement(name = "FctProp") public String fctProp;
         @XmlElement(name = "TotCredIVAUsoComun") public Long totCredIvaUsoComun;
         // Otros impuestos agregados por codigo (adicionales y retenciones).
         @XmlElement(name = "TotOtrosImp") public List<TotOtroImp> totOtrosImp;
@@ -122,8 +129,9 @@ public final class ModeloLibro {
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class OtroImp {
         @XmlElement(name = "CodImp") public int codImp;
-        // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
-        @XmlElement(name = "TasaImp") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double tasaImp;
+        // String ya formateado ("19" o "20.5"): sin ".0" colgante para el
+        // validador legado del IECV.
+        @XmlElement(name = "TasaImp") public String tasaImp;
         @XmlElement(name = "MntImp") public long mntImp;
     }
 }

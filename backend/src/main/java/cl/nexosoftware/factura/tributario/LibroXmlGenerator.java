@@ -79,7 +79,7 @@ public class LibroXmlGenerator {
         if (!libro.resumen().isEmpty()) {
             ModeloLibro.ResumenPeriodo resumen = new ModeloLibro.ResumenPeriodo();
             resumen.totalesPeriodo = libro.resumen().stream()
-                    .map(t -> aTotales(t, libro.fctProp(), compras))
+                    .map(t -> aTotales(t, libro.fctProp(), compras, libro.detalle()))
                     .toList();
             envio.resumenPeriodo = resumen;
         }
@@ -91,7 +91,11 @@ public class LibroXmlGenerator {
 
         envio.tmstFirma = LocalDateTime.now(clock).format(TIMESTAMP);
 
-        String xml = JaxbXml.marshalPlano(lcv, "No se pudo generar el XML del libro");
+        // IDENTADO, no plano: el validador del SII rechaza lineas de mas de ~4K
+        // caracteres ("CHR-00002: Line too long (4090)", hallado con el libro de
+        // compras del set). El libro no tiene TED, asi que puede formatearse; la
+        // firma se calcula DESPUES sobre el XML ya formateado.
+        String xml = JaxbXml.marshal(lcv, "No se pudo generar el XML del libro");
         // xsi:schemaLocation ANTES de firmar: el upload del SII identifica el tipo
         // de archivo por esta declaracion y sin ella rechaza con STATUS=7
         // "SCH-00001: Invalid Schema Name" (hallado al enviar el primer IECV).
@@ -104,11 +108,21 @@ public class LibroXmlGenerator {
         return xml;
     }
 
-    private static ModeloLibro.TotalesPeriodo aTotales(LibroResumenTipo t, Double fctProp, boolean compras) {
+    private static ModeloLibro.TotalesPeriodo aTotales(LibroResumenTipo t, Double fctProp, boolean compras,
+                                                       List<LibroDetalleDoc> detalle) {
         ModeloLibro.TotalesPeriodo tp = new ModeloLibro.TotalesPeriodo();
         tp.tpoDoc = t.tipoDocumento();
         tp.totDoc = t.documentos();
         tp.totAnulado = t.anulados() > 0 ? t.anulados() : null;
+        if (compras) {
+            // Campos que el Formato IECV exige en el libro de compras aunque el
+            // XSD los declare opcionales (sin ellos el SII rechaza con LRS).
+            tp.tpoImp = 1;
+            long opExe = contar(detalle, t.tipoDocumento(), d -> d.exento() > 0);
+            long opIvaRec = contar(detalle, t.tipoDocumento(), d -> d.iva() > 0);
+            tp.totOpExe = opExe > 0 ? opExe : null;
+            tp.totOpIvaRec = opIvaRec > 0 ? opIvaRec : null;
+        }
         tp.totMntExe = t.exento();
         tp.totMntNeto = t.neto();
         tp.totMntIva = t.iva();
@@ -130,7 +144,8 @@ public class LibroXmlGenerator {
                 throw new ReglaNegocioException(
                         "El libro tiene IVA de uso comun: informe el factor de proporcionalidad (fctProp)");
             }
-            tp.fctProp = fctProp;
+            // Dos decimales fijos ("0.60"): el validador del SII rechaza "0.6".
+            tp.fctProp = String.format(java.util.Locale.ROOT, "%.2f", fctProp);
             tp.totCredIvaUsoComun = t.creditoIvaUsoComun();
         }
         if (t.otrosImpuestos() > 0) {
@@ -152,6 +167,11 @@ public class LibroXmlGenerator {
         }
         tp.totMntTotal = t.total();
         return tp;
+    }
+
+    private static long contar(List<LibroDetalleDoc> detalle, int tipo,
+                               java.util.function.Predicate<LibroDetalleDoc> filtro) {
+        return detalle.stream().filter(d -> d.tipoDocumento() == tipo).filter(filtro).count();
     }
 
     private static ModeloLibro.Detalle aDetalle(LibroDetalleDoc d, boolean compras) {
@@ -181,7 +201,7 @@ public class LibroXmlGenerator {
             if (compras) {
                 ModeloLibro.OtroImp ret = new ModeloLibro.OtroImp();
                 ret.codImp = COD_IVA_RETENIDO_TOTAL;
-                ret.tasaImp = 19.0;
+                ret.tasaImp = "19";
                 ret.mntImp = d.ivaRetenido();
                 det.otrosImp = List.of(ret);
             } else {

@@ -101,7 +101,7 @@ class LibroXmlGeneratorTest {
                 // Uso comun: operaciones, monto, factor y credito en el resumen.
                 .contains("<TotOpIVAUsoComun>1</TotOpIVAUsoComun>")
                 .contains("<TotIVAUsoComun>5657</TotIVAUsoComun>")
-                .contains("<FctProp>0.6</FctProp>")
+                .contains("<FctProp>0.60</FctProp>")
                 .contains("<TotCredIVAUsoComun>3394</TotCredIVAUsoComun>")
                 .contains("<IVAUsoComun>5657</IVAUsoComun>")
                 // Entrega gratuita: IVA no recuperable codigo 4.
@@ -110,7 +110,7 @@ class LibroXmlGeneratorTest {
                 .contains("<TotMntIVANoRec>1893</TotMntIVANoRec>")
                 // Retencion total de la factura de compra: OtrosImp codigo 15.
                 .contains("<CodImp>15</CodImp>")
-                .contains("<TasaImp>19.0</TasaImp>")
+                .contains("<TasaImp>19</TasaImp>")
                 .contains("<MntImp>1813</MntImp>")
                 .contains("<TotMntImp>1813</TotMntImp>")
                 // Compras: TpoImp=1 (IVA) por detalle.

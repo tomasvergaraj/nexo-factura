@@ -248,6 +248,9 @@ public class SiiTransporteDte extends SiiTransporteBase {
         if (RECHAZADOS.contains(estado)) {
             log.warn("Envio {} rechazado por el SII (estado {}, glosa: {})",
                     trackId, estado, SiiXml.textoElemento(respuesta, "GLOSA"));
+            // Cuerpo completo: el detalle del rechazo (p.ej. la linea del error de
+            // schema de un libro) viaja fuera de ESTADO/GLOSA.
+            log.warn("Respuesta completa del SII para {}: {}", trackId, respuesta);
             return SiiGateway.EstadoEnvio.RECHAZADO;
         }
         if ("EPR".equals(estado)) {
