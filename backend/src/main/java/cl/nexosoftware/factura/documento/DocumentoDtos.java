@@ -125,6 +125,12 @@ public final class DocumentoDtos {
             String ultimoErrorEnvio
     ) {}
 
+    /** Resultado del envio de un LOTE (un sobre con varios documentos, un TrackID). */
+    public record LoteEnvioResponse(
+            String trackId,
+            List<DocumentoResumen> documentos
+    ) {}
+
     /** Resultado del reenvio masivo de documentos EN_CONTINGENCIA. */
     public record ReenvioMasivoResponse(
             int procesados,

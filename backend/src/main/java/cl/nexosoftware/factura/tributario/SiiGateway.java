@@ -20,6 +20,12 @@ public interface SiiGateway {
      */
     String enviarLibro(EnvioLibroSii envio);
 
+    /**
+     * Envia VARIOS DTE firmados en UN solo sobre (un TrackID): lo que exige el
+     * set de pruebas de certificacion (un envio por set). Solo canal clasico.
+     */
+    String enviarLote(java.util.List<EnvioSii> envios);
+
     /** Consulta el estado de un envio por su TrackID. */
     EstadoEnvio consultarEstado(ConsultaSii consulta);
 

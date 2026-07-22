@@ -86,6 +86,16 @@ public class SiiTransporteDte extends SiiTransporteBase {
                 "el libro IECV " + envio.tipoOperacion() + " " + envio.periodo()));
     }
 
+    /** Sobre multi-documento (set de pruebas): un EnvioDTE con N DTEs, un TrackID. */
+    @Override
+    public String enviarLote(java.util.List<SiiGateway.EnvioSii> envios) {
+        String sobre = envioGenerator.generarLote(envios);
+        String rutEmisor = envios.get(0).rutEmisor();
+        String nombre = "EnvioDTE_LOTE_" + envios.size() + "docs.xml";
+        return conReintentoDeToken(token -> subirSobre(
+                rutEmisor, nombre, sobre, token, "el lote EnvioDTE de " + envios.size() + " documentos"));
+    }
+
     private String upload(SiiGateway.EnvioSii envio, String sobre, String token) {
         return subirSobre(envio.rutEmisor(),
                 "EnvioDTE_T" + envio.tipoDte() + "F" + envio.folio() + ".xml",

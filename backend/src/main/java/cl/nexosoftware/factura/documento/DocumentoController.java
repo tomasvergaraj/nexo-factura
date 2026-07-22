@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/empresas/{empresaId}/documentos")
 @RequiredArgsConstructor
@@ -70,6 +72,16 @@ public class DocumentoController {
     public DocumentoResponse reenviar(@PathVariable Long empresaId, @PathVariable Long id,
                                       @RequestParam(defaultValue = "false") boolean forzar) {
         return service.reenviarSii(empresaId, id, forzar);
+    }
+
+    @PostMapping("/enviar-lote")
+    @Operation(summary = "Enviar VARIOS documentos firmados en UN sobre EnvioDTE (un TrackID): "
+            + "lo que exige el set de pruebas de certificacion (un envio por set). "
+            + "El estado del lote se consulta por TrackID en /libros/envios/{trackId}/estado.")
+    @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
+    public LoteEnvioResponse enviarLote(@PathVariable Long empresaId,
+                                        @RequestBody List<Long> documentoIds) {
+        return service.enviarLoteSii(empresaId, documentoIds);
     }
 
     @PostMapping("/reenviar-pendientes")

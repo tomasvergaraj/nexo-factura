@@ -192,6 +192,50 @@ public class DocumentoService {
     }
 
     /**
+     * Envia VARIOS documentos firmados en UN solo sobre EnvioDTE (un TrackID):
+     * lo que exige la etapa de set de pruebas de la certificacion (un envio por
+     * set). Todos deben tener XML firmado; los FIRMADO pasan a ENVIADO y todos
+     * registran el TrackID del lote (un documento ya ANULADO localmente por su
+     * NC conserva su estado). Si el SII no esta disponible, la excepcion
+     * propaga y ningun estado cambia: se reintenta el lote completo.
+     */
+    @Transactional
+    public LoteEnvioResponse enviarLoteSii(Long empresaId, List<Long> ids) {
+        Empresa emisor = empresaService.buscar(empresaId);
+        if (ids == null || ids.isEmpty()) {
+            throw new ReglaNegocioException("El lote debe incluir al menos un documento");
+        }
+        List<DocumentoTributario> docs = new ArrayList<>();
+        List<SiiGateway.EnvioSii> envios = new ArrayList<>();
+        for (Long id : ids) {
+            DocumentoTributario doc = buscarConDetalle(empresaId, id);
+            if (doc.getXmlDte() == null) {
+                throw new ReglaNegocioException(
+                        "El documento " + id + " no tiene XML firmado: emitalo antes de enviar el lote");
+            }
+            docs.add(doc);
+            envios.add(new SiiGateway.EnvioSii(
+                    doc.getXmlDte(), doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut()));
+        }
+
+        String trackId = siiGateway.enviarLote(envios);
+
+        List<DocumentoResumen> resumenes = new ArrayList<>();
+        for (DocumentoTributario doc : docs) {
+            doc.setTrackId(trackId);
+            doc.setIntentosEnvio(doc.getIntentosEnvio() + 1);
+            doc.setUltimoEnvioEn(OffsetDateTime.now());
+            doc.setUltimoErrorEnvio(null);
+            if (doc.getEstado() == EstadoDte.FIRMADO) {
+                transicionar(doc, EstadoDte.ENVIADO);
+            }
+            documentoRepository.save(doc);
+            resumenes.add(DocumentoMapper.toResumen(doc));
+        }
+        return new LoteEnvioResponse(trackId, resumenes);
+    }
+
+    /**
      * Reintenta el envio de un documento EN_CONTINGENCIA o RECHAZADO. Se reenvia
      * el MISMO XML firmado (el contenido del DTE es inmutable y el folio ya fue
      * consumido); ante un rechazo de fondo corresponde emitir un documento nuevo.

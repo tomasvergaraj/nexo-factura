@@ -71,22 +71,45 @@ abstract class EnvioGenerator {
 
     /** Devuelve el sobre firmado y validado, listo para entregarse al SII. */
     public String generar(SiiGateway.EnvioSii envio) {
-        String dte = sinDeclaracion(envio.xmlFirmado());
+        return generarLote(java.util.List.of(envio));
+    }
+
+    /**
+     * Sobre con VARIOS DTE firmados (p.ej. un set de pruebas completo): un solo
+     * SetDTE, con un SubTotDTE por tipo de documento y todos los DTE embebidos
+     * verbatim en el orden dado. Todos deben ser del mismo emisor.
+     */
+    public String generarLote(java.util.List<SiiGateway.EnvioSii> envios) {
+        String rutEmisor = envios.get(0).rutEmisor();
+        // Un SubTotDTE por tipo, en orden de primera aparicion.
+        java.util.Map<Integer, Long> porTipo = new java.util.LinkedHashMap<>();
+        for (SiiGateway.EnvioSii e : envios) {
+            porTipo.merge(e.tipoDte(), 1L, Long::sum);
+        }
+        StringBuilder subTot = new StringBuilder();
+        for (var e : porTipo.entrySet()) {
+            subTot.append("<SubTotDTE><TpoDTE>").append(e.getKey())
+                    .append("</TpoDTE><NroDTE>").append(e.getValue()).append("</NroDTE></SubTotDTE>");
+        }
+        StringBuilder dtes = new StringBuilder();
+        for (SiiGateway.EnvioSii e : envios) {
+            dtes.append(sinDeclaracion(e.xmlFirmado()));
+        }
         String caratula = "<Caratula version=\"1.0\">"
-                + "<RutEmisor>" + envio.rutEmisor() + "</RutEmisor>"
+                + "<RutEmisor>" + rutEmisor + "</RutEmisor>"
                 + "<RutEnvia>" + certificado.rutFirmante() + "</RutEnvia>"
                 + "<RutReceptor>" + RUT_SII + "</RutReceptor>"
                 + "<FchResol>" + fchResol + "</FchResol>"
                 + "<NroResol>" + nroResol + "</NroResol>"
                 + "<TmstFirmaEnv>" + LocalDateTime.now(clock).format(TIMESTAMP) + "</TmstFirmaEnv>"
-                + "<SubTotDTE><TpoDTE>" + envio.tipoDte() + "</TpoDTE><NroDTE>1</NroDTE></SubTotDTE>"
+                + subTot
                 + "</Caratula>";
 
         String sobre = JaxbXml.PROLOGO
                 + "<" + nombreSobre() + " xmlns=\"http://www.sii.cl/SiiDte\" "
                 + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
                 + "xsi:schemaLocation=\"http://www.sii.cl/SiiDte " + esquema() + "\" version=\"1.0\">"
-                + "<SetDTE ID=\"SetDoc\">" + caratula + dte + "</SetDTE>"
+                + "<SetDTE ID=\"SetDoc\">" + caratula + dtes + "</SetDTE>"
                 + "</" + nombreSobre() + ">";
 
         String firmado = firma.firmarEnveloped(sobre, "SetDoc");

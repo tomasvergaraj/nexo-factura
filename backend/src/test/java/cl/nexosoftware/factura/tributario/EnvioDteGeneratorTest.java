@@ -66,4 +66,32 @@ class EnvioDteGeneratorTest {
         // "<Signature " con espacio: no contar SignatureValue/SignatureMethod.
         assertThat(sobre.split("<Signature ", -1).length - 1).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("un LOTE (varios DTE en un sobre) agrupa SubTotDTE por tipo y valida contra el XSD")
+    void loteMultiDocumentoValida() {
+        // Como el set de pruebas: varias facturas + una nota, en UN solo sobre.
+        var f1 = DteFixtures.factura(1.0, 10000L, true);
+        var f2 = DteFixtures.factura(2.0, 5000L, true);
+        f2.setFolio(2L);
+        var nc = DteFixtures.factura(1.0, 10000L, true);
+        nc.setTipoDte(cl.nexosoftware.factura.documento.TipoDte.NOTA_CREDITO);
+        nc.agregarReferencia(cl.nexosoftware.factura.documento.Referencia.builder()
+                .tipoDocumentoRef(33).folioRef(1L).fechaRef(java.time.LocalDate.of(2026, 6, 26))
+                .tipoReferencia(cl.nexosoftware.factura.documento.TipoReferencia.CORRIGE_MONTO)
+                .razon("DEVOLUCION DE MERCADERIAS").build());
+
+        java.util.List<SiiGateway.EnvioSii> envios = java.util.List.of(
+                new SiiGateway.EnvioSii(DteFixtures.xmlFirmado(f1), 33, 1L, DteFixtures.RUT_EMISOR),
+                new SiiGateway.EnvioSii(DteFixtures.xmlFirmado(f2), 33, 2L, DteFixtures.RUT_EMISOR),
+                new SiiGateway.EnvioSii(DteFixtures.xmlFirmado(nc), 61, 1L, DteFixtures.RUT_EMISOR));
+
+        String sobre = generador.generarLote(envios);
+
+        assertThat(sobre)
+                .contains("<SubTotDTE><TpoDTE>33</TpoDTE><NroDTE>2</NroDTE></SubTotDTE>")
+                .contains("<SubTotDTE><TpoDTE>61</TpoDTE><NroDTE>1</NroDTE></SubTotDTE>");
+        // Tres DTE (cada uno con su firma) + la firma del SetDTE.
+        assertThat(sobre.split("<Signature ", -1).length - 1).isEqualTo(4);
+    }
 }

@@ -19,6 +19,12 @@ public interface SiiTransporte {
                 "Este canal del SII no soporta el envio de libros IECV");
     }
 
+    /** Envia varios DTE en un sobre (un TrackID). Solo el canal clasico lo soporta. */
+    default String enviarLote(java.util.List<SiiGateway.EnvioSii> envios) {
+        throw new UnsupportedOperationException(
+                "Este canal del SII no soporta sobres multi-documento");
+    }
+
     SiiGateway.EstadoEnvio consultarEstado(SiiGateway.ConsultaSii consulta);
 
     /** Estado del documento por folio (reconciliacion; ver {@link SiiGateway#consultarDocumento}). */

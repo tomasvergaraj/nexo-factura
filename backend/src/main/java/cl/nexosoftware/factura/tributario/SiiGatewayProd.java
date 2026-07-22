@@ -46,6 +46,12 @@ public class SiiGatewayProd implements SiiGateway {
     }
 
     @Override
+    public String enviarLote(List<EnvioSii> envios) {
+        // Solo el canal clasico admite sobres multi-documento.
+        return transporte(envios.get(0).tipoDte()).enviarLote(envios);
+    }
+
+    @Override
     public EstadoEnvio consultarEstado(ConsultaSii consulta) {
         return transporte(consulta.tipoDte()).consultarEstado(consulta);
     }
