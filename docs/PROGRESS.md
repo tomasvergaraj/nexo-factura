@@ -1,6 +1,6 @@
 # Progreso
 
-> Última actualización: 2026-07-22. Sprints 1 a 6 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5). E2E de certificación cumplido en ambos canales: **factura 33 y boleta 39 ACEPTADAS por el SII**.
+> Última actualización: 2026-07-22. Sprints 1 a 6 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5). E2E de certificación cumplido en ambos canales y en **los cinco tipos de DTE soportados: factura 33, boleta 39, factura exenta 34, nota de débito 56 y nota de crédito 61 — todas ACEPTADAS por el SII**.
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -329,6 +329,11 @@ El gate real (SII de certificación) cazó **seis bugs invisibles para la suite*
 
 Bugs de fidelidad cazados por los tests durante la implementación (guardarraíles para no regresar): `DescuentoMonto=0` es inválido en factura (`MntImpType` exige mínimo 1 → el elemento se omite); el TED se parsea con `StringReader` (es un fragmento sin encoding declarado — parsearlo por bytes rompía los acentos); el TED escapa **solo** `& < >`.
 
+La ronda de cierre del E2E (34/56/61, 2026-07-22) cazó dos más:
+
+7. **Documento exento con IVA declarado**: `ModeloDte.Totales` emitía siempre `MntNeto`/`TasaIVA`/`IVA` (primitivos) — schema-válido, pero el SII rechaza a nivel de documento una factura exenta 34 que declare IVA (folio 1, sin glosa en el QueryEstUp agregado). Fix: campos nulables y omisión cuando el documento no tiene monto afecto (espejo de lo que la rama boleta ya hacía); guardarraíl en `XmlDteGeneratorXsdTest`. Validado con el folio 2 ACEPTADO.
+8. **Conexión cortada LEYENDO la respuesta del SII → 500 en vez de contingencia**: maullin cerró el socket a mitad de la respuesta del upload y la excepción salió como `RestClientException` plano (no `ResourceAccessException`, que solo cubre el fallo al conectar) — escapaba como error 500 al usuario. Fix: catch de `RestClientException` residual → `SiiNoDisponibleException` (contingencia) en los cuatro puntos de transporte (upload clásico, SOAP, envío y estado de boleta).
+
 ## Verificación
 
 | Gate | Resultado |
@@ -341,6 +346,9 @@ Bugs de fidelidad cazados por los tests durante la implementación (guardarraíl
 | ITs (Testcontainers) migrados al contrato nuevo | ⚠️ compilan; no ejecutables en este host (corren en CI) |
 | **E2E certificación — factura 33** (canal clásico maullin): emitir → TED real → firma real → EnvioDTE → upload → QueryEstUp | ✅ **ACEPTADA por el SII** (folio 4, TrackID `0253238320`; el folio 3 quedó REPARO por el hallazgo 6, ya corregido) |
 | **E2E certificación — boleta 39** (API REST pangal/apicert): semilla → token → EnvioBOLETA → envío → estado | ✅ **ACEPTADA por el SII** (folio 106, TrackID `30435211`). Los folios 1-4 habían rechazado con **601 "Folio DTE Anulado"** — el CAF 39 original (1-100) estaba superseded en el portal (estado administrativo, no código); con un CAF nuevo timbrado (folios 106-155) y el viejo marcado agotado en la BD, el primer envío fue aceptado sin reparos. |
+| **E2E certificación — nota de crédito 61** (canal clásico, referencia CORRIGE_MONTO a la factura folio 4) | ✅ **ACEPTADA por el SII** (folio 1, TrackID `0253261690`) |
+| **E2E certificación — nota de débito 56** (canal clásico, referencia ANULA_DOCUMENTO a la NC folio 1) | ✅ **ACEPTADA por el SII** (folio 1, TrackID `0253261842`) |
+| **E2E certificación — factura exenta 34** (canal clásico) | ✅ **ACEPTADA por el SII** (folio 2, TrackID `0253261856`). El folio 1 rechazó por el hallazgo 7 (abajo), corregido y validado en el mismo E2E. |
 
 # Pendiente
-Ver [ROADMAP.md](ROADMAP.md). Con P0-4/5/6 implementados, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: E2E de notas 56/61 y factura exenta 34 (solo falta timbrar sus CAF en el portal), certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, **reconciliación por folio antes de reenviar** (cierra el caso timeout-tras-recepción que hoy puede duplicar un envío, ver el límite conocido del Sprint 6), el set de pruebas formal de certificación → autorización de producción (trámite administrativo), y `MedioPago`/`GeoRefEmision`. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.
+Ver [ROADMAP.md](ROADMAP.md). Con P0-4/5/6 implementados y el E2E de certificación aceptado en los cinco tipos, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, **reconciliación por folio antes de reenviar** (cierra el caso timeout-tras-recepción que hoy puede duplicar un envío, ver el límite conocido del Sprint 6), el set de pruebas formal de certificación → autorización de producción (trámite administrativo), y `MedioPago`/`GeoRefEmision`. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

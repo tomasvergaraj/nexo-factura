@@ -81,6 +81,18 @@ class XmlDteGeneratorXsdTest {
     }
 
     @Test
+    @DisplayName("una factura exenta 34 emite MntExe sin MntNeto/TasaIVA/IVA y cumple el XSD")
+    void facturaExentaOmiteNetoEIva() {
+        DocumentoTributario doc = DteFixtures.factura(1.0, 25000L, false);
+        doc.setTipoDte(TipoDte.FACTURA_EXENTA);
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.FACTURA_EXENTA)).doesNotThrowAnyException();
+        assertThat(xml).contains("<MntExe>25000</MntExe>")
+                .doesNotContain("<MntNeto>").doesNotContain("<TasaIVA>").doesNotContain("<IVA>");
+    }
+
+    @Test
     @DisplayName("una linea exenta emite IndExe ANTES de NmbItem (orden del XSD oficial)")
     void indExeAntesDeNmbItem() {
         DocumentoTributario doc = DteFixtures.factura(1.0, 8000L, false);

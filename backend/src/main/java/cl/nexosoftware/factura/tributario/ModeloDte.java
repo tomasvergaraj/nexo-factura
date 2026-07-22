@@ -77,11 +77,13 @@ public final class ModeloDte {
 
     @XmlAccessorType(XmlAccessType.FIELD)
     public static class Totales {
-        @XmlElement(name = "MntNeto") public long neto;
+        // Nullables: un documento sin monto afecto (34, nota 100% exenta) debe
+        // OMITIR MntNeto/TasaIVA/IVA — el SII rechaza una exenta que declare IVA.
+        @XmlElement(name = "MntNeto") public Long neto;
         @XmlElement(name = "MntExe") public long exento;
         // Decimal plano (sin notacion cientifica) para cumplir xs:decimal.
         @XmlElement(name = "TasaIVA") @XmlJavaTypeAdapter(PlainDecimalAdapter.class) public Double tasaIva;
-        @XmlElement(name = "IVA") public long iva;
+        @XmlElement(name = "IVA") public Long iva;
         // Otros impuestos (adicionales y retenciones): bloque repetible, DESPUES de
         // IVA y ANTES de MntTotal. Null/vacio -> JAXB no emite ningun nodo.
         @XmlElement(name = "ImptoReten") public List<ImptoReten> imptoReten;

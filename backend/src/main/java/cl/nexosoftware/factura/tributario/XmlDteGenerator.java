@@ -101,10 +101,13 @@ public class XmlDteGenerator {
         enc.receptor = re;
 
         ModeloDte.Totales tot = new ModeloDte.Totales();
-        tot.neto = doc.getNeto();
+        // Sin monto afecto (factura exenta 34, nota 100% exenta) se omiten
+        // MntNeto/TasaIVA/IVA: el SII rechaza una exenta que declare IVA.
+        boolean conAfecto = doc.getNeto() != 0 || doc.getIva() != 0;
+        tot.neto = conAfecto ? doc.getNeto() : null;
         tot.exento = doc.getExento();
-        tot.tasaIva = doc.getTasaIva();
-        tot.iva = doc.getIva();
+        tot.tasaIva = conAfecto ? doc.getTasaIva() : null;
+        tot.iva = conAfecto ? doc.getIva() : null;
         // Bloque ImptoReten (otros impuestos): derivado del MISMO desglose que usa la
         // calculadora, para que la suma de los MontoImp reconcilie con MntTotal.
         List<ModeloDte.ImptoReten> impuestos = new ArrayList<>();

@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Set;
@@ -86,6 +87,10 @@ public class SiiTransporteDte extends SiiTransporteBase {
             }
             throw new ReglaNegocioException(
                     "El SII rechazo el upload del EnvioDTE (HTTP " + codigo + ")");
+        } catch (RestClientException e) {
+            // Conexion cortada LEYENDO la respuesta (no viene como
+            // ResourceAccessException): transporte -> contingencia.
+            throw new SiiNoDisponibleException("SII interrumpio la respuesta al subir el EnvioDTE: " + e.getMessage());
         }
 
         String status = soap.textoElemento(respuesta, "STATUS");

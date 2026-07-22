@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
@@ -83,6 +84,10 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
             throw new SiiNoDisponibleException("SII no disponible al enviar la boleta: " + e.getMessage());
         } catch (RestClientResponseException e) {
             throw traducirError(e, "enviar la boleta");
+        } catch (RestClientException e) {
+            // Conexion cortada LEYENDO la respuesta (no viene como
+            // ResourceAccessException): transporte -> contingencia.
+            throw new SiiNoDisponibleException("SII interrumpio la respuesta al enviar la boleta: " + e.getMessage());
         }
 
         RespuestaEnvio r = parsear(respuesta, RespuestaEnvio.class);
@@ -115,6 +120,9 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
             throw new SiiNoDisponibleException("SII no disponible al consultar el estado: " + e.getMessage());
         } catch (RestClientResponseException e) {
             throw traducirError(e, "consultar el estado del envio " + consulta.trackId());
+        } catch (RestClientException e) {
+            throw new SiiNoDisponibleException(
+                    "SII interrumpio la respuesta del estado del envio " + consulta.trackId() + ": " + e.getMessage());
         }
 
         RespuestaEstado r = parsear(respuesta, RespuestaEstado.class);

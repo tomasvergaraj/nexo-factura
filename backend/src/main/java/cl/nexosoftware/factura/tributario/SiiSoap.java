@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.nio.charset.StandardCharsets;
@@ -76,6 +77,11 @@ public class SiiSoap {
             throw new SiiNoDisponibleException(
                     "SII respondio " + e.getStatusCode().value() + " en " + operacion
                             + (fault != null ? " (fault: " + fault + ")" : ""));
+        } catch (RestClientException e) {
+            // Conexion cortada LEYENDO la respuesta (no viene como
+            // ResourceAccessException): transporte -> contingencia.
+            throw new SiiNoDisponibleException(
+                    "SII interrumpio la respuesta en " + operacion + ": " + e.getMessage());
         }
 
         String retorno = textoElemento(respuesta, operacion + "Return");
