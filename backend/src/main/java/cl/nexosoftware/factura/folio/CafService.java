@@ -6,6 +6,7 @@ import cl.nexosoftware.factura.documento.TipoDte;
 import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaService;
 import cl.nexosoftware.factura.folio.CafDtos.*;
+import cl.nexosoftware.factura.seguridad.CifradorSecretos;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class CafService {
     private final CafRepository repository;
     private final CafParser cafParser;
     private final EmpresaService empresaService;
+    private final CifradorSecretos cifrador;
 
     @Transactional(readOnly = true)
     public List<CafResponse> listar(Long empresaId) {
@@ -36,6 +38,12 @@ public class CafService {
     @Transactional
     public CafResponse cargar(Long empresaId, CafRequest req) {
         Empresa empresa = empresaService.buscar(empresaId);
+        // El CAF se guarda cifrado (lleva la clave privada del timbre): sin clave
+        // maestra se rechaza el alta en vez de persistirlo en claro.
+        if (!cifrador.disponible()) {
+            throw new ReglaNegocioException(
+                    "El servidor no tiene APP_MASTER_KEY configurada: no se pueden guardar CAF cifrados");
+        }
         CafData data = cafParser.parsear(req.xmlCaf());
 
         TipoDte tipoDte;

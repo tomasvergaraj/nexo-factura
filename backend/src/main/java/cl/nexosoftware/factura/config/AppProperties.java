@@ -38,8 +38,10 @@ public record AppProperties(Jwt jwt, Cors cors, Sii sii, Security security) {
      * Seguridad de secretos en reposo.
      *
      * @param masterKey clave maestra AES-256 (32 bytes en base64) con la que se cifran los
-     *                  PKCS#12 y sus claves antes de persistirlos. Obligatoria en modo
-     *                  POR_EMPRESA; el default de desarrollo vive en application-dev.yml.
+     *                  secretos antes de persistirlos: los PKCS#12 de las empresas y sus
+     *                  claves, y el XML del CAF (que lleva la clave privada del timbre).
+     *                  Obligatoria para cargar CAF y en modo POR_EMPRESA; el default de
+     *                  desarrollo vive en application-dev.yml.
      */
     public record Security(String masterKey) {}
 }

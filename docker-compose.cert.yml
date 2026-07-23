@@ -5,6 +5,12 @@
 #   APP_SII_CERT_PASSWORD=...        clave del PKCS#12 de secrets/
 #   APP_SII_FCH_RESOL=2026-05-14     fecha de resolucion del ambiente cert ("Datos de la Empresa")
 #   APP_JWT_SECRET_PROD=...          secret real (>=32 bytes, distinto del de dev)
+#   APP_MASTER_KEY=...               32 bytes en base64, distinta de la de desarrollo
+#
+# ATENCION con APP_MASTER_KEY: cifra en reposo los CAF (su clave privada RSA
+# timbra los DTE) y los PKCS#12 por empresa. PERDERLA = perder los CAF cargados
+# (habria que volver a subir los XML del SII). Debe ser PERSISTENTE, respaldada
+# aparte de la BD, y la misma entre reinicios.
 #
 # El perfil prod activa: firma XMLDSig real, gateway real (apicert/pangal) y la
 # validacion fail-fast del certificado. La BD es la misma de dev; para el E2E se
@@ -12,11 +18,9 @@
 #
 # Modo de firma: por defecto GLOBAL (un unico PKCS#12 del ambiente via
 # APP_SII_CERT_PATH del docker-compose.yml base). Para el DRY-RUN multi-tenant
-# (firmar con el certificado por-empresa cargado por la API) agregar al .env:
-#   APP_SII_FIRMA_MODO=POR_EMPRESA
-#   APP_MASTER_KEY=<32 bytes en base64, distinta de la de desarrollo>
-# y descomentar las dos lineas de abajo. En POR_EMPRESA el APP_SII_CERT_PATH se
-# ignora y cada empresa firma con su certificado cifrado en BD.
+# (firmar con el certificado por-empresa cargado por la API) agregar al .env
+# APP_SII_FIRMA_MODO=POR_EMPRESA y descomentar la linea de abajo. En POR_EMPRESA
+# el APP_SII_CERT_PATH se ignora y cada empresa firma con su certificado cifrado.
 services:
   backend:
     environment:
@@ -24,5 +28,5 @@ services:
       APP_SII_AMBIENTE: CERTIFICACION
       APP_SII_FCH_RESOL: ${APP_SII_FCH_RESOL:?falta APP_SII_FCH_RESOL en .env}
       APP_JWT_SECRET: ${APP_JWT_SECRET_PROD:?falta APP_JWT_SECRET_PROD en .env}
+      APP_MASTER_KEY: ${APP_MASTER_KEY:?falta APP_MASTER_KEY en .env (cifra CAF y certificados)}
       # APP_SII_FIRMA_MODO: ${APP_SII_FIRMA_MODO:-GLOBAL}
-      # APP_MASTER_KEY: ${APP_MASTER_KEY:?falta APP_MASTER_KEY para POR_EMPRESA}

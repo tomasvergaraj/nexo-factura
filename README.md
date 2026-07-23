@@ -283,11 +283,27 @@ El backend se configura por variables de entorno (perfiles `dev` / `prod`):
 | `APP_CORS_ORIGINS`              | Orígenes permitidos (CSV)                               | `http://localhost:5173,…`|
 | `APP_SII_AMBIENTE`              | `CERTIFICACION` (Maullín) / `PRODUCCION` (Palena)       | `CERTIFICACION`          |
 | `APP_SII_CERT_PATH` / `_PASSWORD` | Certificado PKCS#12 del representante legal            | *(vacío)*                |
+| `APP_SII_FIRMA_MODO`            | `GLOBAL` (un certificado por ambiente) / `POR_EMPRESA`  | `GLOBAL`                 |
+| `APP_MASTER_KEY`                | Clave maestra AES-256 (32 bytes en base64) de los secretos en reposo | *(default solo dev)* |
 | `APP_DTE_VALIDAR_XSD`           | Validar el XML contra el XSD antes de firmar            | `true`                   |
 | `APP_RATE_LIMIT_ENABLED`        | Rate limiting de autenticación                          | `true`                   |
 
 En **producción** el arranque **falla si falta `APP_JWT_SECRET`** (no hay default fuera
 de desarrollo).
+
+### Secretos en reposo (`APP_MASTER_KEY`)
+
+Se cifran con AES-256-GCM antes de tocar la base (`CifradorSecretos`): el **XML del
+CAF** —que lleva la clave privada RSA con la que se timbra el TED— y, en modo
+`POR_EMPRESA`, el **PKCS#12 de cada empresa y su clave**. La clave maestra vive solo
+en el entorno, nunca en la BD ni en los logs.
+
+- Sin `APP_MASTER_KEY` no se pueden cargar CAF (la API responde 422 en vez de guardar
+  el CAF en claro). Fuera de `dev` no hay default.
+- Es **persistente**: perderla o cambiarla deja ilegibles los CAF y certificados ya
+  guardados (habría que volver a subir los XML del SII). Respaldarla aparte de la BD.
+- Las filas anteriores al cifrado se migran solas al arrancar (`CafCifradoBackfill`);
+  no compartas una misma base entre entornos con claves maestras distintas.
 
 ---
 

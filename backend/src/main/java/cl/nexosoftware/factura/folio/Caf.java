@@ -1,8 +1,10 @@
 package cl.nexosoftware.factura.folio;
 
 import cl.nexosoftware.factura.documento.TipoDte;
+import cl.nexosoftware.factura.seguridad.SecretoTextoConverter;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -13,9 +15,13 @@ import java.time.OffsetDateTime;
  * Cada CAF habilita un rango de folios [folioDesde, folioHasta] para un tipo de
  * DTE. El campo {@code folioActual} avanza a medida que se emiten documentos;
  * su asignacion debe ser atomica para evitar folios duplicados bajo concurrencia.
+ *
+ * <p>{@code @DynamicUpdate}: avanzar el folio no debe reescribir (ni volver a
+ * cifrar, con IV nuevo) el XML del CAF, que no cambia nunca.
  */
 @Entity
 @Table(name = "caf")
+@DynamicUpdate
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class Caf {
@@ -41,7 +47,12 @@ public class Caf {
     @Column(name = "folio_actual", nullable = false)
     private long folioActual;
 
-    /** Contenido XML del CAF firmado por el SII (se usa al timbrar el DTE). */
+    /**
+     * Contenido XML del CAF firmado por el SII (se usa al timbrar el DTE).
+     * Lleva la clave privada RSA del rango de folios, asi que se persiste
+     * CIFRADO ({@link SecretoTextoConverter}); en memoria es el XML en claro.
+     */
+    @Convert(converter = SecretoTextoConverter.class)
     @Column(name = "xml_caf", columnDefinition = "text")
     private String xmlCaf;
 

@@ -31,6 +31,10 @@ services:
       DB_PASSWORD: nexo
       APP_JWT_SECRET: dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789
       APP_CORS_ORIGINS: http://localhost:5173,http://localhost:8081
+      # Clave maestra de los secretos en reposo (CAF y PKCS#12 por empresa). Toma
+      # la del .env si existe, para que dev y el ambiente de certificacion (que
+      # comparten esta BD) puedan descifrar los mismos CAF; si no, la de dev.
+      APP_MASTER_KEY: ${APP_MASTER_KEY:-bmV4by1mYWN0dXJhLWRldi1tYXN0ZXIta2V5LTAxMjM=}
       # Certificado digital (PKCS#12) para la firma real (P0-4/5/6).
       # La clave vive en el .env local (gitignoreado), nunca en este archivo.
       APP_SII_CERT_PATH: /secrets/19726539-6.pfx
