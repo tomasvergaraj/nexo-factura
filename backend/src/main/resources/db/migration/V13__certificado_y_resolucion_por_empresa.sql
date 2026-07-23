@@ -26,7 +26,7 @@ CREATE TABLE certificado_empresa (
     valido_desde     TIMESTAMPTZ  NOT NULL,
     valido_hasta     TIMESTAMPTZ  NOT NULL,
     huella_sha256    VARCHAR(64)  NOT NULL,
-    key_version      SMALLINT     NOT NULL DEFAULT 1,
+    key_version      INTEGER      NOT NULL DEFAULT 1,
     activo           BOOLEAN      NOT NULL DEFAULT TRUE,
     creado_por       VARCHAR(180),
     creado_en        TIMESTAMPTZ  NOT NULL,

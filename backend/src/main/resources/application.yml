@@ -55,13 +55,12 @@ app:
       ventana-segundos: ${APP_RATE_LIMIT_VENTANA_SEG:900}
       bloqueo-segundos: ${APP_RATE_LIMIT_BLOQUEO_SEG:900}
       max-entradas: ${APP_RATE_LIMIT_MAX_ENTRADAS:50000}
-  cors:
-    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
-  security:
     # Clave maestra AES-256 (32 bytes base64) para cifrar los PKCS#12 de los
     # clientes antes de persistirlos. Obligatoria con firma-modo=por-empresa;
     # el default de desarrollo vive solo en application-dev.yml.
     master-key: ${APP_MASTER_KEY:}
+  cors:
+    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:4173}
   sii:
     # CERTIFICACION (apicert/pangal + maullin) o PRODUCCION (api/rahue + palena)
     ambiente: ${APP_SII_AMBIENTE:CERTIFICACION}
