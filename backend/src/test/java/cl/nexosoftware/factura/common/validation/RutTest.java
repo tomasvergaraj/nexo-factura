@@ -72,4 +72,24 @@ class RutTest {
     void normalizaNull() {
         assertThat(Rut.normalizar(null)).isNull();
     }
+
+    @ParameterizedTest
+    @DisplayName("formatear agrega separador de miles para la muestra impresa (Manual 1.2)")
+    @CsvSource({
+            "78397017-1,   78.397.017-1",  // el RUT del emisor de certificacion
+            "12345678-5,   12.345.678-5",
+            "765432103,    76.543.210-3",  // acepta la entrada sin puntos ni guion
+            "76.543.210-3, 76.543.210-3",  // idempotente
+            "78222333-k,   78.222.333-K",  // DV K normalizado a mayuscula
+            "1-9,          1-9"            // cuerpo corto: sin puntos
+    })
+    void formateaConPuntos(String entrada, String esperado) {
+        assertThat(Rut.formatear(entrada)).isEqualTo(esperado);
+    }
+
+    @Test
+    @DisplayName("formatear de null devuelve null")
+    void formateaNull() {
+        assertThat(Rut.formatear(null)).isNull();
+    }
 }

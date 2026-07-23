@@ -1,7 +1,11 @@
 package cl.nexosoftware.factura.tributario;
 
+import cl.nexosoftware.factura.common.validation.Rut;
+import cl.nexosoftware.factura.config.AppProperties;
 import cl.nexosoftware.factura.documento.DocumentoTributario;
 import cl.nexosoftware.factura.documento.LineaDetalle;
+import cl.nexosoftware.factura.documento.Referencia;
+import cl.nexosoftware.factura.documento.TipoDte;
 import cl.nexosoftware.factura.empresa.Empresa;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfPCell;
@@ -41,6 +45,8 @@ public class PdfDteServiceImpl implements PdfDteService {
     private static final Logger log = LoggerFactory.getLogger(PdfDteServiceImpl.class);
 
     private final Pdf417Generator pdf417Generator;
+    /** Para la leyenda del timbre ("Res. N de AAAA"): numero/fecha de resolucion. */
+    private final AppProperties props;
 
     @Override
     public byte[] generar(DocumentoTributario doc, Empresa emisor) {
@@ -73,22 +79,61 @@ public class PdfDteServiceImpl implements PdfDteService {
     private void agregarEjemplar(Document pdf, DocumentoTributario doc, Empresa emisor,
                                  boolean cedible) throws DocumentException {
         pdf.add(encabezado(doc, emisor));
-        if (cedible) {
-            Paragraph rotulo = new Paragraph("CEDIBLE", font(12, Font.BOLD, ROJO));
-            rotulo.setAlignment(Element.ALIGN_RIGHT);
-            pdf.add(rotulo);
+        // Bajo el recuadro: Direccion Regional / Unidad del SII del emisor (Manual 1.1.4).
+        if (emisor.getUnidadSii() != null && !emisor.getUnidadSii().isBlank()) {
+            Paragraph unidad = new Paragraph(emisor.getUnidadSii(), font(8, Font.NORMAL, GRIS));
+            unidad.setAlignment(Element.ALIGN_RIGHT);
+            pdf.add(unidad);
         }
         pdf.add(new Paragraph(" "));
         pdf.add(receptor(doc));
+        // Referencias a otros documentos: obligatorias en notas 56/61 (Manual 1.4).
+        // El bloque solo aparece si el documento las tiene (una factura simple no).
+        if (doc.getReferencias() != null && !doc.getReferencias().isEmpty()) {
+            pdf.add(new Paragraph(" "));
+            pdf.add(referencias(doc));
+        }
         pdf.add(new Paragraph(" "));
         pdf.add(detalle(doc));
         pdf.add(totales(doc));
 
-        agregarTimbre(pdf, extraerTed(doc.getXmlDte()));
+        // Orden inferior que fija el Manual 1.1.7: totales -> acuse (solo cedible)
+        // -> timbre -> leyenda de destino "CEDIBLE" (solo cedible, abajo a la derecha).
         if (cedible) {
             pdf.add(new Paragraph(" "));
             pdf.add(acuseRecibo());
         }
+        agregarTimbre(pdf, extraerTed(doc.getXmlDte()), doc);
+        if (cedible) {
+            pdf.add(new Paragraph(" "));
+            Paragraph destino = new Paragraph("CEDIBLE", font(12, Font.BOLD, ROJO));
+            destino.setAlignment(Element.ALIGN_RIGHT);
+            pdf.add(destino);
+        }
+    }
+
+    /**
+     * Bloque "Referencias a otros documentos" (Manual 1.4): por cada referencia el
+     * nombre COMPLETO del documento referenciado, folio, fecha y motivo. Es lo que
+     * exige el SII para notas de credito/debito impresas.
+     */
+    private PdfPTable referencias(DocumentoTributario doc) {
+        PdfPTable tabla = new PdfPTable(new float[]{40, 14, 18, 28});
+        tabla.setWidthPercentage(100);
+        for (String h : new String[]{"Documento de referencia", "Folio", "Fecha", "Motivo"}) {
+            PdfPCell c = new PdfPCell(new Phrase(h, font(8, Font.BOLD, Color.WHITE)));
+            c.setBackgroundColor(GRIS);
+            c.setPadding(5f);
+            tabla.addCell(c);
+        }
+        Font cuerpo = font(8, Font.NORMAL, Color.BLACK);
+        for (Referencia r : doc.getReferencias()) {
+            tabla.addCell(celdaCuerpo(TipoDte.nombreImpreso(r.getTipoDocumentoRef()), cuerpo, Element.ALIGN_LEFT));
+            tabla.addCell(celdaCuerpo(String.valueOf(r.getFolioRef()), cuerpo, Element.ALIGN_CENTER));
+            tabla.addCell(celdaCuerpo(r.getFechaRef().toString(), cuerpo, Element.ALIGN_CENTER));
+            tabla.addCell(celdaCuerpo(r.getRazon(), cuerpo, Element.ALIGN_LEFT));
+        }
+        return tabla;
     }
 
     /** Recuadro de acuse de recibo (Ley 19.983) del ejemplar cedible. */
@@ -131,9 +176,9 @@ public class PdfDteServiceImpl implements PdfDteService {
         recuadro.setBorderColor(ROJO);
         recuadro.setBorderWidth(2f);
         recuadro.setPadding(10f);
-        Paragraph rut = new Paragraph("R.U.T.: " + emisor.getRut(), font(11, Font.BOLD, ROJO));
+        Paragraph rut = new Paragraph("R.U.T.: " + Rut.formatear(emisor.getRut()), font(11, Font.BOLD, ROJO));
         rut.setAlignment(Element.ALIGN_CENTER);
-        Paragraph tipo = new Paragraph(doc.getTipoDte().getDescripcion().toUpperCase(), font(10, Font.BOLD, ROJO));
+        Paragraph tipo = new Paragraph(doc.getTipoDte().nombreImpreso(), font(10, Font.BOLD, ROJO));
         tipo.setAlignment(Element.ALIGN_CENTER);
         Paragraph folio = new Paragraph("N° " + (doc.getFolio() != null ? doc.getFolio() : "-----"),
                 font(13, Font.BOLD, ROJO));
@@ -154,7 +199,11 @@ public class PdfDteServiceImpl implements PdfDteService {
         p.add(new Chunk("SEÑOR(ES): ", etiqueta));
         p.add(new Chunk(doc.getReceptorRazonSocial() + "   ", valor));
         p.add(new Chunk("R.U.T.: ", etiqueta));
-        p.add(new Chunk(doc.getReceptorRut() + "\n", valor));
+        p.add(new Chunk(Rut.formatear(doc.getReceptorRut()) + "\n", valor));
+        if (doc.getReceptorGiro() != null && !doc.getReceptorGiro().isBlank()) {
+            p.add(new Chunk("GIRO: ", etiqueta));
+            p.add(new Chunk(doc.getReceptorGiro() + "\n", valor));
+        }
         if (doc.getReceptorDireccion() != null) {
             p.add(new Chunk("DIRECCION: ", etiqueta));
             p.add(new Chunk(doc.getReceptorDireccion() + ", " + nvl(doc.getReceptorComuna()) + "\n", valor));
@@ -245,7 +294,7 @@ public class PdfDteServiceImpl implements PdfDteService {
      * Si la generacion del PDF417 falla (zxing o el render), cae al texto de respaldo
      * para no romper la emision.
      */
-    private void agregarTimbre(Document pdf, String tedXml) throws DocumentException {
+    private void agregarTimbre(Document pdf, String tedXml, DocumentoTributario doc) throws DocumentException {
         pdf.add(new Paragraph(" "));
         if (tedXml == null) {
             // Borrador sin emitir: no hay XML firmado ni timbre que representar.
@@ -260,13 +309,18 @@ public class PdfDteServiceImpl implements PdfDteService {
             byte[] png = pdf417Generator.generarPng(tedXml);
             Image img = Image.getInstance(png);
             img.setAlignment(Image.ALIGN_CENTER);
-            img.scaleToFit(360f, 120f); // cabe en el ancho util de la pagina (LETTER, margenes 40)
+            // El SII exige el timbre entre 2x5 cm (min) y 4x9 cm (max) (Manual 1.5).
+            // 250x110 pt = 8,8x3,9 cm max, dentro del rango y legible.
+            img.scaleToFit(250f, 110f);
             pdf.add(img);
 
+            // Leyenda bajo el timbre (Manual 1.5): rotulo "Timbre Electronico SII"
+            // (localiza el timbre), luego "Res. N de AAAA - Verifique documento:".
             Paragraph leyenda = new Paragraph();
             leyenda.setAlignment(Element.ALIGN_CENTER);
-            leyenda.add(new Chunk("Timbre Electronico SII\n", font(8, Font.BOLD, GRIS)));
-            leyenda.add(new Chunk("Verifique en www.sii.cl", font(7, Font.NORMAL, GRIS)));
+            leyenda.add(new Chunk("Timbre Electrónico SII\n", font(8, Font.BOLD, GRIS)));
+            leyenda.add(new Chunk("Res. " + props.sii().nroResol() + " de " + anioResol(doc)
+                    + " - Verifique documento: www.sii.cl", font(7, Font.NORMAL, GRIS)));
             pdf.add(leyenda);
         } catch (Exception e) {
             // Fallback: si zxing falla, mantener el texto para no romper la emision.
@@ -292,6 +346,23 @@ public class PdfDteServiceImpl implements PdfDteService {
         int fin = xmlDte.indexOf("</TED>");
         if (inicio < 0 || fin < 0) return null;
         return xmlDte.substring(inicio, fin + "</TED>".length());
+    }
+
+    /**
+     * Anio de la resolucion para la leyenda del timbre: el de {@code app.sii.fch-resol}
+     * si esta configurado, si no el del ano de emision del documento (en certificacion
+     * la resolucion es la "0" del ano en curso).
+     */
+    private int anioResol(DocumentoTributario doc) {
+        String f = props.sii().fchResol();
+        if (f != null && f.length() >= 4) {
+            try {
+                return Integer.parseInt(f.substring(0, 4));
+            } catch (NumberFormatException ignored) {
+                // fch-resol mal formada: caemos al ano de emision.
+            }
+        }
+        return doc.getFechaEmision().getYear();
     }
 
     // ---- helpers ----

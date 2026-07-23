@@ -19,6 +19,9 @@ public final class EmpresaDtos {
             @Positive @Max(999999) Integer actividadEconomica,
             @NotBlank String direccion,
             @NotBlank String comuna,
+            // Direccion Regional / Unidad del SII, rotulada bajo el recuadro del
+            // tipo de documento en la representacion impresa (Manual 1.1.4).
+            String unidadSii,
             String ciudad,
             String telefono,
             @Email String email
@@ -32,6 +35,7 @@ public final class EmpresaDtos {
             Integer actividadEconomica,
             String direccion,
             String comuna,
+            String unidadSii,
             String ciudad,
             String telefono,
             String email

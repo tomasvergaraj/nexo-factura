@@ -27,6 +27,32 @@ public enum TipoDte {
     public boolean esAfecto() { return afecto; }
 
     /**
+     * Nombre del tipo tal como debe rotularse en el recuadro de la representacion
+     * impresa: en mayusculas y con la glosa EXACTA que exige el SII (Manual de
+     * Muestras Impresas 1.1.4). Distinto de {@link #getDescripcion()} (glosa
+     * interna sin la palabra "ELECTRONICA" en la exenta y sin acentos).
+     */
+    public String nombreImpreso() {
+        return switch (this) {
+            case FACTURA_AFECTA -> "FACTURA ELECTRÓNICA";
+            case FACTURA_EXENTA -> "FACTURA NO AFECTA O EXENTA ELECTRÓNICA";
+            case BOLETA_AFECTA  -> "BOLETA ELECTRÓNICA";
+            case BOLETA_EXENTA  -> "BOLETA EXENTA ELECTRÓNICA";
+            case NOTA_DEBITO    -> "NOTA DE DÉBITO ELECTRÓNICA";
+            case NOTA_CREDITO   -> "NOTA DE CRÉDITO ELECTRÓNICA";
+        };
+    }
+
+    /** Nombre impreso del tipo referenciado por codigo; fallback legible si no esta en el catalogo. */
+    public static String nombreImpreso(int codigo) {
+        try {
+            return desdeCodigo(codigo).nombreImpreso();
+        } catch (IllegalArgumentException e) {
+            return "DOCUMENTO TIPO " + codigo;
+        }
+    }
+
+    /**
      * True para boletas (39/41): los precios unitarios vienen con IVA incluido
      * (brutos), por lo que el neto/IVA se desglosan del total afecto en vez de
      * sumar el IVA por encima del neto.

@@ -56,4 +56,30 @@ public final class Rut {
         }
         return limpio.substring(0, limpio.length() - 1) + "-" + limpio.substring(limpio.length() - 1);
     }
+
+    /**
+     * Devuelve el RUT con separador de miles para la representacion impresa:
+     * {@code 78397017-1} -> {@code 78.397.017-1}. El SII lo exige asi en las
+     * muestras impresas (Manual 1.2); el validador de "Upload de Muestras
+     * Impresas" rechaza el PDF si el RUT del CAF no aparece con este formato.
+     * Entradas demasiado cortas se devuelven tal cual.
+     */
+    public static String formatear(String rut) {
+        String canonico = normalizar(rut);
+        if (canonico == null || canonico.length() < 2 || !canonico.contains("-")) {
+            return rut;
+        }
+        int guion = canonico.lastIndexOf('-');
+        String cuerpo = canonico.substring(0, guion);
+        String dv = canonico.substring(guion + 1);
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (int i = cuerpo.length() - 1; i >= 0; i--) {
+            sb.append(cuerpo.charAt(i));
+            if (++count % 3 == 0 && i > 0) {
+                sb.append('.');
+            }
+        }
+        return sb.reverse().append('-').append(dv).toString();
+    }
 }

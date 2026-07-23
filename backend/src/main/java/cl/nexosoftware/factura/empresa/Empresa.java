@@ -39,6 +39,14 @@ public class Empresa {
     @Column(nullable = false)
     private String comuna;
 
+    /**
+     * Direccion Regional o Unidad del SII a la que pertenece el emisor. Se rotula
+     * bajo el recuadro del tipo de documento en la representacion impresa (Manual
+     * de Muestras Impresas 1.1.4). Ej: "S.I.I. - SANTIAGO ORIENTE".
+     */
+    @Column(name = "unidad_sii")
+    private String unidadSii;
+
     private String ciudad;
 
     private String telefono;
