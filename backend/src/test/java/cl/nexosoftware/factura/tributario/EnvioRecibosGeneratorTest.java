@@ -34,7 +34,7 @@ class EnvioRecibosGeneratorTest {
 
         String xml = gen.generar("78397017-1", "88888888-8",
                 new Contacto("NEXO SOFTWARE SPA", "+56222222222", "contacto@nexosoftware.cl"),
-                List.of(recibo)); // valida contra el XSD adentro
+                List.of(recibo), 1L); // valida contra el XSD adentro
 
         assertThat(xml)
                 .contains("<SetRecibos ID=\"SetRecibos\">")
@@ -57,7 +57,7 @@ class EnvioRecibosGeneratorTest {
                 new ReciboItem(33, 52235L, LocalDate.of(2026, 7, 23), "88888888-8", "78397017-1", 5390L, "Casa Matriz", "11111111-1"),
                 new ReciboItem(33, 52240L, LocalDate.of(2026, 7, 23), "88888888-8", "78397017-1", 8000L, "Casa Matriz", "11111111-1"));
 
-        String xml = gen.generar("78397017-1", "88888888-8", Contacto.VACIO, recibos);
+        String xml = gen.generar("78397017-1", "88888888-8", Contacto.VACIO, recibos, 1L);
 
         assertThat(xml)
                 .contains("<DocumentoRecibo ID=\"Recibo52235\">")

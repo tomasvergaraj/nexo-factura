@@ -159,7 +159,7 @@ public class DocumentoService {
         //    (todo emitir() es una sola @Transactional).
         String ted = tedGenerator.generar(doc, emisor.getRut(), caf);
         String xml = xmlGenerator.generar(doc, emisor, ted);
-        String xmlFirmado = firmaElectronica.firmar(xml);
+        String xmlFirmado = firmaElectronica.firmar(xml, empresaId);
         dteXmlValidator.validar(xmlFirmado, doc.getTipoDte());
 
         doc.setXmlDte(xmlFirmado);
@@ -215,7 +215,7 @@ public class DocumentoService {
                         "El documento " + id + " no tiene XML firmado: emitalo antes de enviar el lote");
             }
             docs.add(doc);
-            envios.add(new SiiGateway.EnvioSii(
+            envios.add(new SiiGateway.EnvioSii(empresaId,
                     doc.getXmlDte(), doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut()));
         }
 
@@ -340,7 +340,7 @@ public class DocumentoService {
         }
         Empresa emisor = empresaService.buscar(empresaId);
         SiiGateway.EstadoEnvio estado = siiGateway.consultarEstado(new SiiGateway.ConsultaSii(
-                doc.getTrackId(), doc.getTipoDte().getCodigo(), emisor.getRut()));
+                empresaId, doc.getTrackId(), doc.getTipoDte().getCodigo(), emisor.getRut()));
         switch (estado) {
             case ACEPTADO -> transicionar(doc, EstadoDte.ACEPTADO);
             case ACEPTADO_CON_REPARO -> transicionar(doc, EstadoDte.REPARO);
@@ -389,7 +389,7 @@ public class DocumentoService {
         doc.setIntentosEnvio(doc.getIntentosEnvio() + 1);
         doc.setUltimoEnvioEn(OffsetDateTime.now());
         try {
-            String trackId = siiGateway.enviar(new SiiGateway.EnvioSii(
+            String trackId = siiGateway.enviar(new SiiGateway.EnvioSii(doc.getEmpresaId(),
                     doc.getXmlDte(), doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut()));
             doc.setTrackId(trackId);
             doc.setUltimoErrorEnvio(null);
@@ -427,7 +427,7 @@ public class DocumentoService {
         SiiGateway.EstadoDocumento estado;
         try {
             estado = siiGateway.consultarDocumento(new SiiGateway.ConsultaDocumento(
-                    doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut(),
+                    doc.getEmpresaId(), doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut(),
                     doc.getReceptorRut(), doc.getFechaEmision(), doc.getTotal()));
         } catch (SiiNoDisponibleException e) {
             // Sin reconciliacion no hay reenvio seguro: el documento sigue en

@@ -161,6 +161,10 @@ export interface Empresa {
   ciudad: string | null;
   telefono: string | null;
   email: string | null;
+  /** Fecha de la resolución SII que autoriza como emisor (AAAA-MM-DD); null = fallback de entorno. */
+  fchResol: string | null;
+  /** Número de la resolución SII (0 en certificación); null = fallback de entorno. */
+  nroResol: number | null;
 }
 
 export interface EmpresaRequest {
@@ -173,6 +177,24 @@ export interface EmpresaRequest {
   ciudad?: string;
   telefono?: string;
   email?: string;
+  /** Resolución SII: fecha y número. Ambos o ninguno (vacíos = fallback de entorno). */
+  fchResol?: string | null;
+  nroResol?: number | null;
+}
+
+/** Metadata del certificado digital activo (espejo de CertificadoResponse del backend). */
+export interface CertificadoResponse {
+  id: number;
+  nombreArchivo: string;
+  rutFirmante: string;
+  subject: string | null;
+  validoDesde: string;
+  validoHasta: string;
+  huellaSha256: string;
+  vigente: boolean;
+  diasParaVencer: number;
+  creadoEn: string;
+  creadoPor: string | null;
 }
 
 export interface Producto {

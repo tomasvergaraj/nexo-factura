@@ -13,9 +13,10 @@ import {
   foliosMock, libroMock, productosMock, rcofMock,
 } from "./mock";
 import type {
-  Caf, CafRequest, Cliente, ClienteRequest, Compra, CompraRequest, DocumentoResponse,
-  DocumentoResumen, Empresa, EmpresaRequest, LibroResponse, Producto, ProductoRequest, RcofResponse,
-  ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard, TipoDte, TipoOperacionLibro,
+  Caf, CafRequest, CertificadoResponse, Cliente, ClienteRequest, Compra, CompraRequest,
+  DocumentoResponse, DocumentoResumen, Empresa, EmpresaRequest, LibroResponse, Producto,
+  ProductoRequest, RcofResponse, ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard,
+  TipoDte, TipoOperacionLibro,
 } from "./types";
 import { TIPO_DTE_POR_CODIGO } from "./types";
 
@@ -247,6 +248,8 @@ export async function crearEmpresa(payload: EmpresaRequest): Promise<Empresa> {
       ciudad: payload.ciudad ?? null,
       telefono: payload.telefono ?? null,
       email: payload.email ?? null,
+      fchResol: payload.fchResol ?? null,
+      nroResol: payload.nroResol ?? null,
     };
   }
   const { data } = await http.post("/empresas", payload);
@@ -273,10 +276,63 @@ export async function actualizarEmpresa(empresaId: number, payload: EmpresaReque
       ciudad: payload.ciudad ?? null,
       telefono: payload.telefono ?? null,
       email: payload.email ?? null,
+      fchResol: payload.fchResol ?? null,
+      nroResol: payload.nroResol ?? null,
     };
   }
   const { data } = await http.put(`/empresas/${empresaId}`, payload);
   return data;
+}
+
+// ---- Certificado digital (PKCS#12 por empresa) ----
+
+/**
+ * Metadata del certificado activo de la empresa; null si no tiene ninguno (404).
+ * Nunca devuelve el PKCS#12 ni la clave, solo datos de estado y vigencia.
+ */
+export async function getCertificado(empresaId: number): Promise<CertificadoResponse | null> {
+  if (USE_MOCK) {
+    await demora();
+    return null; // en demo no hay certificado real cargado
+  }
+  try {
+    const { data } = await http.get(`/empresas/${empresaId}/certificado`);
+    return data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    throw error;
+  }
+}
+
+/** Sube el PKCS#12 (.p12/.pfx) cifrado en el servidor. Requiere rol ADMIN. */
+export async function subirCertificado(
+  empresaId: number, archivo: File, password: string, rutFirmante?: string,
+): Promise<CertificadoResponse> {
+  if (USE_MOCK) {
+    await demora(500);
+    return {
+      id: Date.now(), nombreArchivo: archivo.name, rutFirmante: rutFirmante || "11111111-1",
+      subject: "CN=Firmante Demo", validoDesde: new Date().toISOString(),
+      validoHasta: new Date(Date.now() + 365 * 864e5).toISOString(),
+      huellaSha256: "demo".padEnd(64, "0"), vigente: true, diasParaVencer: 365,
+      creadoEn: new Date().toISOString(), creadoPor: "demo@nexofactura.cl",
+    };
+  }
+  const form = new FormData();
+  form.append("archivo", archivo);
+  form.append("password", password);
+  if (rutFirmante?.trim()) form.append("rutFirmante", rutFirmante.trim());
+  const { data } = await http.post(`/empresas/${empresaId}/certificado`, form);
+  return data;
+}
+
+/** Desactiva el certificado activo de la empresa. Requiere rol ADMIN. */
+export async function eliminarCertificado(empresaId: number): Promise<void> {
+  if (USE_MOCK) {
+    await demora(300);
+    return;
+  }
+  await http.delete(`/empresas/${empresaId}/certificado`);
 }
 
 // ---- Dashboard ----

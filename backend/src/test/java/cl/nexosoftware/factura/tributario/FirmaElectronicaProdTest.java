@@ -1,10 +1,8 @@
 package cl.nexosoftware.factura.tributario;
 
-import cl.nexosoftware.factura.config.AppProperties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -30,15 +28,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FirmaElectronicaProdTest {
 
     private static FirmaElectronicaProd firma;
-    private static CertificadoDigital certificado;
+    private static CertificadoFirma certificado;
 
     @BeforeAll
-    static void inicializar() throws Exception {
-        String path = new ClassPathResource("sii/cert_prueba.p12").getFile().getAbsolutePath();
-        AppProperties props = new AppProperties(null, null, new AppProperties.Sii(
-                "CERTIFICACION", path, "test123", null, "2026-05-14", 0, "Mozilla/4.0 (compatible; PROG 1.0)"));
-        certificado = new CertificadoDigital(props);
-        firma = new FirmaElectronicaProd(certificado);
+    static void inicializar() {
+        certificado = TestCertificados.dummy();
+        firma = new FirmaElectronicaProd(TestCertificados.resolver());
     }
 
     @Test
@@ -51,7 +46,7 @@ class FirmaElectronicaProdTest {
     @DisplayName("firma el DTE con el perfil del SII: C14N inclusive + rsa-sha1 + sha1 + enveloped")
     void firmaConPerfilSii() throws Exception {
         String xml = generarDteSinFirmar();
-        String firmado = firma.firmar(xml);
+        String firmado = firma.firmar(xml, 1L);
         Element sig = elementoFirma(firmado);
 
         assertThat(atributo(sig, "CanonicalizationMethod", "Algorithm"))
@@ -68,7 +63,7 @@ class FirmaElectronicaProdTest {
     @Test
     @DisplayName("KeyInfo lleva KeyValue y X509Data EN ESE ORDEN (exigencia del XSD del SII)")
     void keyInfoConOrdenDelSii() throws Exception {
-        Element sig = elementoFirma(firma.firmar(generarDteSinFirmar()));
+        Element sig = elementoFirma(firma.firmar(generarDteSinFirmar(), 1L));
         Element keyInfo = (Element) sig.getElementsByTagNameNS(XMLSignature.XMLNS, "KeyInfo").item(0);
 
         var hijos = keyInfo.getChildNodes();
@@ -84,7 +79,7 @@ class FirmaElectronicaProdTest {
     @Test
     @DisplayName("la firma valida criptograficamente (JDK, secure validation off)")
     void firmaValida() throws Exception {
-        assertThat(validar(firma.firmar(generarDteSinFirmar()))).isTrue();
+        assertThat(validar(firma.firmar(generarDteSinFirmar(), 1L))).isTrue();
     }
 
     @Test
@@ -96,7 +91,7 @@ class FirmaElectronicaProdTest {
         doc.setReceptorRazonSocial("Café \"D'or\" & <Cía>");
         String ted = new TedGenerator().generar(doc, DteFixtures.RUT_EMISOR, DteFixtures.caf(33));
         String xml = new XmlDteGenerator().generar(doc, DteFixtures.emisor(), ted);
-        String firmado = firma.firmar(xml);
+        String firmado = firma.firmar(xml, 1L);
 
         assertThat(firmado).contains(ted);
     }
@@ -104,7 +99,7 @@ class FirmaElectronicaProdTest {
     @Test
     @DisplayName("una mutacion posterior del documento invalida la firma")
     void mutacionInvalidaLaFirma() throws Exception {
-        String firmado = firma.firmar(generarDteSinFirmar());
+        String firmado = firma.firmar(generarDteSinFirmar(), 1L);
         String adulterado = firmado.replace("<MntTotal>11900</MntTotal>", "<MntTotal>1</MntTotal>");
         assertThat(validar(adulterado)).isFalse();
     }
@@ -113,7 +108,7 @@ class FirmaElectronicaProdTest {
     @DisplayName("firmarEnveloped(null) usa Reference URI=\"\" (perfil del getToken)")
     void envelopedSinReferencia() throws Exception {
         String firmado = firma.firmarEnveloped(
-                "<getToken><item><Semilla>012345678901</Semilla></item></getToken>", null);
+                "<getToken><item><Semilla>012345678901</Semilla></item></getToken>", null, 1L);
         Element sig = elementoFirma(firmado);
         assertThat(atributo(sig, "Reference", "URI")).isEmpty();
         assertThat(validar(firmado)).isTrue();
@@ -125,7 +120,7 @@ class FirmaElectronicaProdTest {
         String sobre = "<EnvioBOLETA xmlns=\"http://www.sii.cl/SiiDte\" version=\"1.0\">"
                 + "<SetDTE ID=\"SetDoc\"><Caratula version=\"1.0\"><RutEmisor>76543210-9</RutEmisor>"
                 + "</Caratula></SetDTE></EnvioBOLETA>";
-        String firmado = firma.firmarEnveloped(sobre, "SetDoc");
+        String firmado = firma.firmarEnveloped(sobre, "SetDoc", 1L);
         Element sig = elementoFirma(firmado);
         assertThat(atributo(sig, "Reference", "URI")).isEqualTo("#SetDoc");
         assertThat(validar(firmado)).isTrue();

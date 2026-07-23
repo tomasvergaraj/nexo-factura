@@ -155,6 +155,6 @@ public final class DteFixtures {
         CafData caf = caf(doc.getTipoDte().getCodigo() == 39 || doc.getTipoDte().getCodigo() == 41 ? 39 : 33);
         String ted = new TedGenerator().generar(doc, RUT_EMISOR, caf);
         String xml = new XmlDteGenerator().generar(doc, emisor(), ted);
-        return new FirmaElectronicaStub().firmar(xml);
+        return new FirmaElectronicaStub().firmar(xml, doc.getEmpresaId());
     }
 }

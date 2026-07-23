@@ -26,22 +26,22 @@ abstract class SiiTransporteBase implements SiiTransporte {
     }
 
     /**
-     * Ejecuta la llamada con un token vigente; ante token invalido, renueva y
-     * reintenta UNA vez. Se invalida exactamente el token que fallo (no el que
-     * otro hilo pudo renovar entretanto), y un segundo rechazo consecutivo con
-     * token recien emitido se traduce a un error con diagnostico: eso ya no es
-     * una expiracion, es el certificado sin habilitar o sesiones invalidadas
-     * en el SII.
+     * Ejecuta la llamada con un token vigente DE LA EMPRESA; ante token
+     * invalido, renueva y reintenta UNA vez. Se invalida exactamente el token
+     * que fallo (no el que otro hilo pudo renovar entretanto), y un segundo
+     * rechazo consecutivo con token recien emitido se traduce a un error con
+     * diagnostico: eso ya no es una expiracion, es el certificado sin habilitar
+     * o sesiones invalidadas en el SII.
      */
-    protected final <T> T conReintentoDeToken(Function<String, T> llamada) {
-        String token = auth.token();
+    protected final <T> T conReintentoDeToken(Long empresaId, Function<String, T> llamada) {
+        String token = auth.token(empresaId);
         try {
             return llamada.apply(token);
         } catch (TokenInvalidoSii e) {
             log.info("Token del SII invalido/expirado: renovando y reintentando una vez");
-            auth.invalidar(token);
+            auth.invalidar(empresaId, token);
             try {
-                return llamada.apply(auth.token());
+                return llamada.apply(auth.token(empresaId));
             } catch (TokenInvalidoSii e2) {
                 throw new SiiNoDisponibleException(
                         "El SII rechazo la autenticacion dos veces seguidas, incluso con un token "

@@ -65,7 +65,7 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
     @Override
     public String enviar(SiiGateway.EnvioSii envio) {
         String sobre = envioGenerator.generar(envio);
-        return conReintentoDeToken(token -> postEnvio(envio, sobre, token));
+        return conReintentoDeToken(envio.empresaId(), token -> postEnvio(envio, sobre, token));
     }
 
     private String postEnvio(SiiGateway.EnvioSii envio, String sobre, String token) {
@@ -102,7 +102,7 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
 
     @Override
     public SiiGateway.EstadoEnvio consultarEstado(SiiGateway.ConsultaSii consulta) {
-        return conReintentoDeToken(token -> getEstado(consulta, token));
+        return conReintentoDeToken(consulta.empresaId(), token -> getEstado(consulta, token));
     }
 
     private SiiGateway.EstadoEnvio getEstado(SiiGateway.ConsultaSii consulta, String token) {
@@ -142,7 +142,7 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
      */
     @Override
     public SiiGateway.EstadoDocumento consultarDocumento(SiiGateway.ConsultaDocumento consulta) {
-        return conReintentoDeToken(token -> getEstadoDocumento(consulta, token));
+        return conReintentoDeToken(consulta.empresaId(), token -> getEstadoDocumento(consulta, token));
     }
 
     private SiiGateway.EstadoDocumento getEstadoDocumento(SiiGateway.ConsultaDocumento c, String token) {

@@ -21,13 +21,16 @@ public class EnvioBoletaGenerator extends EnvioGenerator {
     // y Spring no elige solo entre dos.
     @Autowired
     public EnvioBoletaGenerator(FirmaElectronica firma, DteXmlValidator validator,
-                                CertificadoDigital certificado, AppProperties props) {
-        this(firma, validator, certificado, props, Clock.system(ZoneId.of("America/Santiago")));
+                                CertificadoResolver certificadoResolver,
+                                ResolucionResolver resolucionResolver, AppProperties props) {
+        this(firma, validator, certificadoResolver, resolucionResolver, props,
+                Clock.system(ZoneId.of("America/Santiago")));
     }
 
     EnvioBoletaGenerator(FirmaElectronica firma, DteXmlValidator validator,
-                         CertificadoDigital certificado, AppProperties props, Clock clock) {
-        super(firma, validator, certificado, props, clock);
+                         CertificadoResolver certificadoResolver,
+                         ResolucionResolver resolucionResolver, AppProperties props, Clock clock) {
+        super(firma, validator, certificadoResolver, resolucionResolver, props, clock);
     }
 
     @Override

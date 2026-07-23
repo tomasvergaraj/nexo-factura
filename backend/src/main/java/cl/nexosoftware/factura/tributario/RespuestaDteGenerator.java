@@ -61,7 +61,7 @@ public class RespuestaDteGenerator {
 
     // ---------- Respuesta de Intercambio (RecepcionEnvio) ----------
 
-    public String generarRecepcionEnvio(Cabecera cab, AcuseEnvio acuse) {
+    public String generarRecepcionEnvio(Cabecera cab, AcuseEnvio acuse, Long empresaId) {
         ModeloRespuestaDte.RecepcionEnvio rec = new ModeloRespuestaDte.RecepcionEnvio();
         rec.nmbEnvio = acuse.nmbEnvio();
         rec.fchRecep = acuse.fchRecep().format(TIMESTAMP);
@@ -93,12 +93,13 @@ public class RespuestaDteGenerator {
         resultado.caratula = caratula(cab, 1); // NroDetalles = numero de RecepcionEnvio
         resultado.recepcionEnvio = List.of(rec);
 
-        return armar(resultado);
+        return armar(resultado, empresaId);
     }
 
     // ---------- Resultado Aprobacion Comercial (ResultadoDTE) ----------
 
-    public String generarResultadoComercial(Cabecera cab, long codEnvio, List<DteEvaluado> aceptados) {
+    public String generarResultadoComercial(Cabecera cab, long codEnvio, List<DteEvaluado> aceptados,
+                                            Long empresaId) {
         List<ModeloRespuestaDte.ResultadoDte> resultados = new ArrayList<>();
         for (DteEvaluado ev : aceptados) {
             SobreRecibido.DteRecibido d = ev.documento();
@@ -121,7 +122,7 @@ public class RespuestaDteGenerator {
         resultado.caratula = caratula(cab, resultados.size()); // NroDetalles = numero de DTE
         resultado.resultadoDte = resultados;
 
-        return armar(resultado);
+        return armar(resultado, empresaId);
     }
 
     // ---------- comun ----------
@@ -140,7 +141,7 @@ public class RespuestaDteGenerator {
         return c;
     }
 
-    private String armar(ModeloRespuestaDte.Resultado resultado) {
+    private String armar(ModeloRespuestaDte.Resultado resultado, Long empresaId) {
         ModeloRespuestaDte.RespuestaDte raiz = new ModeloRespuestaDte.RespuestaDte();
         raiz.resultado = resultado;
 
@@ -153,7 +154,7 @@ public class RespuestaDteGenerator {
                         + "xsi:schemaLocation=\"http://www.sii.cl/SiiDte RespuestaEnvioDTE_v10.xsd\">");
         JaxbXml.exigirLatin1(xml, "la RespuestaDTE");
 
-        String firmado = firma.firmarEnveloped(xml, ID_RESULTADO);
+        String firmado = firma.firmarEnveloped(xml, ID_RESULTADO, empresaId);
         validator.validarRespuestaDte(firmado);
         return firmado;
     }

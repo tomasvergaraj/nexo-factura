@@ -4,7 +4,7 @@ import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaRepository;
 import cl.nexosoftware.factura.intercambio.IntercambioDtos.DecisionDte;
 import cl.nexosoftware.factura.intercambio.IntercambioDtos.RespuestaIntercambioResponse;
-import cl.nexosoftware.factura.tributario.CertificadoDigital;
+import cl.nexosoftware.factura.tributario.CertificadoResolver;
 import cl.nexosoftware.factura.tributario.DteXmlValidator;
 import cl.nexosoftware.factura.tributario.EnvioRecibosGenerator;
 import cl.nexosoftware.factura.tributario.FirmaElectronicaStub;
@@ -12,7 +12,6 @@ import cl.nexosoftware.factura.tributario.LectorSobreDte;
 import cl.nexosoftware.factura.tributario.RespuestaDteGenerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -20,6 +19,7 @@ import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -70,7 +70,6 @@ class IntercambioServiceTest {
             </EnvioDTE>
             """;
 
-    @SuppressWarnings("unchecked")
     private IntercambioService servicio() {
         FirmaElectronicaStub firma = new FirmaElectronicaStub();
         DteXmlValidator validatorSalida = new DteXmlValidator(true);   // valida los artefactos generados
@@ -85,11 +84,15 @@ class IntercambioServiceTest {
                 .direccion("Santiago").comuna("Santiago")
                 .telefono("+56222222222").email("contacto@nexosoftware.cl").build()));
 
-        ObjectProvider<CertificadoDigital> sinCert = mock(ObjectProvider.class);
-        when(sinCert.getIfAvailable()).thenReturn(null);
-
         return new IntercambioService(new LectorSobreDte(), validatorEntrada, respGen, recGen,
-                repo, sinCert, RELOJ);
+                repo, sinCertificado(), RELOJ);
+    }
+
+    /** Resolver sin certificado (dev/test): el RutFirma cae al RUT de la empresa. */
+    private static CertificadoResolver sinCertificado() {
+        CertificadoResolver resolver = mock(CertificadoResolver.class);
+        when(resolver.paraEmpresaSiExiste(any())).thenReturn(Optional.empty());
+        return resolver;
     }
 
     @Test
@@ -121,9 +124,6 @@ class IntercambioServiceTest {
     @DisplayName("si ningun DTE es para nuestro RUT, solo se genera la Respuesta de Intercambio")
     void sinAceptadosSoloRespuesta() {
         // Empresa con OTRO RUT: ningun DTE del sobre va dirigido a ella.
-        @SuppressWarnings("unchecked")
-        ObjectProvider<CertificadoDigital> sinCert = mock(ObjectProvider.class);
-        when(sinCert.getIfAvailable()).thenReturn(null);
         EmpresaRepository repo = mock(EmpresaRepository.class);
         when(repo.findById(9L)).thenReturn(Optional.of(Empresa.builder()
                 .rut("76000000-0").razonSocial("OTRA SPA").giro("x")
@@ -132,7 +132,7 @@ class IntercambioServiceTest {
                 new DteXmlValidator(false),
                 new RespuestaDteGenerator(new FirmaElectronicaStub(), new DteXmlValidator(true)),
                 new EnvioRecibosGenerator(new FirmaElectronicaStub(), new DteXmlValidator(true)),
-                repo, sinCert, RELOJ);
+                repo, sinCertificado(), RELOJ);
 
         RespuestaIntercambioResponse r = svc.responder(9L, SOBRE, "set_intercambio.xml");
 

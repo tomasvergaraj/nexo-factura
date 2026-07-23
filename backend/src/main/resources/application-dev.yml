@@ -14,6 +14,11 @@ app:
     # En produccion APP_JWT_SECRET es obligatorio (ver application-prod.yml).
     # Sincronizado con JwtSecretValidator.DEV_SECRET.
     secret: ${APP_JWT_SECRET:dev-secret-nexo-factura-cambia-esto-en-produccion-0123456789}
+  security:
+    # Solo desarrollo/test/CI ("nexo-factura-dev-master-key-0123" en base64).
+    # CifradorSecretos la reconoce como clave de desarrollo y el modo
+    # POR_EMPRESA en prod la rechaza. Sincronizada con CifradorSecretos.CLAVE_DEV.
+    master-key: ${APP_MASTER_KEY:bmV4by1mYWN0dXJhLWRldi1tYXN0ZXIta2V5LTAxMjM=}
 
 logging:
   level:

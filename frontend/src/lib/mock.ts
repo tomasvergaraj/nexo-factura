@@ -17,6 +17,8 @@ export const empresaMock: Empresa = {
   ciudad: "Quillota",
   telefono: "+56 9 8196 4119",
   email: "contacto@nexosoftware.cl",
+  fchResol: null,
+  nroResol: null,
 };
 
 export const clientesMock: Cliente[] = [

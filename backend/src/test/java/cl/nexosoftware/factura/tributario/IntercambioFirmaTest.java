@@ -1,13 +1,11 @@
 package cl.nexosoftware.factura.tributario;
 
-import cl.nexosoftware.factura.config.AppProperties;
 import cl.nexosoftware.factura.tributario.EnvioRecibosGenerator.ReciboItem;
 import cl.nexosoftware.factura.tributario.RespuestaDteGenerator.AcuseEnvio;
 import cl.nexosoftware.factura.tributario.RespuestaDteGenerator.Cabecera;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -40,17 +38,14 @@ class IntercambioFirmaTest {
     private static final Clock RELOJ =
             Clock.fixed(Instant.parse("2026-07-23T14:30:00Z"), ZoneId.of("America/Santiago"));
 
-    private static CertificadoDigital certificado;
+    private static CertificadoFirma certificado;
     private static RespuestaDteGenerator respuestaGen;
     private static EnvioRecibosGenerator recibosGen;
 
     @BeforeAll
-    static void inicializar() throws Exception {
-        String path = new ClassPathResource("sii/cert_prueba.p12").getFile().getAbsolutePath();
-        AppProperties props = new AppProperties(null, null, new AppProperties.Sii(
-                "CERTIFICACION", path, "test123", null, "2026-05-14", 0, "UA"));
-        certificado = new CertificadoDigital(props);
-        FirmaElectronicaProd firma = new FirmaElectronicaProd(certificado);
+    static void inicializar() {
+        certificado = TestCertificados.dummy();
+        FirmaElectronicaProd firma = new FirmaElectronicaProd(TestCertificados.resolver());
         DteXmlValidator validator = new DteXmlValidator(true);
         respuestaGen = new RespuestaDteGenerator(firma, validator, RELOJ);
         recibosGen = new EnvioRecibosGenerator(firma, validator, RELOJ);
@@ -62,7 +57,7 @@ class IntercambioFirmaTest {
         ReciboItem recibo = new ReciboItem(33, 52235L, LocalDate.of(2026, 7, 23),
                 "88888888-8", "78397017-1", 5390L, "Casa Matriz", certificado.rutFirmante());
 
-        String xml = recibosGen.generar("78397017-1", "88888888-8", Contacto.VACIO, List.of(recibo));
+        String xml = recibosGen.generar("78397017-1", "88888888-8", Contacto.VACIO, List.of(recibo), 1L);
 
         assertThat(verificarFirmaConId(xml, "SetRecibos")).as("firma del SetRecibos").isTrue();
         assertThat(verificarFirmaConId(xml, "Recibo52235")).as("firma del Recibo en contexto").isTrue();
@@ -81,7 +76,7 @@ class IntercambioFirmaTest {
                 "SetDoc", "1WGHYu7oiVjSTV1/Bjcejc02gcA=", "88888888-8", "78397017-1", 0,
                 List.of(new DteEvaluado(d, true, 0)));
 
-        String xml = respuestaGen.generarRecepcionEnvio(cab, acuse);
+        String xml = respuestaGen.generarRecepcionEnvio(cab, acuse, 1L);
 
         assertThat(verificarFirmaConId(xml, "Respuesta")).as("firma del Resultado").isTrue();
     }

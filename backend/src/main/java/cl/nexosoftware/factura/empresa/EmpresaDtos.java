@@ -5,6 +5,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+
+import java.time.LocalDate;
 
 public final class EmpresaDtos {
 
@@ -24,7 +27,12 @@ public final class EmpresaDtos {
             String unidadSii,
             String ciudad,
             String telefono,
-            @Email String email
+            @Email String email,
+            // Resolucion SII que autoriza a la empresa como emisor electronico
+            // (FchResol/NroResol de la caratula). Ambos o ninguno; vacios =
+            // fallback de entorno. NroResol es 0 en el ambiente de certificacion.
+            LocalDate fchResol,
+            @PositiveOrZero Integer nroResol
     ) {}
 
     public record EmpresaResponse(
@@ -38,6 +46,8 @@ public final class EmpresaDtos {
             String unidadSii,
             String ciudad,
             String telefono,
-            String email
+            String email,
+            LocalDate fchResol,
+            Integer nroResol
     ) {}
 }

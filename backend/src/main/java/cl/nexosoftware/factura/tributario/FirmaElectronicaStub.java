@@ -42,14 +42,14 @@ public class FirmaElectronicaStub implements FirmaElectronica {
                     + "</Signature>";
 
     @Override
-    public String firmar(String xmlDte) {
+    public String firmar(String xmlDte, Long empresaId) {
         log.warn("Firmando DTE con stub: este XML NO es valido ante el SII. "
                 + "Configure un certificado real para el perfil prod.");
         return insertarAntesDelCierre(xmlDte, referencia(xmlDte));
     }
 
     @Override
-    public String firmarEnveloped(String xml, String refId) {
+    public String firmarEnveloped(String xml, String refId, Long empresaId) {
         log.warn("Firmando sobre/getToken con stub: NO es valido ante el SII.");
         return insertarAntesDelCierre(xml, refId == null ? "" : "#" + refId);
     }

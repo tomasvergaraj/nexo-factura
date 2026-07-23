@@ -42,22 +42,25 @@ public interface SiiGateway {
 
     /**
      * Datos de un envio. El XML es el DTE firmado tal como se almaceno; el
-     * sobre (EnvioBOLETA/EnvioDTE) lo arma el gateway en cada envio.
+     * sobre (EnvioBOLETA/EnvioDTE) lo arma el gateway en cada envio. El
+     * {@code empresaId} es el contexto de tenant: decide el certificado que
+     * firma el sobre, el token de sesion y la resolucion de la caratula.
      */
-    record EnvioSii(String xmlFirmado, int tipoDte, long folio, String rutEmisor) {}
+    record EnvioSii(Long empresaId, String xmlFirmado, int tipoDte, long folio, String rutEmisor) {}
 
     /** El tipo decide el canal y el RUT emisor es parte de la URL de consulta. */
-    record ConsultaSii(String trackId, int tipoDte, String rutEmisor) {}
+    record ConsultaSii(Long empresaId, String trackId, int tipoDte, String rutEmisor) {}
 
     /** Libro IECV firmado; periodo (AAAA-MM) y operacion solo nombran el archivo. */
-    record EnvioLibroSii(String xmlFirmado, String rutEmisor, String periodo, String tipoOperacion) {}
+    record EnvioLibroSii(Long empresaId, String xmlFirmado, String rutEmisor,
+                         String periodo, String tipoOperacion) {}
 
     /**
      * Identificacion del documento para la consulta por folio. El canal clasico
      * (getEstDte) exige ademas receptor, fecha de emision y monto total: el SII
      * los cruza contra lo registrado.
      */
-    record ConsultaDocumento(int tipoDte, long folio, String rutEmisor,
+    record ConsultaDocumento(Long empresaId, int tipoDte, long folio, String rutEmisor,
                              String rutReceptor, java.time.LocalDate fechaEmision, long monto) {}
 
     enum EstadoEnvio {

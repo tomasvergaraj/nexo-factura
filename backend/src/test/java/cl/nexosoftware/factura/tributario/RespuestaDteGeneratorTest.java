@@ -47,7 +47,7 @@ class RespuestaDteGeneratorTest {
         AcuseEnvio acuse = new AcuseEnvio("set_intercambio.xml", LocalDateTime.now(RELOJ), 1753278600L,
                 "SetDoc", "1WGHYu7oiVjSTV1/Bjcejc02gcA=", "88888888-8", "78397017-1", 0, dtes);
 
-        String xml = gen.generarRecepcionEnvio(CAB, acuse); // valida contra el XSD adentro
+        String xml = gen.generarRecepcionEnvio(CAB, acuse, 1L); // valida contra el XSD adentro
 
         assertThat(xml)
                 .contains("xsi:schemaLocation=\"http://www.sii.cl/SiiDte RespuestaEnvioDTE_v10.xsd\"")
@@ -72,7 +72,7 @@ class RespuestaDteGeneratorTest {
     void resultadoComercialSoloAceptados() {
         List<DteEvaluado> aceptados = List.of(new DteEvaluado(D_NUESTRO, true, 0));
 
-        String xml = gen.generarResultadoComercial(CAB, 1753278600L, aceptados);
+        String xml = gen.generarResultadoComercial(CAB, 1753278600L, aceptados, 1L);
 
         assertThat(xml)
                 .contains("<ResultadoDTE>")

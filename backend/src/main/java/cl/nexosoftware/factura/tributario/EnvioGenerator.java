@@ -3,10 +3,8 @@ package cl.nexosoftware.factura.tributario;
 import cl.nexosoftware.factura.config.AppProperties;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
 /**
  * Base comun de los sobres de envio al SII ({@code EnvioBOLETA} y {@code EnvioDTE}):
@@ -15,11 +13,12 @@ import java.time.format.DateTimeParseException;
  *
  * El DTE almacenado se embebe VERBATIM (solo se le quita la declaracion XML):
  * su firma interna cubre el Documento y no puede re-serializarse. La caratula
- * usa RutReceptor 60803000-K (SII), NroResol/FchResol de configuracion (en
- * certificacion: 0 y la fecha de "Datos de la Empresa" del ambiente cert) y el
- * RUN del firmante del certificado como RutEnvia. El sobre firmado se valida
- * contra el esquema oficial antes de entregarse: un sobre invalido aborta el
- * envio con el detalle, en vez de quemar un intento contra el SII.
+ * usa RutReceptor 60803000-K (SII), NroResol/FchResol resueltos POR EMPRESA
+ * (fila propia o fallback de entorno, via {@link ResolucionResolver}) y como
+ * RutEnvia el RUN del firmante del certificado DE LA EMPRESA (via
+ * {@link CertificadoResolver}). El sobre firmado se valida contra el esquema
+ * oficial antes de entregarse: un sobre invalido aborta el envio con el
+ * detalle, en vez de quemar un intento contra el SII.
  */
 abstract class EnvioGenerator {
 
@@ -29,35 +28,26 @@ abstract class EnvioGenerator {
 
     private final FirmaElectronica firma;
     private final DteXmlValidator validator;
-    private final CertificadoDigital certificado;
-    private final String fchResol;
-    private final int nroResol;
+    private final CertificadoResolver certificadoResolver;
+    private final ResolucionResolver resolucionResolver;
     private final Clock clock;
 
     protected EnvioGenerator(FirmaElectronica firma, DteXmlValidator validator,
-                             CertificadoDigital certificado, AppProperties props, Clock clock) {
+                             CertificadoResolver certificadoResolver,
+                             ResolucionResolver resolucionResolver,
+                             AppProperties props, Clock clock) {
         this.firma = firma;
         this.validator = validator;
-        this.certificado = certificado;
-        this.fchResol = validarFchResol(props.sii().fchResol());
-        this.nroResol = props.sii().nroResol();
+        this.certificadoResolver = certificadoResolver;
+        this.resolucionResolver = resolucionResolver;
         this.clock = clock;
-    }
-
-    /** Fail-fast en el arranque: sin FchResol toda caratula seria rechazada (RCT). */
-    private static String validarFchResol(String valor) {
-        if (valor == null || valor.isBlank()) {
-            throw new IllegalStateException(
-                    "APP_SII_FCH_RESOL es obligatoria para enviar al SII: es la fecha de resolucion "
-                            + "que muestra 'Datos de la Empresa' del ambiente de certificacion");
+        // Fail-fast SOLO en modo GLOBAL (el contrato historico del ambiente de
+        // certificacion): sin FchResol de entorno toda caratula seria rechazada
+        // (RCT). En POR_EMPRESA la resolucion vive en cada empresa y se valida
+        // por llamada — en el arranque no se puede saber que empresas la tienen.
+        if (FirmaModo.desde(props.sii().firmaModo()) == FirmaModo.GLOBAL) {
+            ResolucionResolver.validarFchResol(props.sii().fchResol());
         }
-        try {
-            LocalDate.parse(valor.trim());
-        } catch (DateTimeParseException e) {
-            throw new IllegalStateException(
-                    "APP_SII_FCH_RESOL invalida ('" + valor + "'): use el formato AAAA-MM-DD");
-        }
-        return valor.trim();
     }
 
     /** Nombre del elemento raiz del sobre ({@code EnvioBOLETA} o {@code EnvioDTE}). */
@@ -80,7 +70,11 @@ abstract class EnvioGenerator {
      * verbatim en el orden dado. Todos deben ser del mismo emisor.
      */
     public String generarLote(java.util.List<SiiGateway.EnvioSii> envios) {
+        Long empresaId = envios.get(0).empresaId();
         String rutEmisor = envios.get(0).rutEmisor();
+        String rutEnvia = certificadoResolver.paraEmpresa(empresaId).rutFirmante();
+        ResolucionResolver.Resolucion resolucion = resolucionResolver.paraCaratula(empresaId);
+
         // Un SubTotDTE por tipo, en orden de primera aparicion.
         java.util.Map<Integer, Long> porTipo = new java.util.LinkedHashMap<>();
         for (SiiGateway.EnvioSii e : envios) {
@@ -97,10 +91,10 @@ abstract class EnvioGenerator {
         }
         String caratula = "<Caratula version=\"1.0\">"
                 + "<RutEmisor>" + rutEmisor + "</RutEmisor>"
-                + "<RutEnvia>" + certificado.rutFirmante() + "</RutEnvia>"
+                + "<RutEnvia>" + rutEnvia + "</RutEnvia>"
                 + "<RutReceptor>" + RUT_SII + "</RutReceptor>"
-                + "<FchResol>" + fchResol + "</FchResol>"
-                + "<NroResol>" + nroResol + "</NroResol>"
+                + "<FchResol>" + resolucion.fchResol() + "</FchResol>"
+                + "<NroResol>" + resolucion.nroResol() + "</NroResol>"
                 + "<TmstFirmaEnv>" + LocalDateTime.now(clock).format(TIMESTAMP) + "</TmstFirmaEnv>"
                 + subTot
                 + "</Caratula>";
@@ -112,7 +106,7 @@ abstract class EnvioGenerator {
                 + "<SetDTE ID=\"SetDoc\">" + caratula + dtes + "</SetDTE>"
                 + "</" + nombreSobre() + ">";
 
-        String firmado = firma.firmarEnveloped(sobre, "SetDoc");
+        String firmado = firma.firmarEnveloped(sobre, "SetDoc", empresaId);
         firmado = redeclararNamespacesDelDte(firmado);
         validar(firmado);
         return firmado;

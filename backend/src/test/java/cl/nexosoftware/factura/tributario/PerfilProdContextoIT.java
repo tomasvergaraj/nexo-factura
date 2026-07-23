@@ -32,7 +32,7 @@ class PerfilProdContextoIT extends AbstractIntegrationTest {
     @DynamicPropertySource
     static void propiedadesProd(DynamicPropertyRegistry registry) {
         registry.add("app.jwt.secret", () -> SECRET_PROD_TEST);
-        // CertificadoDigital y EnvioBoletaGenerator son fail-fast en prod: el
+        // El resolver GLOBAL y EnvioBoletaGenerator son fail-fast en prod: el
         // contexto solo levanta con un certificado legible y una FchResol valida.
         registry.add("app.sii.certificado-path", PerfilProdContextoIT::rutaCertPrueba);
         registry.add("app.sii.certificado-password", () -> "test123");

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Check, Info, ShieldCheck } from "lucide-react";
+import { Check, Hash, Info } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import {
   Alert, Button, Card, Field, Input, LoadingState, PageHeader,
@@ -8,6 +8,7 @@ import { actualizarEmpresa, erroresDeCampo, getEmpresa, mensajeError } from "../
 import { empresaIdActual, obtenerUsuario } from "../../lib/auth";
 import { MENSAJE_RUT_INVALIDO, validarRut } from "../../lib/format";
 import type { Empresa, EmpresaRequest } from "../../lib/types";
+import { CertificadoCard } from "./CertificadoCard";
 
 // Estado del formulario: todos los campos como texto (incluida la actividad
 // económica, que es un código numérico); se convierte al construir el payload.
@@ -21,6 +22,8 @@ type FormEmpresa = {
   ciudad: string;
   telefono: string;
   email: string;
+  fchResol: string;
+  nroResol: string;
 };
 
 function aFormulario(e: Empresa): FormEmpresa {
@@ -34,6 +37,8 @@ function aFormulario(e: Empresa): FormEmpresa {
     ciudad: e.ciudad ?? "",
     telefono: e.telefono ?? "",
     email: e.email ?? "",
+    fchResol: e.fchResol ?? "",
+    nroResol: e.nroResol?.toString() ?? "",
   };
 }
 
@@ -79,6 +84,16 @@ export function Configuracion() {
     if (form.actividadEconomica.trim() && !/^\d+$/.test(form.actividadEconomica.trim())) {
       nuevos.actividadEconomica = "Debe ser el código numérico de actividad económica.";
     }
+    // Resolución SII: fecha y número van juntos (ambos o ninguno).
+    const tieneFch = !!form.fchResol.trim();
+    const tieneNro = !!form.nroResol.trim();
+    if (tieneNro && !/^\d+$/.test(form.nroResol.trim())) {
+      nuevos.nroResol = "Debe ser un número entero (0 en certificación).";
+    }
+    if (tieneFch !== tieneNro) {
+      const campo = tieneFch ? "nroResol" : "fchResol";
+      nuevos[campo] = "Completa la fecha y el número de resolución, o deja ambos vacíos.";
+    }
     if (Object.keys(nuevos).length > 0) {
       setErrores(nuevos);
       return;
@@ -94,6 +109,8 @@ export function Configuracion() {
       ciudad: form.ciudad.trim() || undefined,
       telefono: form.telefono.trim() || undefined,
       email: form.email.trim() || undefined,
+      fchResol: tieneFch ? form.fchResol.trim() : null,
+      nroResol: tieneNro ? Number(form.nroResol) : null,
     };
 
     setGuardando(true);
@@ -191,6 +208,34 @@ export function Configuracion() {
                   <Input type="email" value={form.email} disabled={!esAdmin} placeholder="contacto@empresa.cl" onChange={(e) => set("email", e.target.value)} />
                 </Field>
               </div>
+
+              <div className="border-t border-line pt-5">
+                <h2 className="font-display text-sm font-semibold text-ink">Resolución SII</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate">
+                  Número y fecha de la resolución que te autoriza como emisor electrónico. Van en la
+                  carátula de los envíos y en la leyenda del timbre. En certificación el número es 0.
+                  Déjalos vacíos para usar el valor por defecto del ambiente.
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field label="Fecha de resolución" error={errores.fchResol}>
+                    <Input
+                      type="date"
+                      value={form.fchResol}
+                      disabled={!esAdmin}
+                      onChange={(e) => set("fchResol", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Número de resolución" error={errores.nroResol}>
+                    <Input
+                      inputMode="numeric"
+                      value={form.nroResol}
+                      disabled={!esAdmin}
+                      placeholder="0"
+                      onChange={(e) => set("nroResol", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </div>
             </div>
 
             {esAdmin && (
@@ -203,18 +248,17 @@ export function Configuracion() {
           </Card>
         )}
 
+        <CertificadoCard esAdmin={esAdmin} />
+
         <Card className="flex items-start gap-4 p-6">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-cobalt">
-            <ShieldCheck size={22} strokeWidth={2} />
+            <Hash size={22} strokeWidth={2} />
           </span>
           <div>
-            <h2 className="flex items-center gap-2 font-display text-base font-semibold text-ink">
-              <Building2 size={16} className="text-slate-soft" /> Certificado digital y folios (CAF)
-            </h2>
+            <h2 className="font-display text-base font-semibold text-ink">Folios (CAF)</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-slate">
-              El certificado digital del representante legal y los Códigos de
-              Autorización de Folios habilitan la firma y numeración de tus DTE.
-              Los folios se administran en la sección <span className="font-medium text-ink-soft">Folios (CAF)</span>.
+              Los Códigos de Autorización de Folios numeran tus DTE y se administran
+              en la sección <span className="font-medium text-ink-soft">Folios (CAF)</span>.
             </p>
           </div>
         </Card>

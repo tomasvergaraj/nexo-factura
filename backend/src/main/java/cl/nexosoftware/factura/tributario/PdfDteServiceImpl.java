@@ -1,7 +1,6 @@
 package cl.nexosoftware.factura.tributario;
 
 import cl.nexosoftware.factura.common.validation.Rut;
-import cl.nexosoftware.factura.config.AppProperties;
 import cl.nexosoftware.factura.documento.DocumentoTributario;
 import cl.nexosoftware.factura.documento.LineaDetalle;
 import cl.nexosoftware.factura.documento.Referencia;
@@ -45,8 +44,8 @@ public class PdfDteServiceImpl implements PdfDteService {
     private static final Logger log = LoggerFactory.getLogger(PdfDteServiceImpl.class);
 
     private final Pdf417Generator pdf417Generator;
-    /** Para la leyenda del timbre ("Res. N de AAAA"): numero/fecha de resolucion. */
-    private final AppProperties props;
+    /** Para la leyenda del timbre ("Res. N de AAAA"): resolucion SII de la empresa. */
+    private final ResolucionResolver resolucionResolver;
 
     @Override
     public byte[] generar(DocumentoTributario doc, Empresa emisor) {
@@ -103,7 +102,7 @@ public class PdfDteServiceImpl implements PdfDteService {
             pdf.add(new Paragraph(" "));
             pdf.add(acuseRecibo());
         }
-        agregarTimbre(pdf, extraerTed(doc.getXmlDte()), doc);
+        agregarTimbre(pdf, extraerTed(doc.getXmlDte()), doc, emisor);
         if (cedible) {
             pdf.add(new Paragraph(" "));
             Paragraph destino = new Paragraph("CEDIBLE", font(12, Font.BOLD, ROJO));
@@ -294,7 +293,8 @@ public class PdfDteServiceImpl implements PdfDteService {
      * Si la generacion del PDF417 falla (zxing o el render), cae al texto de respaldo
      * para no romper la emision.
      */
-    private void agregarTimbre(Document pdf, String tedXml, DocumentoTributario doc) throws DocumentException {
+    private void agregarTimbre(Document pdf, String tedXml, DocumentoTributario doc, Empresa emisor)
+            throws DocumentException {
         pdf.add(new Paragraph(" "));
         if (tedXml == null) {
             // Borrador sin emitir: no hay XML firmado ni timbre que representar.
@@ -319,7 +319,7 @@ public class PdfDteServiceImpl implements PdfDteService {
             Paragraph leyenda = new Paragraph();
             leyenda.setAlignment(Element.ALIGN_CENTER);
             leyenda.add(new Chunk("Timbre Electrónico SII\n", font(8, Font.BOLD, GRIS)));
-            leyenda.add(new Chunk("Res. " + props.sii().nroResol() + " de " + anioResol(doc)
+            leyenda.add(new Chunk(leyendaResolucion(doc, emisor)
                     + " - Verifique documento: www.sii.cl", font(7, Font.NORMAL, GRIS)));
             pdf.add(leyenda);
         } catch (Exception e) {
@@ -349,20 +349,29 @@ public class PdfDteServiceImpl implements PdfDteService {
     }
 
     /**
-     * Anio de la resolucion para la leyenda del timbre: el de {@code app.sii.fch-resol}
-     * si esta configurado, si no el del ano de emision del documento (en certificacion
-     * la resolucion es la "0" del ano en curso).
+     * Leyenda "Res. N de AAAA" para el timbre: la resolucion propia de la empresa
+     * (o el fallback de entorno) via {@link ResolucionResolver}; si no hay ninguna,
+     * numero 0 y el ano de emision del documento (en certificacion la resolucion es
+     * la "0" del ano en curso). Puramente informativa, nunca aborta el PDF.
      */
-    private int anioResol(DocumentoTributario doc) {
-        String f = props.sii().fchResol();
-        if (f != null && f.length() >= 4) {
-            try {
-                return Integer.parseInt(f.substring(0, 4));
-            } catch (NumberFormatException ignored) {
-                // fch-resol mal formada: caemos al ano de emision.
+    private String leyendaResolucion(DocumentoTributario doc, Empresa emisor) {
+        int nroResol = 0;
+        int anio = doc.getFechaEmision().getYear();
+        try {
+            var resolucion = resolucionResolver.siExiste(emisor.getId());
+            if (resolucion.isPresent()) {
+                nroResol = resolucion.get().nroResol();
+                String fch = resolucion.get().fchResol();
+                if (fch != null && fch.length() >= 4) {
+                    anio = Integer.parseInt(fch.substring(0, 4));
+                }
             }
+        } catch (RuntimeException e) {
+            // Resolucion incompleta u otro problema: la representacion impresa no
+            // debe romperse por la leyenda; se cae a los valores por defecto.
+            log.warn("No se pudo resolver la resolucion SII para la leyenda del timbre", e);
         }
-        return doc.getFechaEmision().getYear();
+        return "Res. " + nroResol + " de " + anio;
     }
 
     // ---- helpers ----

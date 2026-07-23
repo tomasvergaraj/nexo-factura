@@ -5,7 +5,8 @@ import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaRepository;
 import cl.nexosoftware.factura.intercambio.IntercambioDtos.DecisionDte;
 import cl.nexosoftware.factura.intercambio.IntercambioDtos.RespuestaIntercambioResponse;
-import cl.nexosoftware.factura.tributario.CertificadoDigital;
+import cl.nexosoftware.factura.tributario.CertificadoFirma;
+import cl.nexosoftware.factura.tributario.CertificadoResolver;
 import cl.nexosoftware.factura.tributario.Contacto;
 import cl.nexosoftware.factura.tributario.DteEvaluado;
 import cl.nexosoftware.factura.tributario.DteXmlValidator;
@@ -17,7 +18,6 @@ import cl.nexosoftware.factura.tributario.RespuestaDteGenerator.AcuseEnvio;
 import cl.nexosoftware.factura.tributario.RespuestaDteGenerator.Cabecera;
 import cl.nexosoftware.factura.tributario.SobreRecibido;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -57,27 +57,27 @@ public class IntercambioService {
     private final RespuestaDteGenerator respuestaGen;
     private final EnvioRecibosGenerator recibosGen;
     private final EmpresaRepository empresaRepo;
-    private final ObjectProvider<CertificadoDigital> certificado;
+    private final CertificadoResolver certificadoResolver;
     private final Clock clock;
 
     // @Autowired explicito: hay un segundo constructor (con Clock, para tests).
     @Autowired
     public IntercambioService(LectorSobreDte lector, DteXmlValidator validator,
                               RespuestaDteGenerator respuestaGen, EnvioRecibosGenerator recibosGen,
-                              EmpresaRepository empresaRepo, ObjectProvider<CertificadoDigital> certificado) {
-        this(lector, validator, respuestaGen, recibosGen, empresaRepo, certificado,
+                              EmpresaRepository empresaRepo, CertificadoResolver certificadoResolver) {
+        this(lector, validator, respuestaGen, recibosGen, empresaRepo, certificadoResolver,
                 Clock.system(ZoneId.of("America/Santiago")));
     }
 
     IntercambioService(LectorSobreDte lector, DteXmlValidator validator,
                        RespuestaDteGenerator respuestaGen, EnvioRecibosGenerator recibosGen,
-                       EmpresaRepository empresaRepo, ObjectProvider<CertificadoDigital> certificado, Clock clock) {
+                       EmpresaRepository empresaRepo, CertificadoResolver certificadoResolver, Clock clock) {
         this.lector = lector;
         this.validator = validator;
         this.respuestaGen = respuestaGen;
         this.recibosGen = recibosGen;
         this.empresaRepo = empresaRepo;
-        this.certificado = certificado;
+        this.certificadoResolver = certificadoResolver;
         this.clock = clock;
     }
 
@@ -119,19 +119,20 @@ public class IntercambioService {
         String respuestaIntercambio = respuestaGen.generarRecepcionEnvio(cab, new AcuseEnvio(
                 nmbEnvio, LocalDateTime.now(clock), codigo, sobre.envioDteId(), sobre.digest(),
                 normalizarRut(sobre.rutEmisor()), normalizarRut(sobre.rutReceptor()),
-                estadoRecepEnv, evaluados));
+                estadoRecepEnv, evaluados), empresaId);
 
         // 5) Artefactos 2 y 3: solo si hay DTE aceptados.
         String reciboMercaderias = null;
         String resultadoComercial = null;
         if (!aceptados.isEmpty()) {
-            String rutFirma = resolverRutFirma(rutEmpresa);
+            String rutFirma = resolverRutFirma(empresaId, rutEmpresa);
             String recinto = recinto(empresa);
             List<ReciboItem> recibos = aceptados.stream()
                     .map(ev -> aReciboItem(ev, recinto, rutFirma))
                     .toList();
-            reciboMercaderias = recibosGen.generar(rutEmpresa, normalizarRut(sobre.rutEmisor()), contacto, recibos);
-            resultadoComercial = respuestaGen.generarResultadoComercial(cab, codigo, aceptados);
+            reciboMercaderias = recibosGen.generar(
+                    rutEmpresa, normalizarRut(sobre.rutEmisor()), contacto, recibos, empresaId);
+            resultadoComercial = respuestaGen.generarResultadoComercial(cab, codigo, aceptados, empresaId);
         } else {
             log.info("Sobre {} sin DTE para nuestro RUT: solo se genera la Respuesta de Intercambio",
                     sobre.envioDteId());
@@ -157,9 +158,11 @@ public class IntercambioService {
     }
 
     /** RUN del firmante del certificado; en dev/test (sin cert) cae al RUT empresa. */
-    private String resolverRutFirma(String rutEmpresa) {
-        CertificadoDigital cert = certificado.getIfAvailable();
-        return cert != null ? normalizarRut(cert.rutFirmante()) : rutEmpresa;
+    private String resolverRutFirma(Long empresaId, String rutEmpresa) {
+        return certificadoResolver.paraEmpresaSiExiste(empresaId)
+                .map(CertificadoFirma::rutFirmante)
+                .map(IntercambioService::normalizarRut)
+                .orElse(rutEmpresa);
     }
 
     private static String recinto(Empresa empresa) {

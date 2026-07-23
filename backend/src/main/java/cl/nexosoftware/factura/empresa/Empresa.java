@@ -3,6 +3,7 @@ package cl.nexosoftware.factura.empresa;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
@@ -52,6 +53,19 @@ public class Empresa {
     private String telefono;
 
     private String email;
+
+    /**
+     * Fecha de la resolucion del SII que autoriza a la empresa como emisor
+     * electronico (FchResol de la caratula de los envios). Nullable: mientras
+     * este vacia rige el fallback de entorno (APP_SII_FCH_RESOL). Debe ir
+     * junto a {@link #nroResol}: ambos o ninguno.
+     */
+    @Column(name = "fch_resol")
+    private LocalDate fchResol;
+
+    /** Numero de la resolucion del SII (NroResol; 0 en certificacion). */
+    @Column(name = "nro_resol")
+    private Integer nroResol;
 
     /** Control de concurrencia optimista (evita el lost update en edicion). */
     @Version

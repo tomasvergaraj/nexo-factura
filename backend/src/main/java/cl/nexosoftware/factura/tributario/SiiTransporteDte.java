@@ -48,17 +48,17 @@ public class SiiTransporteDte extends SiiTransporteBase {
     private final RestClient http;
     private final SiiSoap soap;
     private final EnvioDteGenerator envioGenerator;
-    private final CertificadoDigital certificado;
+    private final CertificadoResolver certificadoResolver;
     private final SiiAmbiente ambiente;
 
     public SiiTransporteDte(SiiHttp siiHttp, SiiSoap soap, SiiDteAuthClient auth,
-                            EnvioDteGenerator envioGenerator, CertificadoDigital certificado,
+                            EnvioDteGenerator envioGenerator, CertificadoResolver certificadoResolver,
                             AppProperties props) {
         super(auth, "EnvioDTE");
         this.http = siiHttp.cliente();
         this.soap = soap;
         this.envioGenerator = envioGenerator;
-        this.certificado = certificado;
+        this.certificadoResolver = certificadoResolver;
         this.ambiente = SiiAmbiente.desde(props.sii().ambiente());
     }
 
@@ -70,7 +70,7 @@ public class SiiTransporteDte extends SiiTransporteBase {
     @Override
     public String enviar(SiiGateway.EnvioSii envio) {
         String sobre = envioGenerator.generar(envio);
-        return conReintentoDeToken(token -> upload(envio, sobre, token));
+        return conReintentoDeToken(envio.empresaId(), token -> upload(envio, sobre, token));
     }
 
     /**
@@ -81,7 +81,7 @@ public class SiiTransporteDte extends SiiTransporteBase {
     @Override
     public String enviarLibro(SiiGateway.EnvioLibroSii envio) {
         String nombre = "LibroCV_" + envio.tipoOperacion() + "_" + envio.periodo() + ".xml";
-        return conReintentoDeToken(token -> subirSobre(
+        return conReintentoDeToken(envio.empresaId(), token -> subirSobre(
                 envio.rutEmisor(), nombre, envio.xmlFirmado(), token,
                 "el libro IECV " + envio.tipoOperacion() + " " + envio.periodo()));
     }
@@ -92,7 +92,7 @@ public class SiiTransporteDte extends SiiTransporteBase {
         String sobre = envioGenerator.generarLote(envios);
         String rutEmisor = envios.get(0).rutEmisor();
         String nombre = "EnvioDTE_LOTE_" + envios.size() + "docs.xml";
-        return conReintentoDeToken(token -> subirSobre(
+        return conReintentoDeToken(envios.get(0).empresaId(), token -> subirSobre(
                 rutEmisor, nombre, sobre, token, "el lote EnvioDTE de " + envios.size() + " documentos"));
     }
 
@@ -169,11 +169,11 @@ public class SiiTransporteDte extends SiiTransporteBase {
      */
     @Override
     public SiiGateway.EstadoDocumento consultarDocumento(SiiGateway.ConsultaDocumento consulta) {
-        return conReintentoDeToken(token -> getEstDte(consulta, token));
+        return conReintentoDeToken(consulta.empresaId(), token -> getEstDte(consulta, token));
     }
 
     private SiiGateway.EstadoDocumento getEstDte(SiiGateway.ConsultaDocumento consulta, String token) {
-        Rut consultante = Rut.de(certificado.rutFirmante());
+        Rut consultante = Rut.de(certificadoResolver.paraEmpresa(consulta.empresaId()).rutFirmante());
         Rut emisor = Rut.de(consulta.rutEmisor());
         Rut receptor = Rut.de(consulta.rutReceptor());
         String respuesta = soap.invocar(ambiente.hostDte() + "/DTEWS/QueryEstDte.jws", "getEstDte",
@@ -225,7 +225,7 @@ public class SiiTransporteDte extends SiiTransporteBase {
 
     @Override
     public SiiGateway.EstadoEnvio consultarEstado(SiiGateway.ConsultaSii consulta) {
-        return conReintentoDeToken(token -> getEstUp(consulta, token));
+        return conReintentoDeToken(consulta.empresaId(), token -> getEstUp(consulta, token));
     }
 
     private SiiGateway.EstadoEnvio getEstUp(SiiGateway.ConsultaSii consulta, String token) {

@@ -4,7 +4,6 @@ import cl.nexosoftware.factura.config.AppProperties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -26,20 +25,21 @@ class EnvioDteGeneratorTest {
     private static EnvioDteGenerator generador;
 
     @BeforeAll
-    static void inicializar() throws Exception {
-        String path = new ClassPathResource("sii/cert_prueba.p12").getFile().getAbsolutePath();
+    static void inicializar() {
         AppProperties props = new AppProperties(null, null, new AppProperties.Sii(
-                "CERTIFICACION", path, "test123", null, "2026-05-14", 0, "Mozilla/4.0 (compatible; PROG 1.0)"));
-        CertificadoDigital certificado = new CertificadoDigital(props);
-        generador = new EnvioDteGenerator(new FirmaElectronicaProd(certificado),
-                new DteXmlValidator(true), certificado, props, RELOJ_FIJO);
+                "CERTIFICACION", "GLOBAL", "sii/cert_prueba.p12", "test123", null,
+                "2026-05-14", 0, "Mozilla/4.0 (compatible; PROG 1.0)"), null);
+        CertificadoResolver certificadoResolver = TestCertificados.resolver();
+        generador = new EnvioDteGenerator(new FirmaElectronicaProd(certificadoResolver),
+                new DteXmlValidator(true), certificadoResolver, TestResoluciones.deEntorno(props),
+                props, RELOJ_FIJO);
     }
 
     @Test
     @DisplayName("el sobre EnvioDTE firmado valida contra EnvioDTE_v10.xsd")
     void sobreValidaContraElEsquema() {
         String dte = DteFixtures.xmlFirmado(DteFixtures.factura(1.0, 10000L, true));
-        SiiGateway.EnvioSii envio = new SiiGateway.EnvioSii(dte, 33, 1L, DteFixtures.RUT_EMISOR);
+        SiiGateway.EnvioSii envio = new SiiGateway.EnvioSii(1L, dte, 33, 1L, DteFixtures.RUT_EMISOR);
 
         assertThatCode(() -> generador.generar(envio)).doesNotThrowAnyException();
     }
@@ -48,7 +48,7 @@ class EnvioDteGeneratorTest {
     @DisplayName("caratula fiel y DTE embebido verbatim con dos firmas")
     void caratulaYDteVerbatim() {
         String dte = DteFixtures.xmlFirmado(DteFixtures.factura(1.0, 10000L, true));
-        SiiGateway.EnvioSii envio = new SiiGateway.EnvioSii(dte, 33, 1L, DteFixtures.RUT_EMISOR);
+        SiiGateway.EnvioSii envio = new SiiGateway.EnvioSii(1L, dte, 33, 1L, DteFixtures.RUT_EMISOR);
         String sobre = generador.generar(envio);
 
         assertThat(sobre)
@@ -82,9 +82,9 @@ class EnvioDteGeneratorTest {
                 .razon("DEVOLUCION DE MERCADERIAS").build());
 
         java.util.List<SiiGateway.EnvioSii> envios = java.util.List.of(
-                new SiiGateway.EnvioSii(DteFixtures.xmlFirmado(f1), 33, 1L, DteFixtures.RUT_EMISOR),
-                new SiiGateway.EnvioSii(DteFixtures.xmlFirmado(f2), 33, 2L, DteFixtures.RUT_EMISOR),
-                new SiiGateway.EnvioSii(DteFixtures.xmlFirmado(nc), 61, 1L, DteFixtures.RUT_EMISOR));
+                new SiiGateway.EnvioSii(1L, DteFixtures.xmlFirmado(f1), 33, 1L, DteFixtures.RUT_EMISOR),
+                new SiiGateway.EnvioSii(1L, DteFixtures.xmlFirmado(f2), 33, 2L, DteFixtures.RUT_EMISOR),
+                new SiiGateway.EnvioSii(1L, DteFixtures.xmlFirmado(nc), 61, 1L, DteFixtures.RUT_EMISOR));
 
         String sobre = generador.generarLote(envios);
 

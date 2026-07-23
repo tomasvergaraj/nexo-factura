@@ -58,7 +58,8 @@ public class EnvioRecibosGenerator {
     public record ReciboItem(int tipoDoc, long folio, LocalDate fchEmis, String rutEmisor,
                              String rutRecep, long mntTotal, String recinto, String rutFirma) {}
 
-    public String generar(String rutResponde, String rutRecibe, Contacto contacto, List<ReciboItem> recibos) {
+    public String generar(String rutResponde, String rutRecibe, Contacto contacto,
+                          List<ReciboItem> recibos, Long empresaId) {
         if (recibos == null || recibos.isEmpty()) {
             throw new IllegalArgumentException(
                     "EnvioRecibos requiere al menos un Recibo (el XSD exige Recibo 1..N)");
@@ -69,7 +70,7 @@ public class EnvioRecibosGenerator {
 
         StringBuilder recibosXml = new StringBuilder();
         for (ReciboItem item : recibos) {
-            recibosXml.append(sinDeclaracion(reciboFirmado(item, ts)));
+            recibosXml.append(sinDeclaracion(reciboFirmado(item, ts, empresaId)));
         }
 
         String sobre = JaxbXml.PROLOGO
@@ -82,7 +83,7 @@ public class EnvioRecibosGenerator {
                 + "</SetRecibos>"
                 + "</EnvioRecibos>";
 
-        String firmado = firma.firmarEnveloped(sobre, ID_SET_RECIBOS);
+        String firmado = firma.firmarEnveloped(sobre, ID_SET_RECIBOS, empresaId);
         firmado = redeclararNamespaceDelRecibo(firmado);
         JaxbXml.exigirLatin1(firmado, "el EnvioRecibos");
         validator.validarEnvioRecibos(firmado);
@@ -90,7 +91,7 @@ public class EnvioRecibosGenerator {
     }
 
     /** Un {@code <Recibo>} standalone marshallado y firmado sobre DocumentoRecibo/@ID. */
-    private String reciboFirmado(ReciboItem item, String ts) {
+    private String reciboFirmado(ReciboItem item, String ts, Long empresaId) {
         ModeloEnvioRecibos.DocumentoRecibo doc = new ModeloEnvioRecibos.DocumentoRecibo();
         String docId = "Recibo" + item.folio();
         doc.id = docId;
@@ -119,7 +120,7 @@ public class EnvioRecibosGenerator {
                 "<Recibo version=\"1.0\" xmlns=\"" + NS_SII + "\">",
                 "<Recibo version=\"1.0\" xmlns=\"" + NS_SII + "\" "
                         + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-        return firma.firmarEnveloped(xml, docId);
+        return firma.firmarEnveloped(xml, docId, empresaId);
     }
 
     private String caratulaXml(String rutResponde, String rutRecibe, Contacto contacto, String ts) {

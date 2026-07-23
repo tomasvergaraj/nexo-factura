@@ -29,6 +29,12 @@ public final class SecurityUtils {
         return up != null ? up.getEmpresaId() : null;
     }
 
+    /** Email del usuario autenticado o {@code null} (auditoria). */
+    public static String currentEmail() {
+        UsuarioPrincipal up = currentUser();
+        return up != null ? up.getEmail() : null;
+    }
+
     /** Rol del usuario autenticado o {@code null}. */
     public static Rol currentRol() {
         UsuarioPrincipal up = currentUser();

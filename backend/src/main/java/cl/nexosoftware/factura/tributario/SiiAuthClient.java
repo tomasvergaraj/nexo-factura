@@ -26,28 +26,34 @@ public class SiiAuthClient implements SiiTokenAuth {
 
     private final RestClient http;
     private final FirmaElectronica firma;
+    private final CertificadoResolver certificadoResolver;
     private final SiiAmbiente ambiente;
     private final TokenCache cache = new TokenCache();
 
-    public SiiAuthClient(SiiHttp siiHttp, FirmaElectronica firma, AppProperties props) {
+    public SiiAuthClient(SiiHttp siiHttp, FirmaElectronica firma,
+                         CertificadoResolver certificadoResolver, AppProperties props) {
         this.http = siiHttp.cliente();
         this.firma = firma;
+        this.certificadoResolver = certificadoResolver;
         this.ambiente = SiiAmbiente.desde(props.sii().ambiente());
     }
 
     @Override
-    public String token() {
-        return cache.obtener(this::renovar);
+    public String token(Long empresaId) {
+        // El cache va por huella del certificado: el token es una sesion del
+        // certificado que firma, no de la empresa ni de la aplicacion.
+        String huella = certificadoResolver.paraEmpresa(empresaId).huellaSha256();
+        return cache.obtener(huella, () -> renovar(empresaId));
     }
 
     @Override
-    public void invalidar(String tokenFallido) {
-        cache.invalidar(tokenFallido);
+    public void invalidar(Long empresaId, String tokenFallido) {
+        cache.invalidar(certificadoResolver.paraEmpresa(empresaId).huellaSha256(), tokenFallido);
     }
 
-    private String renovar() {
-        String token = obtenerToken(obtenerSemilla());
-        log.info("Token SII (boleta, {}) renovado", ambiente);
+    private String renovar(Long empresaId) {
+        String token = obtenerToken(obtenerSemilla(), empresaId);
+        log.info("Token SII (boleta, {}) renovado para la empresa {}", ambiente, empresaId);
         return token;
     }
 
@@ -70,10 +76,10 @@ public class SiiAuthClient implements SiiTokenAuth {
         return semilla.trim();
     }
 
-    private String obtenerToken(String semilla) {
+    private String obtenerToken(String semilla, Long empresaId) {
         // Estructura exacta del spec oficial; la firma va enveloped con URI="".
         String getToken = "<getToken><item><Semilla>" + semilla + "</Semilla></item></getToken>";
-        String firmado = firma.firmarEnveloped(getToken, null);
+        String firmado = firma.firmarEnveloped(getToken, null, empresaId);
 
         String cuerpo;
         try {

@@ -70,7 +70,7 @@ class LibroXmlGeneratorTest {
     @DisplayName("el libro de ventas FIRMADO (stub) cumple el esquema oficial LibroCV_v10")
     void ventasFirmadoCumpleXsd() {
         String xml = generator.generar(libroVentas(), emisor(), CARATULA);
-        String firmado = new FirmaElectronicaStub().firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO);
+        String firmado = new FirmaElectronicaStub().firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO, 1L);
 
         assertThatCode(() -> validator.validarLibro(firmado)).doesNotThrowAnyException();
     }
@@ -97,7 +97,7 @@ class LibroXmlGeneratorTest {
                 new LibroTotales(5, 0, 75981, 8790, 6887, 0, 1813, 97386), false, 0.60);
 
         String xml = generator.generar(libro, emisor(), CARATULA);
-        String firmado = new FirmaElectronicaStub().firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO);
+        String firmado = new FirmaElectronicaStub().firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO, 1L);
 
         assertThatCode(() -> validator.validarLibro(firmado)).doesNotThrowAnyException();
         assertThat(xml)
@@ -171,7 +171,7 @@ class LibroXmlGeneratorTest {
                 List.of(), List.of(), new LibroTotales(0, 0, 0, 0, 0, 0, 0, 0), true, null);
 
         String xml = generator.generar(vacio, emisor(), CARATULA);
-        String firmado = new FirmaElectronicaStub().firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO);
+        String firmado = new FirmaElectronicaStub().firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO, 1L);
 
         assertThatCode(() -> validator.validarLibro(firmado)).doesNotThrowAnyException();
         assertThat(xml).contains("<TipoOperacion>COMPRA</TipoOperacion>")

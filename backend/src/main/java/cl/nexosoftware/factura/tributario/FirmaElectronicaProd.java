@@ -34,8 +34,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Firma XMLDSig real con el certificado PKCS#12 del emisor, en el perfil que
- * fija el esquema del SII (xmldsignature_v10.xsd): C14N inclusive
+ * Firma XMLDSig real con el certificado PKCS#12 de la EMPRESA emisora (resuelto
+ * por {@link CertificadoResolver} en cada llamada), en el perfil que fija el
+ * esquema del SII (xmldsignature_v10.xsd): C14N inclusive
  * (REC-xml-c14n-20010315), rsa-sha1, digest sha1, un unico Transform
  * enveloped-signature, y KeyInfo con KeyValue + X509Data EN ESE ORDEN. SHA-256
  * NO es valido: el XSD restringe los URIs de algoritmo con fixed/enumeracion.
@@ -49,10 +50,10 @@ import java.util.List;
 @Slf4j
 public class FirmaElectronicaProd implements FirmaElectronica {
 
-    private final CertificadoDigital certificadoDigital;
+    private final CertificadoResolver certificadoResolver;
 
     @Override
-    public String firmar(String xmlDte) {
+    public String firmar(String xmlDte, Long empresaId) {
         Document doc = parsear(xmlDte);
         Element documento = primerElemento(doc, "Documento");
         if (documento == null) {
@@ -63,11 +64,11 @@ public class FirmaElectronicaProd implements FirmaElectronica {
             throw new IllegalStateException("El elemento Documento no tiene atributo ID para referenciar la firma");
         }
         documento.setIdAttribute("ID", true);
-        return firmarDom(doc, "#" + id);
+        return firmarDom(doc, "#" + id, certificadoResolver.paraEmpresa(empresaId));
     }
 
     @Override
-    public String firmarEnveloped(String xml, String refId) {
+    public String firmarEnveloped(String xml, String refId, Long empresaId) {
         Document doc = parsear(xml);
         String uri = "";
         if (refId != null) {
@@ -78,10 +79,10 @@ public class FirmaElectronicaProd implements FirmaElectronica {
             referenciado.setIdAttribute("ID", true);
             uri = "#" + refId;
         }
-        return firmarDom(doc, uri);
+        return firmarDom(doc, uri, certificadoResolver.paraEmpresa(empresaId));
     }
 
-    private String firmarDom(Document doc, String referenceUri) {
+    private String firmarDom(Document doc, String referenceUri, CertificadoFirma cert) {
         try {
             XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
             Reference ref = fac.newReference(
@@ -96,11 +97,10 @@ public class FirmaElectronicaProd implements FirmaElectronica {
             KeyInfoFactory kif = fac.getKeyInfoFactory();
             // Orden exigido por el XSD del SII: KeyValue y despues X509Data.
             KeyInfo ki = kif.newKeyInfo(List.of(
-                    kif.newKeyValue(certificadoDigital.certificado().getPublicKey()),
-                    kif.newX509Data(List.of(certificadoDigital.certificado()))));
+                    kif.newKeyValue(cert.certificado().getPublicKey()),
+                    kif.newX509Data(List.of(cert.certificado()))));
 
-            DOMSignContext ctx = new DOMSignContext(
-                    certificadoDigital.clavePrivada(), doc.getDocumentElement());
+            DOMSignContext ctx = new DOMSignContext(cert.clavePrivada(), doc.getDocumentElement());
             fac.newXMLSignature(si, ki).sign(ctx);
             return serializar(doc);
         } catch (Exception e) {

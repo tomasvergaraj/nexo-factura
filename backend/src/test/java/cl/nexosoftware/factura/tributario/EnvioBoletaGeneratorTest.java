@@ -4,7 +4,6 @@ import cl.nexosoftware.factura.config.AppProperties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -15,9 +14,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Sobre EnvioBOLETA: caratula fiel (RutReceptor SII, NroResol 0, FchResol de
- * config, RutEnvia del certificado), DTE embebido verbatim, firma del SetDTE y
- * — la garantia central — el sobre completo VALIDA contra EnvioBOLETA_v11.xsd.
+ * Sobre EnvioBOLETA: caratula fiel (RutReceptor SII, NroResol 0, FchResol del
+ * fallback de entorno, RutEnvia del certificado), DTE embebido verbatim, firma
+ * del SetDTE y — la garantia central — el sobre completo VALIDA contra
+ * EnvioBOLETA_v11.xsd.
  */
 class EnvioBoletaGeneratorTest {
 
@@ -25,22 +25,23 @@ class EnvioBoletaGeneratorTest {
             Clock.fixed(Instant.parse("2026-06-26T18:03:21Z"), ZoneId.of("America/Santiago"));
 
     private static EnvioBoletaGenerator generador;
-    private static CertificadoDigital certificado;
+    private static CertificadoResolver certificadoResolver;
     private static AppProperties props;
 
     @BeforeAll
-    static void inicializar() throws Exception {
-        String path = new ClassPathResource("sii/cert_prueba.p12").getFile().getAbsolutePath();
+    static void inicializar() {
         props = new AppProperties(null, null, new AppProperties.Sii(
-                "CERTIFICACION", path, "test123", null, "2026-05-14", 0, "Mozilla/4.0 (compatible; PROG 1.0)"));
-        certificado = new CertificadoDigital(props);
-        generador = new EnvioBoletaGenerator(new FirmaElectronicaProd(certificado),
-                new DteXmlValidator(true), certificado, props, RELOJ_FIJO);
+                "CERTIFICACION", "GLOBAL", "sii/cert_prueba.p12", "test123", null,
+                "2026-05-14", 0, "Mozilla/4.0 (compatible; PROG 1.0)"), null);
+        certificadoResolver = TestCertificados.resolver();
+        generador = new EnvioBoletaGenerator(new FirmaElectronicaProd(certificadoResolver),
+                new DteXmlValidator(true), certificadoResolver, TestResoluciones.deEntorno(props),
+                props, RELOJ_FIJO);
     }
 
     private SiiGateway.EnvioSii envio() {
         String dte = DteFixtures.xmlFirmado(DteFixtures.boletaAfecta(11900L));
-        return new SiiGateway.EnvioSii(dte, 39, 1L, DteFixtures.RUT_EMISOR);
+        return new SiiGateway.EnvioSii(1L, dte, 39, 1L, DteFixtures.RUT_EMISOR);
     }
 
     @Test
@@ -83,13 +84,25 @@ class EnvioBoletaGeneratorTest {
     }
 
     @Test
-    @DisplayName("sin FchResol el generador es fail-fast en la construccion")
+    @DisplayName("modo GLOBAL sin FchResol de entorno: fail-fast en la construccion")
     void sinFchResolFallaAlConstruir() {
         AppProperties sinResol = new AppProperties(null, null, new AppProperties.Sii(
-                "CERTIFICACION", props.sii().certificadoPath(), "test123", null, "", 0, "UA"));
-        assertThatThrownBy(() -> new EnvioBoletaGenerator(new FirmaElectronicaProd(certificado),
-                new DteXmlValidator(true), certificado, sinResol, RELOJ_FIJO))
+                "CERTIFICACION", "GLOBAL", props.sii().certificadoPath(), "test123", null, "", 0, "UA"), null);
+        assertThatThrownBy(() -> new EnvioBoletaGenerator(new FirmaElectronicaProd(certificadoResolver),
+                new DteXmlValidator(true), certificadoResolver, TestResoluciones.deEntorno(sinResol),
+                sinResol, RELOJ_FIJO))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("APP_SII_FCH_RESOL");
+    }
+
+    @Test
+    @DisplayName("modo POR_EMPRESA sin FchResol de entorno: NO falla al construir (resolucion por llamada)")
+    void porEmpresaNoFallaAlConstruirSinFchResol() {
+        AppProperties porEmpresa = new AppProperties(null, null, new AppProperties.Sii(
+                "CERTIFICACION", "POR_EMPRESA", props.sii().certificadoPath(), "test123", null, "", 0, "UA"), null);
+        assertThatCode(() -> new EnvioBoletaGenerator(new FirmaElectronicaProd(certificadoResolver),
+                new DteXmlValidator(true), certificadoResolver, TestResoluciones.deEntorno(porEmpresa),
+                porEmpresa, RELOJ_FIJO))
+                .doesNotThrowAnyException();
     }
 }
