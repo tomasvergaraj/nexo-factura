@@ -58,10 +58,16 @@ public class DteXmlValidator {
     // Esquema del IECV: define sus propios tipos del namespace SiiDte, por eso
     // se compila como un tercer Schema independiente.
     private static final String XSD_LIBRO = "sii/oficial/LibroCV_v10.xsd";
+    // Acuses de intercambio (Ley 19.983 / etapa de intercambio): tambien definen
+    // tipos del namespace SiiDte, cada uno como un Schema aparte.
+    private static final String XSD_RESPUESTA = "sii/oficial/RespuestaEnvioDTE_v10.xsd";
+    private static final String XSD_RECIBOS = "sii/oficial/EnvioRecibos_v10.xsd";
 
     private final Schema schemaFactura;
     private final Schema schemaBoleta;
     private final Schema schemaLibro;
+    private final Schema schemaRespuesta;
+    private final Schema schemaRecibos;
     private final boolean habilitado;
 
     public DteXmlValidator(@Value("${app.dte.validar-xsd:true}") boolean habilitado) {
@@ -69,6 +75,8 @@ public class DteXmlValidator {
         this.schemaFactura = compilarSchema(XSD_FACTURA);
         this.schemaBoleta = compilarSchema(XSD_BOLETA);
         this.schemaLibro = compilarSchema(XSD_LIBRO);
+        this.schemaRespuesta = compilarSchema(XSD_RESPUESTA);
+        this.schemaRecibos = compilarSchema(XSD_RECIBOS);
         if (!habilitado) {
             log.warn("Validacion XSD del DTE DESHABILITADA (app.dte.validar-xsd=false). "
                     + "Solo para diagnostico, nunca en produccion.");
@@ -154,6 +162,18 @@ public class DteXmlValidator {
     public void validarLibro(String xmlLibro) {
         validarContra(schemaLibro, xmlLibro,
                 "El libro IECV no cumple el esquema oficial del SII (LibroCV_v10)");
+    }
+
+    /** Valida la RespuestaDTE firmada contra RespuestaEnvioDTE_v10 (acuses de intercambio). */
+    public void validarRespuestaDte(String xmlRespuesta) {
+        validarContra(schemaRespuesta, xmlRespuesta,
+                "La RespuestaDTE no cumple el esquema oficial del SII (RespuestaEnvioDTE_v10)");
+    }
+
+    /** Valida el EnvioRecibos firmado contra EnvioRecibos_v10 (recibo de mercaderias). */
+    public void validarEnvioRecibos(String xmlRecibos) {
+        validarContra(schemaRecibos, xmlRecibos,
+                "El EnvioRecibos no cumple el esquema oficial del SII (EnvioRecibos_v10)");
     }
 
     private void validarContra(Schema schema, String xml, String mensaje) {

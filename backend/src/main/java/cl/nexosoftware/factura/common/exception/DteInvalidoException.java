@@ -19,6 +19,11 @@ public class DteInvalidoException extends RuntimeException {
         this.errores = errores;
     }
 
+    /** Sin detalle por campo (p.ej. un sobre recibido que no parsea). */
+    public DteInvalidoException(String mensaje) {
+        this(mensaje, List.of());
+    }
+
     public List<ApiError.CampoInvalido> getErrores() {
         return errores;
     }
