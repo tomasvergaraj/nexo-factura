@@ -47,6 +47,15 @@ public class DocumentoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.crear(empresaId, req));
     }
 
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar un documento en BORRADOR. Un documento emitido no se borra: "
+            + "se anula con una nota de credito.")
+    @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void eliminar(@PathVariable Long empresaId, @PathVariable Long id) {
+        service.eliminar(empresaId, id);
+    }
+
     @PostMapping("/{id}/emitir")
     @Operation(summary = "Emitir: asigna folio, genera timbre, XML y firma. "
             + "Una nota de credito con referencia ANULA_DOCUMENTO anula el original ACEPTADO en la misma transaccion.")

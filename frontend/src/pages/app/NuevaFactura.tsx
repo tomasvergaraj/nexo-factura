@@ -58,6 +58,9 @@ export function NuevaFactura() {
   const [tipoDocumentoRef, setTipoDocumentoRef] = useState<number | null>(null);
   const [tipoReferencia, setTipoReferencia] = useState<TipoReferencia>("ANULA_DOCUMENTO");
   const [razon, setRazon] = useState("");
+  // Texto de búsqueda del combobox de documento de referencia (escala mejor que
+  // un <select> con cientos de documentos).
+  const [busquedaRef, setBusquedaRef] = useState("");
 
   const esBoleta = ES_BOLETA[tipoDte];
   const afectoPorDefecto = tipoDte !== "FACTURA_EXENTA" && tipoDte !== "BOLETA_EXENTA";
@@ -102,6 +105,7 @@ export function NuevaFactura() {
       setFechaRef("");
       setTipoDocumentoRef(null);
       setRazon("");
+      setBusquedaRef("");
     }
   }
 
@@ -333,29 +337,72 @@ export function NuevaFactura() {
                   Referencia al documento original
                 </h2>
                 <div className="space-y-4">
-                  <Field label="Documento de referencia" hint="Solo documentos con folio asignado.">
-                    <Select
-                      value={refDocId}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        if (v) elegirDocumentoReferenciado(v);
-                        else { setRefDocId(""); setFolioRef(null); setFechaRef(""); setTipoDocumentoRef(null); }
-                      }}
-                    >
-                      <option value="">Selecciona el documento original…</option>
-                      {emisibles.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {TIPO_DTE_LABEL[d.tipoDte]} N° {d.folio} · {d.receptorRazonSocial} · {formatCLP(d.total)}
-                        </option>
-                      ))}
-                    </Select>
+                  <Field
+                    label="Documento de referencia"
+                    hint="Busca por folio, receptor o tipo. Solo documentos con folio asignado."
+                  >
+                    {refDocId !== "" ? (
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-mist/40 px-3.5 py-2.5">
+                        <span className="text-sm text-ink tnum">
+                          {(() => {
+                            const sel = emisibles.find((d) => d.id === refDocId);
+                            return sel
+                              ? `${TIPO_DTE_LABEL[sel.tipoDte]} N° ${sel.folio} · ${sel.receptorRazonSocial} · ${formatFecha(sel.fechaEmision)} · ${formatCLP(sel.total)}`
+                              : `Documento ${tipoDocumentoRef} · folio ${folioRef} · ${formatFecha(fechaRef)}`;
+                          })()}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setRefDocId(""); setFolioRef(null); setFechaRef(""); setTipoDocumentoRef(null); setBusquedaRef("");
+                          }}
+                        >
+                          Cambiar
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Input
+                          value={busquedaRef}
+                          placeholder="Busca por folio, receptor o tipo…"
+                          onChange={(e) => setBusquedaRef(e.target.value)}
+                        />
+                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-line">
+                          {(() => {
+                            const q = busquedaRef.trim().toLowerCase();
+                            const filtrados = emisibles
+                              .filter((d) =>
+                                q === "" ||
+                                String(d.folio).includes(q) ||
+                                d.receptorRazonSocial.toLowerCase().includes(q) ||
+                                TIPO_DTE_LABEL[d.tipoDte].toLowerCase().includes(q))
+                              .slice(0, 20);
+                            if (filtrados.length === 0) {
+                              return (
+                                <p className="px-3.5 py-3 text-sm text-slate-soft">
+                                  {emisibles.length === 0
+                                    ? "No hay documentos foliados para referenciar."
+                                    : "Sin documentos que coincidan."}
+                                </p>
+                              );
+                            }
+                            return filtrados.map((d) => (
+                              <button
+                                key={d.id}
+                                type="button"
+                                onClick={() => { elegirDocumentoReferenciado(d.id); setBusquedaRef(""); }}
+                                className="flex w-full items-center justify-between gap-3 border-b border-line px-3.5 py-2.5 text-left text-sm last:border-0 hover:bg-mist"
+                              >
+                                <span className="text-ink tnum">{TIPO_DTE_LABEL[d.tipoDte]} N° {d.folio}</span>
+                                <span className="text-slate-soft">{d.receptorRazonSocial} · {formatCLP(d.total)}</span>
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      </>
+                    )}
                   </Field>
-
-                  {folioRef != null && (
-                    <div className="rounded-lg bg-mist px-3.5 py-2.5 text-xs text-slate tnum">
-                      Referencia: documento {tipoDocumentoRef} · folio {folioRef} · {formatFecha(fechaRef)}
-                    </div>
-                  )}
 
                   <Field label="Tipo de referencia">
                     <Select

@@ -371,6 +371,24 @@ public class DocumentoService {
         return DocumentoMapper.toResponse(buscarConDetalle(empresaId, id));
     }
 
+    /**
+     * Elimina un documento en BORRADOR. Un borrador aun no es un DTE legal (sin
+     * folio y sin envio al SII), asi que borrarlo es seguro: no consume folio ni
+     * deja rastro tributario. Cualquier otro estado es inmutable — un documento
+     * emitido se anula con una nota de credito, no se borra. Las lineas y
+     * referencias caen en cascada (orphanRemoval en la entidad).
+     */
+    @Transactional
+    public void eliminar(Long empresaId, Long id) {
+        DocumentoTributario doc = buscarConDetalle(empresaId, id);
+        if (doc.getEstado() != EstadoDte.BORRADOR) {
+            throw new ReglaNegocioException(
+                    "Solo se pueden eliminar documentos en borrador; este esta en estado "
+                            + doc.getEstado() + " (un documento emitido se anula con una nota de credito)");
+        }
+        documentoRepository.delete(doc);
+    }
+
     // ---------- helpers de dominio ----------
 
     /**

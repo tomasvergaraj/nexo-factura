@@ -1,14 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Receipt, Send, RefreshCw, FileDown, FileWarning,
+  ArrowLeft, Receipt, Send, RefreshCw, FileDown, FileWarning, Trash2,
 } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
-import { Card, Button, Badge, EmptyState, LoadingState, Alert, Th } from "../../components/ui";
+import { Card, Button, Badge, EmptyState, LoadingState, Alert, Th, Modal } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import {
   getDocumento, emitirDocumento, enviarDocumento, reenviarDocumento, consultarEstadoSii,
-  descargarPdf, mensajeError,
+  descargarPdf, eliminarDocumento, mensajeError,
 } from "../../lib/api";
 import { empresaIdActual, obtenerUsuario } from "../../lib/auth";
 import { formatCLP, formatFecha, formatRut } from "../../lib/format";
@@ -24,12 +24,15 @@ const ROLES_EMISION = ["ADMIN", "EMISOR"];
 export function DetalleDocumento() {
   const { id } = useParams<{ id: string }>();
   const docId = Number(id);
+  const navigate = useNavigate();
 
   const [doc, setDoc] = useState<DocumentoResponse | null>(null);
   const [cargando, setCargando] = useState(true);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [ocupado, setOcupado] = useState<Accion | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
 
   const usuario = obtenerUsuario();
   const puedeEmitir = !!usuario && ROLES_EMISION.includes(usuario.rol);
@@ -55,6 +58,19 @@ export function DetalleDocumento() {
       setError(mensajeError(e, "No se pudo completar la acción."));
     } finally {
       setOcupado(null);
+    }
+  }
+
+  async function eliminar() {
+    setEliminando(true);
+    setError(null);
+    try {
+      await eliminarDocumento(empresaIdActual(), docId);
+      navigate("/app/documentos");
+    } catch (e) {
+      setError(mensajeError(e, "No se pudo eliminar el documento."));
+      setEliminando(false);
+      setConfirmarEliminar(false);
     }
   }
 
@@ -102,6 +118,9 @@ export function DetalleDocumento() {
     acciones.push(
       <Button key="emitir" onClick={() => ejecutar("emitir", () => emitirDocumento(empresaIdActual(), docId))} disabled={ocupado !== null}>
         {ocupado === "emitir" ? "Emitiendo…" : <><Receipt size={16} /> Emitir</>}
+      </Button>,
+      <Button key="eliminar" variant="danger" onClick={() => setConfirmarEliminar(true)} disabled={ocupado !== null}>
+        <Trash2 size={16} /> Eliminar
       </Button>,
     );
   }
@@ -263,6 +282,27 @@ export function DetalleDocumento() {
           Estado actual: {ESTADO_LABEL[doc.estado]}.
         </p>
       </div>
+
+      <Modal
+        open={confirmarEliminar}
+        onClose={() => !eliminando && setConfirmarEliminar(false)}
+        title="Eliminar borrador"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmarEliminar(false)} disabled={eliminando}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={eliminar} disabled={eliminando}>
+              {eliminando ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate">
+          Se eliminará este borrador de forma permanente. No consume folio ni se envió al SII, así
+          que no deja rastro tributario. Esta acción no se puede deshacer.
+        </p>
+      </Modal>
     </AppShell>
   );
 }

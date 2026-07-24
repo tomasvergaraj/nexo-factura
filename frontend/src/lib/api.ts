@@ -427,6 +427,15 @@ export async function reenviarDocumento(empresaId: number, id: number): Promise<
   return data;
 }
 
+/** Elimina un documento en BORRADOR (un documento emitido se anula con nota de crédito). */
+export async function eliminarDocumento(empresaId: number, id: number): Promise<void> {
+  if (USE_MOCK) {
+    await demora(300);
+    return;
+  }
+  await http.delete(`/empresas/${empresaId}/documentos/${id}`);
+}
+
 /** Reintenta el envío de todos los documentos EN_CONTINGENCIA de la empresa. */
 export async function reenviarPendientes(empresaId: number): Promise<ReenvioMasivoResponse> {
   if (USE_MOCK) {
