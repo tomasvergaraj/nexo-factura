@@ -3,7 +3,7 @@ import { Check, FileUp, KeyRound, ShieldCheck, ShieldAlert, Trash2 } from "lucid
 import { Alert, Badge, Button, Card, Field, Input, LoadingState, Modal } from "../../components/ui";
 import { eliminarCertificado, getCertificado, mensajeError, subirCertificado } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { formatFecha } from "../../lib/format";
+import { formatFecha, formatRut, normalizarRut, validarRut, MENSAJE_RUT_INVALIDO } from "../../lib/format";
 import type { CertificadoResponse } from "../../lib/types";
 
 /**
@@ -53,9 +53,15 @@ export function CertificadoCard({ esAdmin }: { esAdmin: boolean }) {
       setError("Ingresa la clave del certificado.");
       return;
     }
+    // El RUN es opcional (por defecto se extrae del certificado); si se ingresa,
+    // se valida el DV y se envia canonico (sin puntos) para el SII.
+    if (rutFirmante.trim() && !validarRut(rutFirmante)) {
+      setError(MENSAJE_RUT_INVALIDO);
+      return;
+    }
     setGuardando(true);
     try {
-      const nuevo = await subirCertificado(empresaIdActual(), archivo, password, rutFirmante || undefined);
+      const nuevo = await subirCertificado(empresaIdActual(), archivo, password, normalizarRut(rutFirmante) || undefined);
       setCert(nuevo);
       setModal(false);
       setExito(true);
@@ -201,8 +207,8 @@ export function CertificadoCard({ esAdmin }: { esAdmin: boolean }) {
           >
             <Input
               value={rutFirmante}
-              onChange={(e) => setRutFirmante(e.target.value)}
-              placeholder="11111111-1"
+              onChange={(e) => setRutFirmante(formatRut(e.target.value))}
+              placeholder="11.111.111-1"
             />
           </Field>
         </div>
