@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -134,18 +135,31 @@ public class LibroService {
                 .map(e -> e.getValue().aResumen(e.getKey(), fctProp))
                 .toList();
 
+        // Total NETO del periodo: las notas de credito RESTAN (revierten
+        // ventas/compras); el resto suma. Solo afecta al agregado que se MUESTRA
+        // (fila "Total"); el resumen por tipo del XML del SII va con montos
+        // positivos por TpoDoc y no se toca. Los conteos (documentos/anulados) no
+        // llevan signo: cuentan documentos, no montos.
         LibroTotales totales = new LibroTotales(
                 resumen.stream().mapToLong(LibroResumenTipo::documentos).sum(),
                 resumen.stream().mapToLong(LibroResumenTipo::anulados).sum(),
-                resumen.stream().mapToLong(LibroResumenTipo::neto).sum(),
-                resumen.stream().mapToLong(LibroResumenTipo::exento).sum(),
-                resumen.stream().mapToLong(LibroResumenTipo::iva).sum(),
-                resumen.stream().mapToLong(LibroResumenTipo::otrosImpuestos).sum(),
-                resumen.stream().mapToLong(LibroResumenTipo::ivaRetenido).sum(),
-                resumen.stream().mapToLong(LibroResumenTipo::total).sum());
+                resumen.stream().mapToLong(r -> signo(r.tipoDocumento()) * r.neto()).sum(),
+                resumen.stream().mapToLong(r -> signo(r.tipoDocumento()) * r.exento()).sum(),
+                resumen.stream().mapToLong(r -> signo(r.tipoDocumento()) * r.iva()).sum(),
+                resumen.stream().mapToLong(r -> signo(r.tipoDocumento()) * r.otrosImpuestos()).sum(),
+                resumen.stream().mapToLong(r -> signo(r.tipoDocumento()) * r.ivaRetenido()).sum(),
+                resumen.stream().mapToLong(r -> signo(r.tipoDocumento()) * r.total()).sum());
 
         return new LibroResponse(
                 periodo.toString(), operacion, resumen, detalle, totales, resumen.isEmpty(), fctProp);
+    }
+
+    /** Codigos de nota de credito: papel (60) y electronica (61). Restan del total neto. */
+    private static final Set<Integer> NOTAS_CREDITO = Set.of(60, 61);
+
+    /** Signo del tipo en el total AGREGADO del periodo: las notas de credito restan. */
+    private static int signo(int tipoDocumento) {
+        return NOTAS_CREDITO.contains(tipoDocumento) ? -1 : 1;
     }
 
     /** Acumulador mutable por tipo de documento. */

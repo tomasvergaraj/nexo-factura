@@ -55,7 +55,25 @@ class LibroServiceTest {
         // Detalle: un registro por documento, con la contraparte.
         assertThat(libro.detalle()).hasSize(3);
         assertThat(libro.totales().documentos()).isEqualTo(3);
-        assertThat(libro.totales().total()).isEqualTo(188500 + 23800);
+        // La nota de credito RESTA del total neto del periodo (revierte ventas).
+        assertThat(libro.totales().total()).isEqualTo(188500 - 23800);
+    }
+
+    @Test
+    @DisplayName("el total agregado suma facturas y notas de debito, y RESTA las notas de credito")
+    void totalesRestaNotasDeCredito() {
+        LibroResponse libro = LibroService.construirVentas(List.of(
+                factura(1, EstadoDte.ACEPTADO, 100000, 0, 19000, 119000),
+                notaDebito(1, EstadoDte.ACEPTADO, 10000, 0, 1900, 11900),
+                notaCredito(1, EstadoDte.ACEPTADO, 20000, 0, 3800, 23800)), PERIODO);
+
+        // Cada tipo, en su fila de resumen, va con montos POSITIVOS (como el XML del SII).
+        assertThat(libro.resumen()).extracting(LibroResumenTipo::tipoDocumento).containsExactly(33, 56, 61);
+        assertThat(libro.resumen().get(2).total()).isEqualTo(23800);
+        // El total AGREGADO del periodo: factura + nota de debito - nota de credito.
+        assertThat(libro.totales().neto()).isEqualTo(100000 + 10000 - 20000);
+        assertThat(libro.totales().iva()).isEqualTo(19000 + 1900 - 3800);
+        assertThat(libro.totales().total()).isEqualTo(119000 + 11900 - 23800);
     }
 
     @Test
@@ -231,6 +249,8 @@ class LibroServiceTest {
 
         assertThat(libro.resumen()).extracting(LibroResumenTipo::tipoDocumento).containsExactly(30, 60);
         assertThat(libro.resumen().get(1).iva()).isEqualTo(515);
+        // El tipo 60 (nota de credito de compra) RESTA del total agregado.
+        assertThat(libro.totales().total()).isEqualTo(24187 - 3227);
     }
 
     // ---------- fabricas ----------
