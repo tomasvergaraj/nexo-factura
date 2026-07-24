@@ -22,6 +22,7 @@ type FormEmpresa = {
   ciudad: string;
   telefono: string;
   email: string;
+  unidadSii: string;
   fchResol: string;
   nroResol: string;
 };
@@ -37,6 +38,7 @@ function aFormulario(e: Empresa): FormEmpresa {
     ciudad: e.ciudad ?? "",
     telefono: e.telefono ?? "",
     email: e.email ?? "",
+    unidadSii: e.unidadSii ?? "",
     fchResol: e.fchResol ?? "",
     nroResol: e.nroResol?.toString() ?? "",
   };
@@ -109,6 +111,7 @@ export function Configuracion() {
       ciudad: form.ciudad.trim() || undefined,
       telefono: form.telefono.trim() || undefined,
       email: form.email.trim() || undefined,
+      unidadSii: form.unidadSii.trim() || undefined,
       fchResol: tieneFch ? form.fchResol.trim() : null,
       nroResol: tieneNro ? Number(form.nroResol) : null,
     };
@@ -199,6 +202,19 @@ export function Configuracion() {
                   <Input value={form.ciudad} disabled={!esAdmin} onChange={(e) => set("ciudad", e.target.value)} />
                 </Field>
               </div>
+
+              <Field
+                label="Unidad SII"
+                hint="Dirección Regional / Unidad del SII a la que perteneces; se imprime bajo el timbre en la representación impresa. La asigna el SII según tu domicilio."
+                error={errores.unidadSii}
+              >
+                <Input
+                  value={form.unidadSii}
+                  disabled={!esAdmin}
+                  placeholder="S.I.I. - QUILLOTA"
+                  onChange={(e) => set("unidadSii", e.target.value)}
+                />
+              </Field>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Teléfono" error={errores.telefono}>

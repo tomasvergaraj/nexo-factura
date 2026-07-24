@@ -163,6 +163,8 @@ export interface Empresa {
   ciudad: string | null;
   telefono: string | null;
   email: string | null;
+  /** Dirección Regional / Unidad del SII del emisor; se imprime bajo el timbre. */
+  unidadSii: string | null;
   /** Fecha de la resolución SII que autoriza como emisor (AAAA-MM-DD); null = fallback de entorno. */
   fchResol: string | null;
   /** Número de la resolución SII (0 en certificación); null = fallback de entorno. */
@@ -179,6 +181,7 @@ export interface EmpresaRequest {
   ciudad?: string;
   telefono?: string;
   email?: string;
+  unidadSii?: string;
   /** Resolución SII: fecha y número. Ambos o ninguno (vacíos = fallback de entorno). */
   fchResol?: string | null;
   nroResol?: number | null;

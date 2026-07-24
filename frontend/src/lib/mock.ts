@@ -17,6 +17,7 @@ export const empresaMock: Empresa = {
   ciudad: "Quillota",
   telefono: "+56 9 8196 4119",
   email: "contacto@nexosoftware.cl",
+  unidadSii: "S.I.I. - QUILLOTA",
   fchResol: null,
   nroResol: null,
 };
