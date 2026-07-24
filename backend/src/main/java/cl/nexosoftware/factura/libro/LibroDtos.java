@@ -95,4 +95,20 @@ public final class LibroDtos {
             TipoOperacion tipoOperacion,
             String trackId
     ) {}
+
+    /**
+     * Envio del libro ya persistido. {@code estado} es null mientras no se
+     * consulte al SII (el POST solo devuelve el TrackID; el estado llega por
+     * QueryEstUp bajo demanda).
+     */
+    public record EnvioLibroResponse(
+            Long id,
+            String periodo,
+            TipoOperacion tipoOperacion,
+            String trackId,
+            String estado,
+            String tipoLibro,
+            Long folioNotificacion,
+            java.time.OffsetDateTime tmstEnvio
+    ) {}
 }

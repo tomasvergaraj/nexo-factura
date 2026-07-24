@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
-import { BookOpen, FileDown } from "lucide-react";
+import { BookOpen, FileDown, RefreshCw, Send } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
-import { Card, Input, Button, EmptyState, PageHeader, LoadingState, Alert, Th, Badge } from "../../components/ui";
-import { getLibro, getLibroXml, mensajeError } from "../../lib/api";
+import { Card, Input, Button, EmptyState, PageHeader, LoadingState, Alert, Th, Badge, Modal } from "../../components/ui";
+import { getLibro, getLibroXml, enviarLibro, getEnviosLibro, estadoEnvioLibro, mensajeError } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { formatCLP, formatFecha, formatNumero, formatRut, mesActual } from "../../lib/format";
-import { nombreTipoDte, type LibroResponse, type TipoOperacionLibro } from "../../lib/types";
+import { formatCLP, formatFecha, formatFechaHora, formatNumero, formatRut, mesActual } from "../../lib/format";
+import { nombreTipoDte, type EnvioLibro, type EstadoEnvioLibro, type LibroResponse, type TipoOperacionLibro } from "../../lib/types";
 
 const MES_ACTUAL = mesActual(); // YYYY-MM (mes local, no UTC)
+
+const ESTADO_ENVIO: Record<EstadoEnvioLibro, { label: string; tone: "success" | "warn" | "danger" | "cobalt" }> = {
+  RECIBIDO: { label: "Recibido", tone: "cobalt" },
+  ACEPTADO: { label: "Aceptado", tone: "success" },
+  ACEPTADO_CON_REPARO: { label: "Aceptado con reparo", tone: "warn" },
+  RECHAZADO: { label: "Rechazado", tone: "danger" },
+};
 
 export function Libros() {
   const [tipo, setTipo] = useState<TipoOperacionLibro>("VENTA");
@@ -16,17 +23,53 @@ export function Libros() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [descargando, setDescargando] = useState(false);
+  const [envios, setEnvios] = useState<EnvioLibro[]>([]);
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [refrescando, setRefrescando] = useState<string | null>(null);
 
   useEffect(() => {
     let vigente = true;
     setCargando(true);
     setError(null);
-    getLibro(empresaIdActual(), tipo, periodo)
-      .then((l) => { if (vigente) setLibro(l); })
+    setEnvios([]);
+    Promise.all([
+      getLibro(empresaIdActual(), tipo, periodo),
+      getEnviosLibro(empresaIdActual(), tipo, periodo),
+    ])
+      .then(([l, e]) => { if (vigente) { setLibro(l); setEnvios(e); } })
       .catch((e) => { if (vigente) setError(mensajeError(e, "No se pudo cargar el libro.")); })
       .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
   }, [tipo, periodo]);
+
+  async function confirmarEnvio() {
+    setEnviando(true);
+    setError(null);
+    try {
+      await enviarLibro(empresaIdActual(), tipo, periodo);
+      setConfirmando(false);
+      // Releo la lista para mostrar el envío recién creado con su TrackID.
+      setEnvios(await getEnviosLibro(empresaIdActual(), tipo, periodo));
+    } catch (e) {
+      setError(mensajeError(e, "No se pudo enviar el libro al SII."));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function refrescarEstado(trackId: string) {
+    setRefrescando(trackId);
+    setError(null);
+    try {
+      const estado = await estadoEnvioLibro(empresaIdActual(), trackId);
+      setEnvios((prev) => prev.map((e) => (e.trackId === trackId ? { ...e, estado } : e)));
+    } catch (e) {
+      setError(mensajeError(e, "No se pudo consultar el estado del envío."));
+    } finally {
+      setRefrescando(null);
+    }
+  }
 
   async function descargarXml() {
     setDescargando(true);
@@ -68,6 +111,13 @@ export function Libros() {
               <Button variant="secondary" onClick={descargarXml} disabled={descargando || !conMovimiento}>
                 {descargando ? "Generando…" : <><FileDown size={16} /> XML</>}
               </Button>
+              <Button
+                onClick={() => setConfirmando(true)}
+                disabled={enviando || !conMovimiento}
+                className="shrink-0 whitespace-nowrap"
+              >
+                <Send size={16} /> Enviar al SII
+              </Button>
             </div>
           }
         />
@@ -89,6 +139,56 @@ export function Libros() {
         </div>
 
         {error && <Alert>{error}</Alert>}
+
+        {envios.length > 0 && (
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-line px-6 py-4">
+              <div>
+                <h2 className="font-display text-base font-semibold text-ink">Envíos al SII</h2>
+                <p className="mt-0.5 text-xs text-slate-soft">
+                  Libro de {tipo === "VENTA" ? "ventas" : "compras"} del período {periodo}.
+                </p>
+              </div>
+              <Badge tone="success">Ya enviado</Badge>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line">
+                  <Th>Enviado</Th>
+                  <Th>TrackID</Th>
+                  <Th>Estado</Th>
+                  <Th align="right">Acción</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {envios.map((e) => {
+                  const est = e.estado ? ESTADO_ENVIO[e.estado] : null;
+                  return (
+                    <tr key={e.id} className="border-b border-line last:border-0">
+                      <td className="px-4 py-3.5 text-slate tnum">{formatFechaHora(e.tmstEnvio)}</td>
+                      <td className="px-4 py-3.5 font-medium text-ink tnum">{e.trackId}</td>
+                      <td className="px-4 py-3.5">
+                        {est
+                          ? <Badge tone={est.tone}>{est.label}</Badge>
+                          : <span className="text-xs text-slate-soft">Pendiente de consulta</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <Button
+                          variant="secondary"
+                          onClick={() => refrescarEstado(e.trackId)}
+                          disabled={refrescando === e.trackId}
+                        >
+                          <RefreshCw size={16} className={refrescando === e.trackId ? "animate-spin" : ""} />
+                          {refrescando === e.trackId ? "Consultando…" : "Actualizar estado"}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        )}
 
         {cargando ? (
           <Card><LoadingState mensaje="Cargando libro…" /></Card>
@@ -219,6 +319,37 @@ export function Libros() {
           </>
         )}
       </div>
+
+      <Modal
+        open={confirmando}
+        onClose={() => { if (!enviando) setConfirmando(false); }}
+        title="Enviar libro al SII"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmando(false)} disabled={enviando}>Cancelar</Button>
+            <Button onClick={confirmarEnvio} disabled={enviando}>
+              {enviando ? "Enviando…" : <><Send size={16} /> Enviar</>}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate">
+          <p>
+            Se firmará y enviará al SII el libro de{" "}
+            <span className="font-medium text-ink">{tipo === "VENTA" ? "ventas" : "compras"}</span>{" "}
+            del período <span className="font-medium text-ink tnum">{periodo}</span>.
+          </p>
+          {envios.length > 0 && (
+            <Alert>
+              Este período ya tiene {envios.length === 1 ? "un envío" : `${envios.length} envíos`} registrado{envios.length === 1 ? "" : "s"}.
+              Enviar de nuevo genera un TrackID adicional en el SII.
+            </Alert>
+          )}
+          <p className="text-xs text-slate-soft">
+            El SII responde con un TrackID; el estado del procesamiento se consulta después con “Actualizar estado”.
+          </p>
+        </div>
+      </Modal>
     </AppShell>
   );
 }

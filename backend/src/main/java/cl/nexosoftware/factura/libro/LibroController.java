@@ -1,6 +1,7 @@
 package cl.nexosoftware.factura.libro;
 
 import cl.nexosoftware.factura.common.exception.RecursoNoEncontradoException;
+import cl.nexosoftware.factura.libro.LibroDtos.EnvioLibroResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.LibroEnvioResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.LibroResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.TipoOperacion;
@@ -15,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.YearMonth;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -83,6 +85,17 @@ public class LibroController {
             @RequestParam(required = false) Long folioNotificacion) {
         return envioService.enviar(empresaId, operacion(tipo), normalizar(periodo),
                 fctProp, tipoLibro, folioNotificacion);
+    }
+
+    @GetMapping("/{tipo}/envios")
+    @Operation(summary = "Envios ya registrados del libro del periodo (mas reciente primero), "
+            + "con su TrackID y ultimo estado consultado.")
+    public List<EnvioLibroResponse> envios(
+            @PathVariable Long empresaId,
+            @PathVariable String tipo,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo) {
+        return envioService.listar(empresaId, operacion(tipo), normalizar(periodo));
     }
 
     @GetMapping("/envios/{trackId}/estado")

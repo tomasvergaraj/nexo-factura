@@ -39,6 +39,18 @@ export function formatFecha(iso: string): string {
   return `${d}-${m}-${y}`;
 }
 
+/** Fecha y hora local (dd-mm-aaaa hh:mm) de un timestamp ISO con zona horaria. */
+export function formatFechaHora(iso: string): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return "";
+  const dd = String(t.getDate()).padStart(2, "0");
+  const mm = String(t.getMonth() + 1).padStart(2, "0");
+  const hh = String(t.getHours()).padStart(2, "0");
+  const mi = String(t.getMinutes()).padStart(2, "0");
+  return `${dd}-${mm}-${t.getFullYear()} ${hh}:${mi}`;
+}
+
 /** Da formato con puntos y guion: 76543210-9 -> 76.543.210-9 */
 export function formatRut(rut: string): string {
   const limpio = rut.replace(/[^0-9kK]/g, "").toUpperCase();

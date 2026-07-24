@@ -14,7 +14,8 @@ import {
 } from "./mock";
 import type {
   Caf, CafRequest, CertificadoResponse, Cliente, ClienteRequest, Compra, CompraRequest,
-  DocumentoResponse, DocumentoResumen, Empresa, EmpresaRequest, LibroResponse, Producto,
+  DocumentoResponse, DocumentoResumen, Empresa, EmpresaRequest, EnvioLibro, EstadoEnvioLibro,
+  LibroEnvioResponse, LibroResponse, Producto,
   ProductoRequest, RcofResponse, ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard,
   TipoDte, TipoOperacionLibro,
 } from "./types";
@@ -656,6 +657,52 @@ export async function getLibroXml(
     responseType: "blob",
   });
   return data;
+}
+
+/**
+ * Firma el libro del período y lo envía al SII (canal clásico); devuelve el
+ * TrackID. Envío mensual normal: tipoLibro=MENSUAL sin folioNotificacion (el
+ * ESPECIAL con folio es solo para el set de certificación, vía Swagger).
+ */
+export async function enviarLibro(
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+): Promise<LibroEnvioResponse> {
+  if (USE_MOCK) {
+    await demora(600);
+    return { periodo, tipoOperacion: tipo, trackId: String(Date.now()).slice(-9) };
+  }
+  const ruta = tipo === "VENTA" ? "ventas" : "compras";
+  const { data } = await http.post(`/empresas/${empresaId}/libros/${ruta}/enviar`, null, {
+    params: { periodo },
+  });
+  return data;
+}
+
+/** Envíos ya registrados del libro del período (más reciente primero). */
+export async function getEnviosLibro(
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+): Promise<EnvioLibro[]> {
+  if (USE_MOCK) {
+    await demora();
+    return [];
+  }
+  const ruta = tipo === "VENTA" ? "ventas" : "compras";
+  const { data } = await http.get(`/empresas/${empresaId}/libros/${ruta}/envios`, {
+    params: { periodo },
+  });
+  return data;
+}
+
+/** Consulta al SII el estado del envío por TrackID (QueryEstUp) y lo persiste. */
+export async function estadoEnvioLibro(
+  empresaId: number, trackId: string,
+): Promise<EstadoEnvioLibro> {
+  if (USE_MOCK) {
+    await demora();
+    return "ACEPTADO";
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/libros/envios/${trackId}/estado`);
+  return data.estado;
 }
 
 export default http;

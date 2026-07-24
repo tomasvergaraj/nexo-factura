@@ -3,6 +3,7 @@ package cl.nexosoftware.factura.libro;
 import cl.nexosoftware.factura.common.exception.ReglaNegocioException;
 import cl.nexosoftware.factura.empresa.Empresa;
 import cl.nexosoftware.factura.empresa.EmpresaService;
+import cl.nexosoftware.factura.libro.LibroDtos.EnvioLibroResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.LibroEnvioResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.LibroResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.TipoOperacion;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.YearMonth;
+import java.util.List;
 
 /**
  * Firma y envio del libro IECV al SII: construye el libro agregado, genera el
@@ -45,6 +47,7 @@ public class LibroEnvioService {
     private final ResolucionResolver resolucionResolver;
     // En dev no hay certificado y el RutEnvia cae al RUT del emisor.
     private final CertificadoResolver certificadoResolver;
+    private final EnvioLibroRepository envioLibroRepository;
 
     @Transactional(readOnly = true)
     public String xmlFirmado(Long empresaId, TipoOperacion operacion, YearMonth periodo,
@@ -52,7 +55,7 @@ public class LibroEnvioService {
         return firmar(empresaId, operacion, periodo, fctProp, tipoLibro, folioNotificacion);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LibroEnvioResponse enviar(Long empresaId, TipoOperacion operacion, YearMonth periodo,
                                      Double fctProp, String tipoLibro, Long folioNotificacion) {
         Empresa emisor = empresaService.buscar(empresaId);
@@ -60,15 +63,49 @@ public class LibroEnvioService {
         String trackId = siiGateway.enviarLibro(new SiiGateway.EnvioLibroSii(
                 empresaId, xml, emisor.getRut(), periodo.toString(), operacion.name()));
         log.info("Libro IECV {} {} enviado al SII: TrackID={}", operacion, periodo, trackId);
+        // El estado real llega despues por QueryEstUp; aqui solo queda el TrackID.
+        envioLibroRepository.save(EnvioLibro.builder()
+                .empresaId(empresaId)
+                .periodo(periodo.toString())
+                .tipoOperacion(operacion)
+                .trackId(trackId)
+                .tipoLibro(tipoLibro)
+                .folioNotificacion(folioNotificacion)
+                .build());
         return new LibroEnvioResponse(periodo.toString(), operacion, trackId);
     }
 
-    /** Estado del envio del libro por TrackID (QueryEstUp del canal clasico). */
+    /** Envios ya registrados de un libro (periodo + operacion), del mas nuevo al mas viejo. */
     @Transactional(readOnly = true)
+    public List<EnvioLibroResponse> listar(Long empresaId, TipoOperacion operacion, YearMonth periodo) {
+        return envioLibroRepository
+                .findByEmpresaIdAndPeriodoAndTipoOperacionOrderByTmstEnvioDesc(
+                        empresaId, periodo.toString(), operacion)
+                .stream()
+                .map(LibroEnvioService::aResponse)
+                .toList();
+    }
+
+    /**
+     * Estado del envio del libro por TrackID (QueryEstUp del canal clasico).
+     * Persiste el estado consultado en el registro del envio para que la UI lo
+     * muestre sin volver a llamar al SII.
+     */
+    @Transactional
     public SiiGateway.EstadoEnvio estadoEnvio(Long empresaId, String trackId) {
         Empresa emisor = empresaService.buscar(empresaId);
         // Tipo 33: el libro viaja por el canal clasico y QueryEstUp es por TrackID.
-        return siiGateway.consultarEstado(new SiiGateway.ConsultaSii(empresaId, trackId, 33, emisor.getRut()));
+        SiiGateway.EstadoEnvio estado = siiGateway.consultarEstado(
+                new SiiGateway.ConsultaSii(empresaId, trackId, 33, emisor.getRut()));
+        envioLibroRepository.findFirstByEmpresaIdAndTrackId(empresaId, trackId)
+                .ifPresent(envio -> envio.setEstado(estado.name()));
+        return estado;
+    }
+
+    private static EnvioLibroResponse aResponse(EnvioLibro e) {
+        return new EnvioLibroResponse(e.getId(), e.getPeriodo(), e.getTipoOperacion(),
+                e.getTrackId(), e.getEstado(), e.getTipoLibro(), e.getFolioNotificacion(),
+                e.getTmstEnvio());
     }
 
     private String firmar(Long empresaId, TipoOperacion operacion, YearMonth periodo,

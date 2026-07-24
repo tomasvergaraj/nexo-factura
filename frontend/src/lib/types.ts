@@ -434,6 +434,31 @@ export interface LibroResponse {
   sinMovimiento: boolean;
 }
 
+export type EstadoEnvioLibro =
+  | "RECIBIDO"
+  | "ACEPTADO"
+  | "ACEPTADO_CON_REPARO"
+  | "RECHAZADO";
+
+/** Resultado del POST de envío del libro al SII: solo el TrackID. */
+export interface LibroEnvioResponse {
+  periodo: string;
+  tipoOperacion: TipoOperacionLibro;
+  trackId: string;
+}
+
+/** Envío del libro ya registrado. `estado` es null mientras no se consulte al SII. */
+export interface EnvioLibro {
+  id: number;
+  periodo: string;
+  tipoOperacion: TipoOperacionLibro;
+  trackId: string;
+  estado: EstadoEnvioLibro | null;
+  tipoLibro: string;
+  folioNotificacion: number | null;
+  tmstEnvio: string; // ISO-8601
+}
+
 /** Nombre de un tipo de DTE a partir de su código SII (incluye recibidos como el 46). */
 export function nombreTipoDte(codigo: number): string {
   const tipo = TIPO_DTE_POR_CODIGO[codigo];
