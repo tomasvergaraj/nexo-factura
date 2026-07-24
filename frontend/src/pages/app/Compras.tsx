@@ -37,6 +37,14 @@ const VACIO: FormCompra = {
 
 const entero = (v: string) => (v.trim() === "" ? 0 : Number(v));
 
+// IVA del IECV: 19% del neto. Sugerencia al registrar una compra afecta; queda
+// editable por si el documento redondea distinto o no lleva IVA.
+const TASA_IVA = 0.19;
+function ivaDeNeto(neto: string): string {
+  const n = Number(neto);
+  return Number.isFinite(n) && n > 0 ? String(Math.round(n * TASA_IVA)) : "";
+}
+
 export function Compras() {
   const [periodo, setPeriodo] = useState(MES_ACTUAL);
   const [compras, setCompras] = useState<Compra[] | null>(null);
@@ -47,6 +55,8 @@ export function Compras() {
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  // El IVA se autocompleta como 19% del neto hasta que el usuario lo edite a mano.
+  const [ivaAuto, setIvaAuto] = useState(true);
   // Se incrementa para refrescar la lista tras crear/eliminar SIN vaciar la
   // tabla (el estado solo vuelve a "cargando" al cambiar el período).
   const [version, setVersion] = useState(0);
@@ -72,11 +82,23 @@ export function Compras() {
     setForm({ ...VACIO, fechaEmision: periodo === MES_ACTUAL ? hoyIso() : `${periodo}-01` });
     setErrores({});
     setErrorGeneral(null);
+    setIvaAuto(true);
     setAbierto(true);
   }
 
   function set<K extends keyof FormCompra>(campo: K, valor: FormCompra[K]) {
     setForm((prev) => ({ ...prev, [campo]: valor }));
+  }
+
+  // Al escribir el neto, sugiere el IVA (19%) salvo que el usuario ya lo haya
+  // ajustado a mano; editar el IVA desactiva la sugerencia.
+  function cambiarNeto(valor: string) {
+    setForm((prev) => ({ ...prev, neto: valor, ...(ivaAuto ? { iva: ivaDeNeto(valor) } : {}) }));
+  }
+
+  function cambiarIva(valor: string) {
+    setIvaAuto(false);
+    set("iva", valor);
   }
 
   async function guardar() {
@@ -298,13 +320,13 @@ export function Compras() {
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Neto" error={errores.neto}>
-              <Input type="number" min={0} value={form.neto} placeholder="0" onChange={(e) => set("neto", e.target.value)} />
+              <Input type="number" min={0} value={form.neto} placeholder="0" onChange={(e) => cambiarNeto(e.target.value)} />
             </Field>
             <Field label="Exento" error={errores.exento}>
               <Input type="number" min={0} value={form.exento} placeholder="0" onChange={(e) => set("exento", e.target.value)} />
             </Field>
-            <Field label="IVA" error={errores.iva}>
-              <Input type="number" min={0} value={form.iva} placeholder="0" onChange={(e) => set("iva", e.target.value)} />
+            <Field label="IVA" error={errores.iva} hint="Se sugiere el 19% del neto; puedes ajustarlo.">
+              <Input type="number" min={0} value={form.iva} placeholder="0" onChange={(e) => cambiarIva(e.target.value)} />
             </Field>
             <Field
               label="IVA retenido"
