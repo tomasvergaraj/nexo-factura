@@ -9,7 +9,7 @@ import {
   crearCliente, editarCliente, erroresDeCampo, getClientes, mensajeError,
 } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { formatRut, MENSAJE_RUT_INVALIDO, validarRut } from "../../lib/format";
+import { formatRut, MENSAJE_RUT_INVALIDO, normalizarRut, validarRut } from "../../lib/format";
 import type { Cliente, ClienteRequest } from "../../lib/types";
 
 const VACIO: ClienteRequest = {
@@ -51,12 +51,12 @@ export function Clientes() {
   function abrirEdicion(c: Cliente) {
     setEditando(c);
     setForm({
-      rut: c.rut,
+      rut: formatRut(c.rut),
       razonSocial: c.razonSocial,
       giro: c.giro ?? "",
-      direccion: "",
+      direccion: c.direccion ?? "",
       comuna: c.comuna ?? "",
-      ciudad: "",
+      ciudad: c.ciudad ?? "",
       email: c.email ?? "",
     });
     setErrores({});
@@ -81,13 +81,17 @@ export function Clientes() {
       return;
     }
 
+    // Se persiste el RUT sin puntos (forma canonica para el SII); el formato con
+    // puntos es solo presentacion en el campo.
+    const payload: ClienteRequest = { ...form, rut: normalizarRut(form.rut) };
+
     setGuardando(true);
     try {
       const empresaId = empresaIdActual();
       if (editando) {
-        await editarCliente(empresaId, editando.id, form);
+        await editarCliente(empresaId, editando.id, payload);
       } else {
-        await crearCliente(empresaId, form);
+        await crearCliente(empresaId, payload);
       }
       setAbierto(false);
       cargar();
@@ -193,7 +197,8 @@ export function Clientes() {
               <Input
                 value={form.rut}
                 placeholder="76.543.210-9"
-                onChange={(e) => set("rut", e.target.value)}
+                inputMode="text"
+                onChange={(e) => set("rut", formatRut(e.target.value))}
               />
             </Field>
             <Field label="Email" error={errores.email}>
@@ -210,6 +215,13 @@ export function Clientes() {
           </Field>
           <Field label="Giro" error={errores.giro}>
             <Input value={form.giro} onChange={(e) => set("giro", e.target.value)} />
+          </Field>
+          <Field
+            label="Dirección"
+            error={errores.direccion}
+            hint="Obligatoria para el receptor de facturas (exigencia del SII)."
+          >
+            <Input value={form.direccion} onChange={(e) => set("direccion", e.target.value)} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Comuna" error={errores.comuna}>

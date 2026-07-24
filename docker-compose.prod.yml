@@ -1,0 +1,78 @@
+# Ambiente de PRODUCCION (palena.sii.cl) — emisor NEXO SOFTWARE SPA,
+# Resolucion Ex. SII N°80 del 22/08/2014.
+#
+# Es un stack SELF-CONTAINED (no un overlay del dev): se levanta en paralelo
+# al de certificacion, con su propia base de datos, con:
+#
+#   docker compose -p nexo-prod --env-file .env.prod -f docker-compose.prod.yml up -d --build
+#
+# Convivencia con el stack de cert (proyecto "nexo-factura", backend host :8082):
+#   - nombres de SERVICIO iguales (db/backend/frontend) -> el DNS interno y el
+#     proxy /api de nginx funcionan sin tocar nginx.conf; al ser otro proyecto
+#     compose la red esta aislada y no colisiona.
+#   - container_name, puertos de host y volumen DISTINTOS -> sin choques.
+#
+# Diferencias clave vs cert (docker-compose.cert.yml):
+#   - APP_SII_AMBIENTE=PRODUCCION (palena) en vez de CERTIFICACION (maullin).
+#   - APP_SII_FIRMA_MODO=POR_EMPRESA: cada empresa firma con SU certificado
+#     cifrado en BD; NO hay APP_SII_CERT_PATH ni mount de ./secrets.
+#   - APP_MASTER_KEY / APP_JWT_SECRET reales (obligatorios), desde .env.prod.
+#   - Base de datos propia (nexo_factura_prod), aislada de los datos de cert.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nexo-factura-db-prod
+    environment:
+      POSTGRES_DB: nexo_factura_prod
+      POSTGRES_USER: nexo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env.prod}
+    # Sin puerto expuesto al host: la DB de produccion solo se alcanza desde la
+    # red interna del stack. Para SQL manual: docker exec -it nexo-factura-db-prod psql -U nexo -d nexo_factura_prod
+    volumes:
+      - nexo_db_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexo -d nexo_factura_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: nexo-factura-backend-prod
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: nexo_factura_prod
+      DB_USER: nexo
+      DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env.prod}
+      # Secretos REALES de produccion (jamas en este archivo ni en git).
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?falta APP_JWT_SECRET en .env.prod}
+      # Clave maestra AES-256 (base64 de 32 bytes) que cifra CAF y PKCS#12 por
+      # empresa. Si se pierde, esos secretos quedan INDESCIFRABLES: respaldar
+      # fuera del repo. El modo POR_EMPRESA rechaza el arranque con la clave dev.
+      APP_MASTER_KEY: ${APP_MASTER_KEY:?falta APP_MASTER_KEY en .env.prod}
+      # Ambiente y modo de firma de PRODUCCION.
+      APP_SII_AMBIENTE: PRODUCCION
+      APP_SII_FIRMA_MODO: POR_EMPRESA
+      # La resolucion (N°80 / 2014-08-22) vive en la fila de la empresa NEXO,
+      # no aqui: por eso NO se define APP_SII_FCH_RESOL/NRO_RESOL de fallback.
+      APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-http://localhost:8084}
+    # Sin mount de ./secrets: en POR_EMPRESA el certificado se sube cifrado por
+    # la API (POST /api/empresas/{id}/certificado), no se lee de disco.
+    ports:
+      - "8083:8080"
+
+  frontend:
+    build: ./frontend
+    container_name: nexo-factura-frontend-prod
+    depends_on:
+      - backend
+    ports:
+      - "8084:80"
+
+volumes:
+  nexo_db_prod_data:

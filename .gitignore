@@ -31,6 +31,11 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 !.env.example
+# Produccion: secretos reales (APP_MASTER_KEY, JWT, DB). NUNCA versionar;
+# la plantilla .env.prod.example si se versiona.
+.env.prod
+.env.production
+!.env.prod.example
 
 # ==== Secretos (certificado digital + CAF) ====
 # NUNCA versionar: certificado PKCS#12 del representante legal y CAF del SII.

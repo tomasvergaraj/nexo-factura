@@ -53,6 +53,15 @@ export const dashboardMock: ResumenDashboard = {
   borradores: 3,
   enContingencia: 0,
   recientes: documentosMock,
+  serieEmision: [
+    { fecha: "2026-07-18", monto: 1240000 },
+    { fecha: "2026-07-19", monto: 2110000 },
+    { fecha: "2026-07-20", monto: 640000 },
+    { fecha: "2026-07-21", monto: 180000 },
+    { fecha: "2026-07-22", monto: 2480000 },
+    { fecha: "2026-07-23", monto: 1980000 },
+    { fecha: "2026-07-24", monto: 2666500 },
+  ],
 };
 
 export const documentoDetalleMock: DocumentoResponse = {
@@ -202,12 +211,3 @@ export function libroMock(tipo: TipoOperacionLibro, periodo: string): LibroRespo
 }
 
 /** Serie de emisión de los últimos 7 días para el gráfico del dashboard. */
-export const serieEmisionMock = [
-  { dia: "Jue", valor: 1240000 },
-  { dia: "Vie", valor: 2110000 },
-  { dia: "Sáb", valor: 640000 },
-  { dia: "Dom", valor: 180000 },
-  { dia: "Lun", valor: 2480000 },
-  { dia: "Mar", valor: 1980000 },
-  { dia: "Mié", valor: 2666500 },
-];

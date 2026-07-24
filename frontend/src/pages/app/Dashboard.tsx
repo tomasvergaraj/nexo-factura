@@ -7,9 +7,8 @@ import { Alert, Button, Card, LoadingState, Th } from "../../components/ui";
 import { StatusBadge } from "../../components/StatusBadge";
 import { getDashboard, mensajeError, reenviarPendientes } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
-import { serieEmisionMock } from "../../lib/mock";
 import { formatCLP, formatFecha } from "../../lib/format";
-import { TIPO_DTE_LABEL, type ResumenDashboard } from "../../lib/types";
+import { TIPO_DTE_LABEL, type PuntoSerie, type ResumenDashboard } from "../../lib/types";
 
 export function Dashboard() {
   const [data, setData] = useState<ResumenDashboard | null>(null);
@@ -67,7 +66,8 @@ export function Dashboard() {
           {/* KPIs */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="Documentos del mes" valor={String(data.documentosMes)}
-              sub="emitidos en junio" icono={<FileText size={18} />} />
+              sub={`emitidos en ${new Date().toLocaleDateString("es-CL", { month: "long" })}`}
+              icono={<FileText size={18} />} />
             <Kpi label="Monto emitido" valor={formatCLP(data.montoEmitidoMes)}
               sub="neto + IVA del mes" icono={<CircleDollarSign size={18} />} />
             <Kpi label="Pendientes en SII" valor={String(data.pendientesSii)}
@@ -83,7 +83,7 @@ export function Dashboard() {
                 <h2 className="font-display text-base font-semibold text-ink">Emisión últimos 7 días</h2>
                 <span className="text-xs text-slate-soft">en pesos</span>
               </div>
-              <BarChart />
+              <BarChart serie={data.serieEmision} />
             </Card>
 
             <Card className="flex flex-col justify-between p-6">
@@ -145,22 +145,38 @@ export function Dashboard() {
   );
 }
 
-function BarChart() {
-  const max = Math.max(...serieEmisionMock.map((d) => d.valor));
+/** Etiqueta corta del día (lun, mar…) construida con la fecha LOCAL para no
+ *  desfasarse un día por UTC (la fecha llega como AAAA-MM-DD). */
+function etiquetaDia(fecha: string): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CL", { weekday: "short" });
+}
+
+function BarChart({ serie }: { serie: PuntoSerie[] }) {
+  // max ≥ 1 para no dividir por cero cuando aún no hay emisiones.
+  const max = Math.max(1, ...serie.map((d) => d.monto));
+  const hayDatos = serie.some((d) => d.monto > 0);
   return (
-    <div className="mt-6 flex h-44 items-end gap-3">
-      {serieEmisionMock.map((d) => (
-        <div key={d.dia} className="group flex h-full flex-1 flex-col items-center justify-end gap-2">
-          <div className="flex h-full w-full flex-col justify-end overflow-hidden rounded-t-sm bg-mist">
-            <div
-              className="w-full rounded-t-sm bg-cobalt transition-colors group-hover:bg-cobalt-dark"
-              style={{ height: `${Math.max(6, (d.valor / max) * 100)}%` }}
-              title={d.valor.toLocaleString("es-CL")}
-            />
+    <>
+      <div className="mt-6 flex h-44 items-end gap-3">
+        {serie.map((d) => (
+          <div key={d.fecha} className="group flex h-full flex-1 flex-col items-center justify-end gap-2">
+            <div className="flex h-full w-full flex-col justify-end overflow-hidden rounded-t-sm bg-mist">
+              <div
+                className="w-full rounded-t-sm bg-cobalt transition-colors group-hover:bg-cobalt-dark"
+                style={{ height: `${d.monto > 0 ? Math.max(6, (d.monto / max) * 100) : 0}%` }}
+                title={formatCLP(d.monto)}
+              />
+            </div>
+            <span className="text-xs text-slate-soft tnum">{etiquetaDia(d.fecha)}</span>
           </div>
-          <span className="text-xs text-slate-soft tnum">{d.dia}</span>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+      {!hayDatos && (
+        <p className="mt-4 text-center text-xs text-slate-soft">
+          Aún no hay emisiones en los últimos 7 días.
+        </p>
+      )}
+    </>
   );
 }

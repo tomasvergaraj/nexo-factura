@@ -15,6 +15,16 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    # Solo migraciones de ESQUEMA por defecto: los datos de demostracion
+    # (V2__seed_dev.sql) viven en classpath:db/seed-dev y SOLO se cargan en el
+    # perfil dev (ver application-dev.yml). Asi produccion arranca con la BD
+    # limpia, sin la empresa/usuario/CAF de prueba.
+    locations: classpath:db/migration
+    # El ambiente de certificacion corre perfil prod SOBRE LA DB DE DEV, que ya
+    # tiene V2 (seed) aplicado; bajo prod ese V2 no esta en las locations. Tolerar
+    # la migracion aplicada-pero-ausente evita el fallo de validacion. En una BD
+    # de produccion nueva no hay nada aplicado, asi que el patron nunca dispara.
+    ignore-migration-patterns: "*:missing"
 
 server:
   port: ${SERVER_PORT:8080}

@@ -22,6 +22,21 @@ interface FormProducto {
 
 const VACIO: FormProducto = { codigo: "", nombre: "", precioNeto: "", unidad: "UN", afecto: true };
 
+/**
+ * Sugiere el siguiente codigo secuencial: el mayor codigo NUMERICO existente + 1,
+ * preservando el ancho (p.ej. "008" -> "009"). Si no hay codigos numericos, "1".
+ * Solo una sugerencia editable: el usuario puede sobrescribirlo.
+ */
+function siguienteCodigo(productos: Producto[] | null): string {
+  const numericos = (productos ?? [])
+    .map((p) => (p.codigo ?? "").trim())
+    .filter((c) => /^\d+$/.test(c));
+  if (numericos.length === 0) return "1";
+  const max = Math.max(...numericos.map((c) => parseInt(c, 10)));
+  const ancho = Math.max(...numericos.map((c) => c.length));
+  return String(max + 1).padStart(ancho, "0");
+}
+
 export function Productos() {
   const [productos, setProductos] = useState<Producto[] | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -48,7 +63,7 @@ export function Productos() {
 
   function abrirNuevo() {
     setEditando(null);
-    setForm(VACIO);
+    setForm({ ...VACIO, codigo: siguienteCodigo(productos) });
     setErrores({});
     setErrorGeneral(null);
     setAbierto(true);

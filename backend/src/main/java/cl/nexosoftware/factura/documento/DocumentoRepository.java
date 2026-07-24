@@ -88,4 +88,28 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
     long sumTotalEmitidoDesde(@Param("empresaId") Long empresaId, @Param("desde") LocalDate desde);
 
     long countByEmpresaIdAndFechaEmisionGreaterThanEqual(Long empresaId, LocalDate desde);
+
+    /**
+     * Monto emitido agregado por dia desde una fecha (serie del dashboard). Misma
+     * definicion de "emitido" que {@link #sumTotalEmitidoDesde} (ENVIADO/ACEPTADO/
+     * EN_CONTINGENCIA). Devuelve solo los dias CON emision; el servicio rellena
+     * con cero los dias sin movimiento para completar la ventana.
+     */
+    @Query("""
+            select d.fechaEmision as fecha, coalesce(sum(d.total), 0) as monto
+            from DocumentoTributario d
+            where d.empresaId = :empresaId
+              and d.estado in (cl.nexosoftware.factura.documento.EstadoDte.ENVIADO,
+                               cl.nexosoftware.factura.documento.EstadoDte.ACEPTADO,
+                               cl.nexosoftware.factura.documento.EstadoDte.EN_CONTINGENCIA)
+              and d.fechaEmision >= :desde
+            group by d.fechaEmision
+            """)
+    List<SerieDiaView> sumTotalPorDiaDesde(@Param("empresaId") Long empresaId, @Param("desde") LocalDate desde);
+
+    /** Proyeccion (fecha, monto) de la serie diaria de emision. */
+    interface SerieDiaView {
+        LocalDate getFecha();
+        long getMonto();
+    }
 }

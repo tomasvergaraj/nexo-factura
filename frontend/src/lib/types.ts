@@ -135,7 +135,9 @@ export interface Cliente {
   rut: string;
   razonSocial: string;
   giro?: string;
+  direccion?: string;
   comuna?: string;
+  ciudad?: string;
   email?: string;
 }
 
@@ -244,6 +246,14 @@ export interface ResumenDashboard {
   /** Documentos cuyo envío al SII falló y esperan reintento. */
   enContingencia: number;
   recientes: DocumentoResumen[];
+  /** Monto emitido por día en los últimos 7 días (para el gráfico). */
+  serieEmision: PuntoSerie[];
+}
+
+/** Un día de la serie de emisión del dashboard. */
+export interface PuntoSerie {
+  fecha: string;
+  monto: number;
 }
 
 export const TIPO_DTE_LABEL: Record<TipoDte, string> = {

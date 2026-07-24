@@ -7,6 +7,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    # Dev/test/cert: esquema + datos de demostracion (empresa 1, admin, CAF de
+    # prueba). En produccion NO se incluye seed-dev, la BD arranca limpia.
+    locations: classpath:db/migration,classpath:db/seed-dev
 
 app:
   jwt:

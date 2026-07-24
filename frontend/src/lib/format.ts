@@ -48,6 +48,17 @@ export function formatRut(rut: string): string {
   return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
 }
 
+/**
+ * Forma canonica para persistir/enviar al SII: solo cuerpo + guion + DV, SIN
+ * puntos (76543210-9). El backend guarda el RUT tal cual y lo parte por el guion
+ * para el SII (tributario.Rut.de), asi que los puntos NUNCA deben persistirse.
+ */
+export function normalizarRut(rut: string): string {
+  const limpio = rut.replace(/[^0-9kK]/g, "").toUpperCase();
+  if (limpio.length < 2) return limpio;
+  return `${limpio.slice(0, -1)}-${limpio.slice(-1)}`;
+}
+
 /** Valida un RUT chileno con el algoritmo módulo 11. */
 export function validarRut(rut: string): boolean {
   const limpio = rut.replace(/[^0-9kK]/g, "").toUpperCase();
