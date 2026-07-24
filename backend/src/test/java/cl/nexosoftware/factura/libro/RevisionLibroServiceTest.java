@@ -38,6 +38,7 @@ class RevisionLibroServiceTest {
     private LibroEnvioService envioService;
     private EnvioLibroRepository envioLibroRepository;
     private LibroPendienteRepository pendienteRepository;
+    private LibroPendienteStore store;
     private RevisionLibroService service;
 
     @BeforeEach
@@ -46,8 +47,9 @@ class RevisionLibroServiceTest {
         envioService = mock(LibroEnvioService.class);
         envioLibroRepository = mock(EnvioLibroRepository.class);
         pendienteRepository = mock(LibroPendienteRepository.class);
+        store = mock(LibroPendienteStore.class);
         service = new RevisionLibroService(
-                libroService, envioService, envioLibroRepository, pendienteRepository);
+                libroService, envioService, envioLibroRepository, pendienteRepository, store);
     }
 
     @Test
@@ -61,14 +63,12 @@ class RevisionLibroServiceTest {
         // Un libro por operacion: se firma+valida (sin postear) y se guarda PREPARADO.
         verify(envioService).xmlFirmado(EMPRESA, TipoOperacion.VENTA, PERIODO, null, "MENSUAL", null);
         verify(envioService).xmlFirmado(EMPRESA, TipoOperacion.COMPRA, PERIODO, null, "MENSUAL", null);
-        ArgumentCaptor<LibroPendiente> captor = ArgumentCaptor.forClass(LibroPendiente.class);
-        verify(pendienteRepository, times(2)).save(captor.capture());
-        assertThat(captor.getAllValues()).allSatisfy(p -> {
-            assertThat(p.getEstado()).isEqualTo(Estado.PREPARADO);
-            assertThat(p.getDetalle()).isNull();
-            assertThat(p.getPeriodo()).isEqualTo("2026-07");
-            assertThat(p.getEmpresaId()).isEqualTo(EMPRESA);
-        });
+        ArgumentCaptor<Estado> estado = ArgumentCaptor.forClass(Estado.class);
+        ArgumentCaptor<String> detalle = ArgumentCaptor.forClass(String.class);
+        verify(store, times(2)).guardar(eq(EMPRESA), eq("2026-07"), any(),
+                estado.capture(), detalle.capture());
+        assertThat(estado.getAllValues()).containsOnly(Estado.PREPARADO);
+        assertThat(detalle.getAllValues()).containsOnlyNulls();
     }
 
     @Test
@@ -81,12 +81,12 @@ class RevisionLibroServiceTest {
 
         service.revisar(EMPRESA, PERIODO);
 
-        ArgumentCaptor<LibroPendiente> captor = ArgumentCaptor.forClass(LibroPendiente.class);
-        verify(pendienteRepository, times(2)).save(captor.capture());
-        assertThat(captor.getAllValues()).allSatisfy(p -> {
-            assertThat(p.getEstado()).isEqualTo(Estado.ERROR);
-            assertThat(p.getDetalle()).isEqualTo("no hay CAF vigente");
-        });
+        ArgumentCaptor<Estado> estado = ArgumentCaptor.forClass(Estado.class);
+        ArgumentCaptor<String> detalle = ArgumentCaptor.forClass(String.class);
+        verify(store, times(2)).guardar(eq(EMPRESA), eq("2026-07"), any(),
+                estado.capture(), detalle.capture());
+        assertThat(estado.getAllValues()).containsOnly(Estado.ERROR);
+        assertThat(detalle.getAllValues()).containsOnly("no hay CAF vigente");
     }
 
     @Test
@@ -97,9 +97,9 @@ class RevisionLibroServiceTest {
 
         service.revisar(EMPRESA, PERIODO);
 
-        verify(pendienteRepository).deleteByEmpresaIdAndPeriodoAndTipoOperacion(EMPRESA, "2026-07", TipoOperacion.VENTA);
-        verify(pendienteRepository).deleteByEmpresaIdAndPeriodoAndTipoOperacion(EMPRESA, "2026-07", TipoOperacion.COMPRA);
-        verify(pendienteRepository, never()).save(any());
+        verify(store).borrar(EMPRESA, "2026-07", TipoOperacion.VENTA);
+        verify(store).borrar(EMPRESA, "2026-07", TipoOperacion.COMPRA);
+        verify(store, never()).guardar(any(), any(), any(), any(), any());
         verify(envioService, never()).xmlFirmado(any(), any(), any(), any(), any(), any());
     }
 
@@ -114,8 +114,8 @@ class RevisionLibroServiceTest {
 
         service.revisar(EMPRESA, PERIODO);
 
-        verify(pendienteRepository, times(2)).deleteByEmpresaIdAndPeriodoAndTipoOperacion(eq(EMPRESA), eq("2026-07"), any());
-        verify(pendienteRepository, never()).save(any());
+        verify(store, times(2)).borrar(eq(EMPRESA), eq("2026-07"), any());
+        verify(store, never()).guardar(any(), any(), any(), any(), any());
         verify(envioService, never()).xmlFirmado(any(), any(), any(), any(), any(), any());
     }
 
@@ -130,8 +130,8 @@ class RevisionLibroServiceTest {
         service.revisar(EMPRESA, PERIODO);
 
         // Un rechazo no cuenta como gestionado: se vuelve a preparar.
-        verify(pendienteRepository, times(2)).save(any());
-        verify(pendienteRepository, never()).deleteByEmpresaIdAndPeriodoAndTipoOperacion(any(), any(), any());
+        verify(store, times(2)).guardar(any(), any(), any(), any(), any());
+        verify(store, never()).borrar(any(), any(), any());
     }
 
     @Test

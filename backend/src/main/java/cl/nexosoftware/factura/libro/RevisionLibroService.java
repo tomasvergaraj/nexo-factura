@@ -33,9 +33,17 @@ public class RevisionLibroService {
     private final LibroEnvioService envioService;
     private final EnvioLibroRepository envioLibroRepository;
     private final LibroPendienteRepository pendienteRepository;
+    private final LibroPendienteStore store;
 
-    /** Revisa ambos libros (VENTA y COMPRA) del periodo para una empresa. */
-    @Transactional
+    /**
+     * Revisa ambos libros (VENTA y COMPRA) del periodo para una empresa.
+     *
+     * A proposito NO es {@code @Transactional}: preparar el libro llama a
+     * {@code xmlFirmado()} (que si lo es) y, si esa preparacion falla, no debe
+     * arrastrar la escritura del marcador a un rollback. Cada paso corre en su
+     * propia transaccion: la preparacion (que puede fallar) queda aislada del
+     * upsert del marcador, delegado en {@link LibroPendienteStore}.
+     */
     public void revisar(Long empresaId, YearMonth periodo) {
         for (TipoOperacion operacion : TipoOperacion.values()) {
             revisarOperacion(empresaId, periodo, operacion);
@@ -55,8 +63,7 @@ public class RevisionLibroService {
         LibroResponse libro = libroService.construir(empresaId, operacion, periodo, null);
         // Sin nada que enviar (sin movimiento) o ya gestionado: no hay pendiente.
         if (libro.sinMovimiento() || gestionado(empresaId, periodo.toString(), operacion)) {
-            pendienteRepository.deleteByEmpresaIdAndPeriodoAndTipoOperacion(
-                    empresaId, periodo.toString(), operacion);
+            store.borrar(empresaId, periodo.toString(), operacion);
             return;
         }
         Estado estado;
@@ -72,19 +79,7 @@ public class RevisionLibroService {
             log.warn("Libro {} {} de empresa {} no se pudo preparar: {}",
                     operacion, periodo, empresaId, e.toString());
         }
-        guardar(empresaId, periodo.toString(), operacion, estado, detalle);
-    }
-
-    /** Upsert del marcador del libro (uno por empresa+periodo+operacion). */
-    private void guardar(Long empresaId, String periodo, TipoOperacion operacion,
-                         Estado estado, String detalle) {
-        LibroPendiente marcador = pendienteRepository
-                .findByEmpresaIdAndPeriodoAndTipoOperacion(empresaId, periodo, operacion)
-                .orElseGet(() -> LibroPendiente.builder()
-                        .empresaId(empresaId).periodo(periodo).tipoOperacion(operacion).build());
-        marcador.setEstado(estado);
-        marcador.setDetalle(detalle);
-        pendienteRepository.save(marcador);
+        store.guardar(empresaId, periodo.toString(), operacion, estado, detalle);
     }
 
     /** Un libro esta gestionado si tiene un envio que no esta RECHAZADO. */
