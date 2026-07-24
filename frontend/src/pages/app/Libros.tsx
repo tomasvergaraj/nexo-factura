@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { BookOpen, FileDown, RefreshCw, Send } from "lucide-react";
+import { AlertTriangle, BookOpen, ClipboardCheck, FileDown, RefreshCw, Send } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
 import { Card, Input, Button, EmptyState, PageHeader, LoadingState, Alert, Th, Badge, Modal } from "../../components/ui";
-import { getLibro, getLibroXml, enviarLibro, getEnviosLibro, estadoEnvioLibro, mensajeError } from "../../lib/api";
+import { getLibro, getLibroXml, enviarLibro, getEnviosLibro, estadoEnvioLibro, getLibrosPendientes, mensajeError } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
 import { formatCLP, formatFecha, formatFechaHora, formatNumero, formatRut, mesActual } from "../../lib/format";
-import { nombreTipoDte, type EnvioLibro, type EstadoEnvioLibro, type LibroResponse, type TipoOperacionLibro } from "../../lib/types";
+import { nombreTipoDte, type EnvioLibro, type EstadoEnvioLibro, type LibroPendiente, type LibroResponse, type TipoOperacionLibro } from "../../lib/types";
 
 const MES_ACTUAL = mesActual(); // YYYY-MM (mes local, no UTC)
 
@@ -24,6 +24,7 @@ export function Libros() {
   const [error, setError] = useState<string | null>(null);
   const [descargando, setDescargando] = useState(false);
   const [envios, setEnvios] = useState<EnvioLibro[]>([]);
+  const [pendientes, setPendientes] = useState<LibroPendiente[]>([]);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [refrescando, setRefrescando] = useState<string | null>(null);
@@ -43,14 +44,37 @@ export function Libros() {
     return () => { vigente = false; };
   }, [tipo, periodo]);
 
+  // Avisos de la revisión automática (por empresa, no por período): se cargan una
+  // vez y se refrescan tras enviar. Falla en silencio: es informativo, no crítico.
+  useEffect(() => {
+    let vigente = true;
+    getLibrosPendientes(empresaIdActual())
+      .then((p) => { if (vigente) setPendientes(p); })
+      .catch(() => { /* aviso no crítico */ });
+    return () => { vigente = false; };
+  }, []);
+
+  function irAPendiente(p: LibroPendiente) {
+    setError(null);
+    setTipo(p.tipoOperacion);
+    setPeriodo(p.periodo);
+    if (p.estado === "PREPARADO") setConfirmando(true);
+  }
+
   async function confirmarEnvio() {
     setEnviando(true);
     setError(null);
     try {
       await enviarLibro(empresaIdActual(), tipo, periodo);
       setConfirmando(false);
-      // Releo la lista para mostrar el envío recién creado con su TrackID.
-      setEnvios(await getEnviosLibro(empresaIdActual(), tipo, periodo));
+      // Releo la lista para mostrar el envío recién creado con su TrackID, y los
+      // pendientes: el libro recién enviado deja de figurar como pendiente.
+      const [nuevosEnvios, nuevosPendientes] = await Promise.all([
+        getEnviosLibro(empresaIdActual(), tipo, periodo),
+        getLibrosPendientes(empresaIdActual()),
+      ]);
+      setEnvios(nuevosEnvios);
+      setPendientes(nuevosPendientes);
     } catch (e) {
       setError(mensajeError(e, "No se pudo enviar el libro al SII."));
     } finally {
@@ -139,6 +163,53 @@ export function Libros() {
         </div>
 
         {error && <Alert>{error}</Alert>}
+
+        {pendientes.length > 0 && (
+          <Card className="overflow-hidden border-cobalt/30">
+            <div className="border-b border-line bg-cobalt/5 px-6 py-4">
+              <h2 className="font-display text-base font-semibold text-ink">Libros pendientes de envío</h2>
+              <p className="mt-0.5 text-xs text-slate-soft">
+                Revisión automática del período anterior. Prepara el libro (lo firma y valida) pero no lo envía:
+                revísalo y envíalo tú.
+              </p>
+            </div>
+            <ul className="divide-y divide-line">
+              {pendientes.map((p) => {
+                const esError = p.estado === "ERROR";
+                return (
+                  <li key={p.id} className="flex items-center justify-between gap-3 px-6 py-4">
+                    <div className="flex items-start gap-3">
+                      <span className={esError ? "text-danger" : "text-cobalt"}>
+                        {esError ? <AlertTriangle size={18} /> : <ClipboardCheck size={18} />}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-ink">
+                            Libro de {p.tipoOperacion === "VENTA" ? "ventas" : "compras"}{" "}
+                            <span className="tnum">{p.periodo}</span>
+                          </span>
+                          <Badge tone={esError ? "danger" : "cobalt"}>
+                            {esError ? "No se pudo preparar" : "Listo para enviar"}
+                          </Badge>
+                        </div>
+                        {esError && p.detalle && (
+                          <p className="mt-1 text-xs text-slate-soft">{p.detalle}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant={esError ? "secondary" : "primary"}
+                      onClick={() => irAPendiente(p)}
+                      className="shrink-0 whitespace-nowrap"
+                    >
+                      {esError ? "Revisar" : <><Send size={16} /> Revisar y enviar</>}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        )}
 
         {envios.length > 0 && (
           <Card className="overflow-hidden">

@@ -459,6 +459,22 @@ export interface EnvioLibro {
   tmstEnvio: string; // ISO-8601
 }
 
+export type EstadoLibroPendiente = "PREPARADO" | "ERROR";
+
+/**
+ * Libro pendiente de envío detectado por la revisión automática del mes
+ * anterior. PREPARADO = firmado y validado, listo para enviar; ERROR = no se
+ * pudo preparar (`detalle` trae el motivo). Los ya enviados no aparecen.
+ */
+export interface LibroPendiente {
+  id: number;
+  periodo: string;
+  tipoOperacion: TipoOperacionLibro;
+  estado: EstadoLibroPendiente;
+  detalle: string | null;
+  tmstRevision: string; // ISO-8601
+}
+
 /** Nombre de un tipo de DTE a partir de su código SII (incluye recibidos como el 46). */
 export function nombreTipoDte(codigo: number): string {
   const tipo = TIPO_DTE_POR_CODIGO[codigo];

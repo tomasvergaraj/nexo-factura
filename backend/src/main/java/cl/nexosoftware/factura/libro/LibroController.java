@@ -3,6 +3,7 @@ package cl.nexosoftware.factura.libro;
 import cl.nexosoftware.factura.common.exception.RecursoNoEncontradoException;
 import cl.nexosoftware.factura.libro.LibroDtos.EnvioLibroResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.LibroEnvioResponse;
+import cl.nexosoftware.factura.libro.LibroDtos.LibroPendienteResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.LibroResponse;
 import cl.nexosoftware.factura.libro.LibroDtos.TipoOperacion;
 import cl.nexosoftware.factura.tributario.SiiGateway;
@@ -28,6 +29,7 @@ public class LibroController {
 
     private final LibroService service;
     private final LibroEnvioService envioService;
+    private final RevisionLibroService revisionService;
 
     @GetMapping("/{tipo}")
     @Operation(summary = "Libro del periodo (YYYY-MM; por defecto el mes actual). tipo: ventas | compras. "
@@ -103,6 +105,13 @@ public class LibroController {
     public Map<String, String> estadoEnvio(@PathVariable Long empresaId, @PathVariable String trackId) {
         SiiGateway.EstadoEnvio estado = envioService.estadoEnvio(empresaId, trackId);
         return Map.of("trackId", trackId, "estado", estado.name());
+    }
+
+    @GetMapping("/pendientes")
+    @Operation(summary = "Libros pendientes de envio detectados por la revision automatica del mes anterior: "
+            + "PREPARADO (listo para enviar) o ERROR (con el motivo). No incluye los ya enviados.")
+    public List<LibroPendienteResponse> pendientes(@PathVariable Long empresaId) {
+        return revisionService.listarPendientes(empresaId);
     }
 
     private static TipoOperacion operacion(String tipo) {

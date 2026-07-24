@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 
 @Configuration
-@EnableConfigurationProperties({AppProperties.class, RateLimitProperties.class})
+@EnableConfigurationProperties({AppProperties.class, RateLimitProperties.class, RevisionLibroProperties.class})
 public class PropertiesConfig {
 
     /** Reloj inyectable (el RateLimiter lo usa; los tests pueden sustituirlo). */

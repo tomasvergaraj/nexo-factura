@@ -111,4 +111,18 @@ public final class LibroDtos {
             Long folioNotificacion,
             java.time.OffsetDateTime tmstEnvio
     ) {}
+
+    /**
+     * Libro pendiente de envio detectado por la revision automatica.
+     * {@code estado} es PREPARADO (firmado y validado, listo para enviar) o
+     * ERROR (con {@code detalle} del motivo).
+     */
+    public record LibroPendienteResponse(
+            Long id,
+            String periodo,
+            TipoOperacion tipoOperacion,
+            String estado,
+            String detalle,
+            java.time.OffsetDateTime tmstRevision
+    ) {}
 }

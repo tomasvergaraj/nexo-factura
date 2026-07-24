@@ -101,3 +101,14 @@ app:
     # Validacion XSD del XML del DTE antes de firmar. Mantener en true salvo
     # diagnostico puntual; en false se emiten DTE sin validar el esquema.
     validar-xsd: ${APP_DTE_VALIDAR_XSD:true}
+  libro:
+    # Revision automatica de libros IECV: prepara (firma + valida, SIN postear al
+    # SII) el libro del mes anterior con movimiento y deja un marcador para que el
+    # usuario lo envie desde la UI. No manda nada al SII por si solo.
+    revision-auto:
+      enabled: ${APP_LIBRO_REVISION_ENABLED:true}
+      # Dia del mes (1..28) desde el que se revisa el mes anterior: margen para
+      # que se terminen de registrar las compras del periodo antes de avisar.
+      dia: ${APP_LIBRO_REVISION_DIA:5}
+      # Corre a diario; re-evalua el marcador hasta que el libro se envia.
+      cron: ${APP_LIBRO_REVISION_CRON:0 30 8 * * *}

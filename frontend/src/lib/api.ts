@@ -15,7 +15,7 @@ import {
 import type {
   Caf, CafRequest, CertificadoResponse, Cliente, ClienteRequest, Compra, CompraRequest,
   DocumentoResponse, DocumentoResumen, Empresa, EmpresaRequest, EnvioLibro, EstadoEnvioLibro,
-  LibroEnvioResponse, LibroResponse, Producto,
+  LibroEnvioResponse, LibroPendiente, LibroResponse, Producto,
   ProductoRequest, RcofResponse, ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard,
   TipoDte, TipoOperacionLibro,
 } from "./types";
@@ -703,6 +703,20 @@ export async function estadoEnvioLibro(
   }
   const { data } = await http.get(`/empresas/${empresaId}/libros/envios/${trackId}/estado`);
   return data.estado;
+}
+
+/**
+ * Libros pendientes de envío detectados por la revisión automática del mes
+ * anterior (PREPARADO listo para enviar, o ERROR con el motivo). No incluye los
+ * ya enviados.
+ */
+export async function getLibrosPendientes(empresaId: number): Promise<LibroPendiente[]> {
+  if (USE_MOCK) {
+    await demora();
+    return [];
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/libros/pendientes`);
+  return data;
 }
 
 export default http;
