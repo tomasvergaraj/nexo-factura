@@ -10,7 +10,7 @@ import {
 } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
 import {
-  formatCLP, formatFecha, formatRut, hoyIso, MENSAJE_RUT_INVALIDO, mesActual, validarRut,
+  formatCLP, formatFecha, formatRut, hoyIso, MENSAJE_RUT_INVALIDO, mesActual, normalizarRut, validarRut,
 } from "../../lib/format";
 import { nombreTipoDte, TIPOS_COMPRA, type Compra } from "../../lib/types";
 
@@ -109,7 +109,7 @@ export function Compras() {
       await crearCompra(empresaIdActual(), {
         tipoDte: form.tipoDte,
         folio: entero(form.folio),
-        rutProveedor: form.rutProveedor,
+        rutProveedor: normalizarRut(form.rutProveedor),
         razonSocial: form.razonSocial,
         fechaEmision: form.fechaEmision,
         neto: entero(form.neto),
@@ -282,7 +282,7 @@ export function Compras() {
               <Input
                 value={form.rutProveedor}
                 placeholder="76.543.210-9"
-                onChange={(e) => set("rutProveedor", e.target.value)}
+                onChange={(e) => set("rutProveedor", formatRut(e.target.value))}
               />
             </Field>
             <Field label="Fecha de emisión" error={errores.fechaEmision}>
