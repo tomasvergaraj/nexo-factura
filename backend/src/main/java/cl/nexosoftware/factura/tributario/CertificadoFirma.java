@@ -106,19 +106,36 @@ public final class CertificadoFirma {
     }
 
     private static String resolverRutFirmante(X509Certificate cert, String override) {
-        if (override != null && !override.isBlank()) {
-            return override.trim().toUpperCase();
-        }
         // RFC2253 con el OID mapeado imprime SERIALNUMBER=<valor> como string.
         String dn = cert.getSubjectX500Principal()
                 .getName(X500Principal.RFC2253, Map.of("2.5.4.5", "SERIALNUMBER"));
         Matcher m = SERIALNUMBER.matcher(dn.toUpperCase());
-        if (m.find()) {
-            return m.group(1);
+        String delCert = m.find() ? m.group(1) : null;
+        String delUsuario = (override != null && !override.isBlank()) ? override.trim().toUpperCase() : null;
+
+        // Si el certificado trae su RUN y el override es OTRO, es un error: firmar
+        // con un rutSender que no corresponde al certificado hace que el SII rechace
+        // el envio (firmante no autorizado). El override es solo un fallback para
+        // certificados sin SERIALNUMBER, NO un modo de firmar en nombre de otro.
+        if (delCert != null && delUsuario != null && !soloRut(delCert).equals(soloRut(delUsuario))) {
+            throw new IllegalStateException(
+                    "El RUN indicado (" + delUsuario + ") no coincide con el del certificado ("
+                            + delCert + "). Deje el campo vacio para usar el del certificado.");
+        }
+        if (delCert != null) {
+            return delCert; // el del certificado manda (si vino override, ya se valido que coincide)
+        }
+        if (delUsuario != null) {
+            return delUsuario; // fallback: el subject no trae un SERIALNUMBER parseable
         }
         throw new IllegalStateException(
                 "No se pudo extraer el RUT del firmante del certificado (SERIALNUMBER ausente del subject: "
                         + dn + "). Indique el RUT del firmante manualmente.");
+    }
+
+    /** Compara RUN ignorando puntos/espacios (el del cert viene sin puntos; el override quizas no). */
+    private static String soloRut(String s) {
+        return s.replaceAll("[.\\s]", "").toUpperCase();
     }
 
     private static String calcularHuella(X509Certificate cert) {
