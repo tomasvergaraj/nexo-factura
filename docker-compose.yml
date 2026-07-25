@@ -7,7 +7,9 @@ services:
       POSTGRES_USER: nexo
       POSTGRES_PASSWORD: nexo
     ports:
-      - "5432:5432"
+      # Host 5434 (5432 lo ocupa el Postgres nativo de la maquina); el puerto
+      # interno sigue 5432, que es el que usa el backend via DNS "db".
+      - "5434:5432"
     volumes:
       - nexo_db_data:/var/lib/postgresql/data
     healthcheck:

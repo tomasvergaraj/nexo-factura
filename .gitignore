@@ -43,6 +43,11 @@ secrets/
 *.pfx
 *.p12
 
+# ==== Claude Code ====
+# Config local del agente (incluye settings.local.json con las reglas de
+# permiso de esta maquina). Es personal, no comportamiento del proyecto.
+.claude/
+
 # ==== IDE / editores ====
 .idea/
 .vscode/
