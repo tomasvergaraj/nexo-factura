@@ -9,36 +9,32 @@
 
 ## Empieza aquí — mensaje para la próxima sesión
 
-Sesión del **2026-07-29**. Se cerraron las fases 1 y 3 en tres commits (`f1508c9`,
-`2831e79`, `ec9f37a`). El árbol está limpio y **no se hizo push**.
+Sesión del **2026-07-29**. La Fase 3 quedó cerrada y de la Fase 1 sólo falta validar el job
+`backend` de CI con un push real (1.3): todo lo demás —el binding de los ITs, el desbloqueo de
+Testcontainers y el fallout completo de la suite— está hecho. El árbol está limpio y **nada
+de esto se ha empujado todavía**: `git log origin/main..HEAD` es la lista exacta.
 
 ### Estado en una línea
-`mvn test` **352/352 verde**; `mvn verify` en **66 tests de integración con 1 fallo**
-(desde 53 errores). Ese fallo está aislado, diagnosticado y es lo primero de la lista.
+`mvn verify` **entero en verde**: **352/352 unitarios + 66/66 tests de integración**, 0 fallos,
+0 errores, en 1:47 min. Las 14 clases de IT pasan. Es la primera vez que la suite completa
+—unitarios e integración— corre limpia de punta a punta.
 
 ### Qué hacer, en este orden
 
-**1. Cerrar el último IT rojo — `FolioServiceConcurrencyIT`** *(lo más corto y lo que deja
-la suite entera en verde)*
-Está todo en la causa **(D)** de la Fase 1.2b: el test siembra su CAF sin `xmlCaf` y, desde
-P0-5, el selector de folios descarta los CAF sin XML. Hay que sembrarlo con
-`sii/caf_prueba_33.xml`. Ojo con el `RE` del CAF frente al RUT de la empresa sembrada y con
-que el `SecretoTextoConverter` cifra al escribir. El test ya imprime la excepción exacta de
-las tareas, así que iterás con evidencia y no a ciegas.
-
-**2. Push y validación de CI** — *requiere decisión del usuario, preguntá antes*
+**1. Push y validación de CI** — *requiere decisión del usuario, preguntá antes*
 `.github/workflows/ci.yml` está escrito pero **nunca se ha ejecutado**; solo un push lo
-valida. Si se hace antes del punto 1, **el primer run vendrá en rojo** por ese IT. Las dos
-opciones razonables: empujar ya y asumir el rojo como línea base visible, o cerrar el punto 1
-y empujar en verde. Vale la pena mirar en el log del job el paso *«Versión de Docker del
-runner»*: si su API no cubre `1.44`, hay que bajar `-Ddocker.api.version`.
+valida. Ya no hay ningún test rojo que lo tiña, así que la primera señal de CI puede ser
+verde y servir de línea base. Vale la pena mirar en el log del job el paso *«Versión de
+Docker del runner»*: si su API no cubre `1.44`, hay que bajar `-Ddocker.api.version`.
+El job `frontend` se validó a mano en esta máquina (`npm ci` + `npm run build`: `tsc` limpio
+y `vite build` en 1.93 s), así que el riesgo que queda está todo del lado del `backend`.
 
-**3. Fase 2 — `fctProp`** — *bloqueada por una decisión de diseño, preguntá primero*
+**2. Fase 2 — `fctProp`** — *bloqueada por una decisión de diseño, preguntá primero*
 No la empieces sin resolver con el usuario si el factor va **por empresa** (simple, desbloquea
 el job) o **calculado por período** desde las ventas (más correcto legalmente, bastante más
 trabajo). Está planteada al final de la sección de la Fase 2.
 
-**4. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
+**3. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
 consulta automática del estado de los envíos de libro: hoy es manual por TrackID y el job ya
 tiene el andamiaje.
 
@@ -88,6 +84,13 @@ detecta este plan.
   justamente quien recoge el PostgreSQL al terminar la JVM.
   En PowerShell hay que **entrecomillar cada `-D`** (`"-Dit.test=CafCifradoIT"`), o PowerShell
   parte el argumento y Maven lo lee como una fase de ciclo de vida inexistente.
+- Para iterar sobre **un solo IT** sin pagar los 352 unitarios cada vez, hay que apagar
+  Surefire con su propia propiedad — `-DfailIfNoSpecifiedTests=false` (la genérica) **no**
+  sirve, Surefire exige la suya con prefijo:
+  ```bash
+  mvn -B verify -Dtest=SkipAllUnitTests -Dsurefire.failIfNoSpecifiedTests=false \
+    -Dit.test=FolioServiceConcurrencyIT
+  ```
 
 ---
 
@@ -115,7 +118,7 @@ que arrastran todos los sprints en sus tablas de verificación.
 suite unitaria pasa completa. El "único error conocido" que arrastraban todas las tablas de
 verificación de los sprints 1–6 era solo este test mal nombrado.
 
-### 1.2 — Primera ejecución real de los ITs · 🟡 en curso
+### 1.2 — Primera ejecución real de los ITs · ✅ hecho — suite completa en verde
 
 #### 1.2a — Desbloqueo de Testcontainers · ✅ hecho — **la causa documentada era equivocada**
 
@@ -143,7 +146,7 @@ Verificado a mano desde el contenedor: `curl --unix-socket /var/run/docker.sock`
 
 Con eso, `CafCifradoIT` corrió de verdad: **3/3 verde, BUILD SUCCESS**.
 
-#### 1.2b — Fallout de la suite completa · 🟡 en curso
+#### 1.2b — Fallout de la suite completa · ✅ hecho — de 53 errores a 0
 
 > **Riesgo conocido:** estos ITs se escribieron entre los sprints 1 y 5 y se fueron
 > "migrando al contrato nuevo" sin ejecutarse nunca. El Sprint 6 reescribió firmas
@@ -162,15 +165,22 @@ Con eso, `CafCifradoIT` corrió de verdad: **3/3 verde, BUILD SUCCESS**.
 | 6 | tras arreglar la barrera de concurrencia y `SiiStubController` | ❌ 66 tests: **1 fallo, 4 errores** |
 | 7 | tras el `rutUnicoDeTest()` en 3 ITs | ❌ 66 tests: **1 fallo, 1 error** |
 | 8 | tras el `rutUnicoDeTest()` en `LibroCompraVentaIT` | ⚠️ 66 tests: **1 fallo, 0 errores** — solo queda la causa (D) |
+| 9 | tras sembrar el `xmlCaf` (causa D) | ✅ **352 unitarios + 66 ITs, 0 fallos, 0 errores** — BUILD SUCCESS en 1:47 min |
 
-**Estado al cierre de la sesión:** `mvn test` **352/352 verde**; `mvn verify` en **66 tests de
-integración con 1 solo fallo**, que es la causa (D) de abajo, aislada y con el siguiente paso
-escrito. De 53 errores a 1. El diagnóstico que ahora emite el propio test:
+**Estado al cierre de la sesión:** `mvn verify` **entero en verde** — 352/352 unitarios y
+66/66 tests de integración, 0 fallos y 0 errores, BUILD SUCCESS. De 53 errores a 0 en nueve
+ejecuciones. Las 14 clases de IT pasan:
 
-```
-ninguna emision debe fallar; primer fallo: ReglaNegocioException:
-No hay folios disponibles ni vigentes para Factura electronica. Cargue un nuevo CAF desde el SII.
-```
+| IT | Tests | IT | Tests |
+|---|---|---|---|
+| `ContingenciaReenvioIT` | ✅ 14 | `AislamientoMultiTenantIT` | ✅ 4 |
+| `EmisionXsdIT` | ✅ 10 | `LoginRateLimitIT` | ✅ 4 |
+| `AuthRefreshIT` | ✅ 8 | `CafCifradoIT` | ✅ 3 |
+| `BoletaConsumidorFinalIT` | ✅ 5 | `RcofServiceIT` | ✅ 3 |
+| `DocumentoServiceTransicionesIT` | ✅ 4 | `NotasCreditoDebitoIT` | ✅ 2 |
+| `LibroCompraVentaIT` | ✅ 4 | `RobustezIT` | ✅ 2 |
+| | | `PerfilProdContextoIT` | ✅ 2 |
+| | | `FolioServiceConcurrencyIT` | ✅ 1 |
 
 **Línea base por clase (ejecución 4)** — la primera foto honesta de los ITs:
 
@@ -272,7 +282,7 @@ y `listos.await(30, SECONDS)` aseverado, para que un fallo futuro **falle** en v
 > Vale la pena subrayarlo: (B) y (C) son justo el tipo de defecto que sólo aparece al
 > ejecutar los ITs. (B) estuvo latente desde el Sprint 5; (C), desde el Sprint 1.
 
-**(D) `FolioServiceConcurrencyIT` sigue rojo — deriva contra el contrato del Sprint 6 · ⬜ ESTE ES EL SIGUIENTE PASO**
+**(D) `FolioServiceConcurrencyIT` — deriva contra el contrato del Sprint 6 · ✅ arreglada**
 
 Con la barrera ya arreglada, el test **falla** (ya no cuelga) con `folios` vacío: las 50
 tareas lanzan. La causa es que el `@BeforeEach` crea el CAF **sin `xmlCaf`**:
@@ -293,19 +303,33 @@ contrato porque nunca se ejecutó.
 sin ambigüedad: `ReglaNegocioException: No hay folios disponibles ni vigentes para Factura
 electronica`, lanzada desde `FolioService.siguienteFolio` (`FolioService.java:26`).
 
-*Para retomar:* sembrar el CAF con el XML del fixture `sii/caf_prueba_33.xml`. A vigilar:
-el `RE` del CAF debe cuadrar con el RUT de la empresa sembrada (por lo que quizá convenga
-usar el RUT del fixture en vez de `rutUnicoDeTest()` en **este** IT), y el
-`SecretoTextoConverter` cifra al escribir, así que hay que confirmar que el contexto de test
-resuelva `APP_MASTER_KEY` (en `dev` hay default; verificar qué aplica sin perfil activo).
+**Arreglo aplicado:** `.xmlCaf(DteFixtures.xmlCaf(33))` en el `@BeforeEach`, que es el mismo
+patrón que ya usaban `DocumentoServiceTransicionesIT`, `ContingenciaReenvioIT`, `EmisionXsdIT`
+y `NotasCreditoDebitoIT` — este IT era el único que se había quedado atrás. Con eso pasa
+**1/1** y la suite entera queda verde (ejecución 9).
 
-### 1.3 — Workflow de GitHub Actions · ✅ escrito, sin validar
+Dos precauciones que se anotaron aquí y que, al ejecutarlas, resultaron **no aplicar**:
+
+- **El `RE` del CAF frente al RUT de la empresa.** No hace falta alinearlos ni cambiar el
+  `rutUnicoDeTest()` por el RUT del fixture. Este test no llega a timbrar: sólo llama a
+  `siguienteFolio()`, que bloquea el CAF e incrementa el folio sin mirar el contenido del XML
+  (`bloquearCafDisponible` sólo exige `xmlCaf is not null`). Alinear los RUT habría
+  reintroducido las colisiones de `empresa_rut_key` que arregló la causa (A).
+- **`APP_MASTER_KEY` en el contexto de test.** No hubo nada que configurar; el cifrado del
+  `SecretoTextoConverter` funciona en los ITs tal cual (`CafCifradoIT` ya lo cubría).
+
+### 1.3 — Workflow de GitHub Actions · ✅ escrito; `frontend` validado a mano, `backend` sin validar
 
 - [x] `.github/workflows/ci.yml` con dos jobs: `backend` (JDK 21 temurin, caché maven,
       `mvn -B verify`, sube los reportes de test como artefacto) y `frontend`
       (Node 20, `npm ci`, `npm run build`). Dispara en `push` a `main`, `pull_request`
       y `workflow_dispatch`.
-- [ ] **Validar con un push real.** No se puede comprobar desde esta máquina.
+- [x] Job `frontend` **validado a mano** en esta máquina, que es lo único de CI comprobable
+      sin push: `npm ci` + `npm run build` → `tsc` sin errores y `vite build` en 1.93 s
+      (1664 módulos). El `package-lock.json` sí está versionado y el script `build` es
+      `tsc && vite build`, tal como asume el workflow. Vite 6 soporta el Node 20 del job.
+- [ ] **Validar el job `backend` con un push real.** Es lo único que no se puede comprobar
+      desde esta máquina: depende del daemon Docker del runner.
 - ⚠️ **Punto frágil:** el job imprime a propósito la versión de API del daemon del runner.
       Si ese Docker no llega a `1.44`, hay que bajar `-Ddocker.api.version` a lo que soporte
       (cualquier Docker ≥ 25 cubre 1.44, así que no debería pasar).
