@@ -149,10 +149,16 @@ El sistema pasa de **un emisor con activos de ambiente** a plataforma **multi-em
 - **Libros IECV completos** — firma, validación y **envío al SII** desde la UI con registro del TrackID (V15), más un job diario que **prepara** el libro del mes anterior y avisa de los pendientes (V16).
 - **Gate de cierre**: dry-run `POR_EMPRESA` contra maullín **ACEPTADO** (TrackID `0253303236`) y **emisión de humo en producción verificada**.
 
-Follow-ups del Sprint 7: **factor de proporcionalidad del IVA de uso común** persistido —sin él, el job no puede preparar un libro de compras que lo tenga y el marcador queda en `ERROR`—, y consulta automática del estado de los envíos de libro (hoy es manual por TrackID).
+Follow-ups del Sprint 7: el **factor de proporcionalidad del IVA de uso común** ya está resuelto (§14); queda la consulta automática del estado de los envíos de libro (hoy es manual por TrackID).
 
 ## 13. Infraestructura de tests y CI (hecha)
 
 Detalle en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). En una frase: los ITs que todos los sprints daban por «corren en CI» **nunca se ejecutaron en ninguna parte** (faltaba `maven-failsafe-plugin`), y al hacerlos correr aparecieron cuatro defectos reales de infraestructura de test más uno de código de producción (`SiiStubController` acoplado a una clase concreta).
 
-Cerrado: **352 unitarios + 66 ITs en verde**, y un workflow de GitHub Actions que los ejecuta en cada push y cada PR — **validado con un push real**, no supuesto. Queda como límite conocido que el `mvn verify` local exige el montaje del socket de Docker y `TESTCONTAINERS_HOST_OVERRIDE`, porque Maven corre en contenedor; en CI no hace falta.
+Cerrado: **la suite completa en verde**, y un workflow de GitHub Actions que la ejecuta en cada push y cada PR — **validado con un push real**, no supuesto. Queda como límite conocido que el `mvn verify` local exige el montaje del socket de Docker y `TESTCONTAINERS_HOST_OVERRIDE`, porque Maven corre en contenedor; en CI no hace falta.
+
+## 14. Factor de proporcionalidad del IVA de uso común (hecha)
+
+Detalle en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md) §Fase 2. El libro de compras con IVA de uso común exige `FctProp` y nadie lo informaba: el job pasaba `null` y **la UI ni siquiera ofrecía dónde ponerlo**, así que esos períodos quedaban en `ERROR` permanente y no se podían enviar en absoluto desde la aplicación.
+
+Se resolvió con un factor **por empresa** (`V17`, editable en Configuración) que actúa de default, dejando intacto el override por período de la API. La decisión de no calcularlo automáticamente desde las ventas es deliberada: la fórmula legal necesita el acumulado del año completo y el sistema sólo conoce los DTE que emitió él, así que un cálculo automático sería *equivocado con más confianza* dentro de una declaración tributaria. En su lugar se ofrece un **factor sugerido** junto al campo, acompañado de cuántos documentos lo respaldan y desde qué fecha, para que quien decide pueda juzgar si el acumulado está completo. Cada envío guarda además el factor que declaró, porque el de la empresa es editable.

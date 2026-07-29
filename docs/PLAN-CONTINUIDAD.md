@@ -19,16 +19,15 @@ Es la primera vez que la suite completa corre de punta a punta, y ahora corre so
 
 ### Qué hacer, en este orden
 
-**1. Fase 2 — `fctProp`** — *decisión de diseño con recomendación puesta, falta el visto bueno*
-El factor va **por empresa** o **calculado por período** desde las ventas. La recomendación
-—con el razonamiento completo al final de la sección de la Fase 2— es **por empresa**, y no
-por simplicidad: el cálculo automático no sería más correcto, sería *equivocado con más
-confianza*, porque el sistema no puede garantizar el acumulado de ventas desde enero que
-exige la fórmula. Falta que el usuario la confirme.
-
-**2. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
+**1. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
 consulta automática del estado de los envíos de libro: hoy es manual por TrackID y el job ya
-tiene el andamiaje.
+tiene el andamiaje. Se sumaron dos en esta sesión: el input de override de `fctProp` en
+`Libros.tsx` y subir las actions de CI a `@v5`.
+
+**Queda una verificación abierta, no una tarea:** la Fase 2 se implementó asumiendo que el
+acumulado de ventas del año **no** está completo en el sistema. Si el contador confirma que sí
+lo está, el cálculo automático por período pasa a ser defendible y el factor sugerido podría
+promoverse a valor por defecto. Está planteado al final de la sección de la Fase 2.
 
 ### Dos cosas que conviene saber antes de tocar nada
 
@@ -375,30 +374,53 @@ migraciones **V8–V16**.
 
 ## Fase 2 — `fctProp` persistente
 
-**Estado: ⬜ pendiente**
+**Estado: ✅ hecha** — factor por empresa, con el override por período intacto y un factor
+sugerido que se ofrece como pista.
 
-Hoy [`RevisionLibroService.revisarOperacion`](../backend/src/main/java/cl/nexosoftware/factura/libro/RevisionLibroService.java)
-llama a `xmlFirmado(...)` con `fctProp = null`, y `LibroXmlGenerator` exige el factor si
-el libro trae IVA de uso común. Consecuencia: **cualquier período con uso común queda en
-`ERROR` de forma permanente** y el aviso automático nunca sirve para ese libro.
+**El problema que resolvía.** [`RevisionLibroService.revisarOperacion`](../backend/src/main/java/cl/nexosoftware/factura/libro/RevisionLibroService.java)
+llamaba a `xmlFirmado(...)` con `fctProp = null`, y `LibroXmlGenerator` exige el factor si
+el libro trae IVA de uso común. Consecuencia: **cualquier período con uso común quedaba en
+`ERROR` de forma permanente** y el aviso automático no servía para ese libro. Peor de lo
+documentado: la UI tampoco ofrecía cómo informarlo (ver el hallazgo al final del checklist).
 
-- [ ] Migración `V17__empresa_fct_prop.sql`: `fct_prop NUMERIC(3,2)` nullable en `empresa`.
-- [ ] `Empresa` + `EmpresaRequest`/`EmpresaResponse` + campo en `Configuracion.tsx`
-      (validado 0–1, solo ADMIN como el resto de la pantalla).
-- [ ] El job usa el valor de la empresa; el envío manual desde `Libros.tsx` lo sigue
-      pudiendo sobreescribir por período.
-- [ ] Si hay uso común y no hay factor configurado, el marcador sigue en `ERROR` pero con
-      **mensaje accionable** ("configure el factor de proporcionalidad en Configuración")
-      en vez de la excepción cruda del generador.
+- [x] Migración `V17__fct_prop.sql`: `fct_prop` nullable en `empresa` **y en `envio_libro`**.
+      **No es `NUMERIC(3,2)`,** como decía este plan: el factor viaja como `Double` de punta a
+      punta y la validación de esquema de Hibernate tumba el contexto entero con *«wrong column
+      type … found [numeric], but expecting [float(53)]»*. Lo cazó el IT, no la compilación.
+      Queda `DOUBLE PRECISION` con un `CHECK` de rango, que además es mejor garantía: un
+      `NUMERIC(3,2)` habría **redondeado** un `0.605` en silencio en vez de rechazarlo.
+- [x] `Empresa` + `EmpresaRequest`/`EmpresaResponse` (`@DecimalMin`/`@DecimalMax`) + campo en
+      `Configuracion.tsx`, validado 0–1 y solo editable por ADMIN como el resto de la pantalla.
+- [x] El job usa el valor de la empresa. **La resolución no vive en el job**: está en
+      `LibroService.construir`, el único punto por el que pasan *todos* los caminos —preview de
+      la UI, XML de descarga, envío y revisión automática—. Puesta en el job, el preview habría
+      mostrado crédito proporcional 0 mientras el XML declarado al SII llevaba otro número.
+- [x] El override por período del envío manual sigue ganando al valor de la empresa.
+- [x] Si hay uso común y no hay factor, el marcador queda en `ERROR` con **mensaje accionable**
+      y **sin intentar firmar**. El mensaje del generador (*«informe el factor (fctProp)»*) se
+      dejó como está: le sirve a quien llama la API, no a quien mira la UI y necesita saber
+      *dónde* se configura.
+- [x] `envio_libro.fct_prop` guarda el factor **efectivamente declarado en cada envío**. El de
+      la empresa es editable, así que sin esto, después de cambiarlo no habría forma de saber
+      qué se declaró en un envío ya hecho.
+- [x] Factor **sugerido** (`GET …/libros/factor-proporcionalidad`): ventas afectas sobre totales
+      acumuladas desde enero, ofrecido como pista junto al campo y **nunca aplicado solo**. La
+      respuesta incluye `documentos` y `primeraEmision` justamente para que se vea si el
+      acumulado arranca de verdad en enero — que es la incertidumbre que motivó todo el diseño.
 
-> **Decisión de diseño pendiente de confirmar con el usuario.** El factor legalmente es
-> **por período** (acumulado desde enero), no una constante de la empresa. Se eligió el
-> default por empresa por simplicidad y porque desbloquea el job; calcularlo automáticamente
-> desde las ventas del período es más correcto pero bastante más trabajo. Si se decide
-> cambiar de enfoque, esta fase se replantea.
+**Un hallazgo del camino:** el plan daba por hecho que «el envío manual desde `Libros.tsx` lo
+sigue pudiendo sobreescribir por período». **`Libros.tsx` no menciona `fctProp` en ninguna
+parte**: el override sólo existía por la API. O sea que el problema era mayor de lo
+documentado — con IVA de uso común, el libro de compras no se podía enviar **en absoluto**
+desde la UI, no sólo desde el job. El default por empresa arregla los dos casos; añadir el
+input de override a `Libros.tsx` queda como follow-up de la Fase 4, ya sin urgencia.
 
-**Recomendación de la sesión del 2026-07-29 (pendiente del visto bueno del usuario): ir con
-el factor por empresa** — pero el encuadre de arriba está mal planteado. No es
+> **Decisión de diseño — resuelta el 2026-07-29.** El usuario aprobó la recomendación de
+> abajo: **factor por empresa**, con los dos ajustes al checklist y el factor sugerido. El
+> planteamiento original de este recuadro («por período es lo legalmente correcto, por empresa
+> es la simplificación») quedó descartado por el argumento que sigue.
+
+**La recomendación, y por qué el encuadre original estaba mal planteado.** No era
 «simple vs. legalmente correcto»:
 
 - **El cálculo automático no sería más correcto, sería equivocado con más confianza.** La
@@ -413,7 +435,7 @@ el factor por empresa** — pero el encuadre de arriba está mal planteado. No e
   [`RevisionLibroService`](../backend/src/main/java/cl/nexosoftware/factura/libro/RevisionLibroService.java)
   líneas 63 y 73.
 
-Dos ajustes al checklist de arriba si se confirma este camino:
+Dos ajustes al checklist de arriba, ambos ya implementados:
 
 1. **Persistir el factor usado en cada período**, no sólo el default de la empresa. Si alguien
    edita la constante entre el primer envío y un reenvío del mismo período, hoy se declararían
@@ -436,6 +458,7 @@ Dos ajustes al checklist de arriba si se confirma este camino:
 |---|---|
 | Consulta automática del estado de los envíos de libro | Hoy `estadoEnvio` es manual por TrackID; el job ya tiene el andamiaje |
 | Subir las actions de CI a `@v5` | Trivial. Hoy `checkout`, `setup-java`, `setup-node` y `upload-artifact` van en `@v4` (Node 20, deprecado): el run pasa pero con aviso |
+| Input de override de `fctProp` en `Libros.tsx` | La API ya lo acepta y el default por empresa ya desbloquea el envío; esto es para el período atípico. Sin urgencia |
 | Motivo de fallo por documento en el reenvío masivo | Follow-up de P2-5, mejora la operación real |
 | Signo de las NC en los totales del libro | Follow-up de P2-5 |
 | Semántica de `RECHAZADO` entre RCOF y libro | Follow-up de P2-5, hoy inconsistente |

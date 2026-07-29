@@ -521,5 +521,40 @@ Lo establecido hasta ahora:
   que el pin a `1.44` entra holgado. **Esta vez la afirmación «corre en CI» está verificada**,
   que es justamente lo que no ocurría en los sprints 1–6.
 
+# Sprint 8 — Factor de proporcionalidad del IVA de uso común
+
+> Detalle en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md) §Fase 2.
+
+El libro de compras con IVA de uso común exige `FctProp` y nadie lo informaba: el job pasaba
+`null` y esos períodos quedaban en `ERROR` permanente. **El plan subestimaba el alcance**: daba
+por hecho que el envío manual podía sobreescribirlo por período, pero `Libros.tsx` no menciona
+`fctProp` en ninguna parte — el override sólo existía por la API, así que desde la UI esos
+libros no se podían enviar **en absoluto**.
+
+- **Factor por empresa** (`V17`, nullable, `DOUBLE PRECISION` con `CHECK` de rango), editable
+  en Configuración por ADMIN y validado 0–1 en ambos lados. Actúa de default; el override por
+  período de la API sigue ganando.
+- **La resolución vive en `LibroService.construir`**, el único punto por el que pasan todos los
+  caminos (preview, XML, envío y job). Puesta en el job, el preview habría mostrado crédito
+  proporcional 0 mientras el XML declarado al SII llevaba otro número.
+- **Sin factor y con uso común**, el marcador queda en `ERROR` con un motivo que dice *dónde*
+  configurarlo, y sin intentar firmar. El mensaje del generador se dejó como estaba: le sirve a
+  quien llama la API, no a quien mira la UI.
+- **`envio_libro.fct_prop`** guarda el factor efectivamente declarado en cada envío. El de la
+  empresa es editable, así que sin esto no habría forma de saber qué se declaró en un envío ya
+  hecho.
+- **Factor sugerido** (`GET …/libros/factor-proporcionalidad`) como pista, nunca como valor
+  automático: la fórmula legal necesita el acumulado del año completo y aquí sólo están los DTE
+  que emitió este sistema. La respuesta lleva `documentos` y `primeraEmision` justamente para
+  que se vea si el acumulado arranca de verdad en enero.
+- **Un `NUMERIC(3,2)` habría tumbado el contexto entero.** El factor viaja como `Double` y la
+  validación de esquema de Hibernate exige `float(53)`. Lo cazó el IT, no la compilación. El
+  `CHECK` que quedó en su lugar es además mejor garantía: `NUMERIC(3,2)` habría redondeado un
+  `0.605` en silencio en vez de rechazarlo.
+
+**Verificación:** suite completa en verde —354 unitarios + 72 ITs, 0 fallos y 0 errores— con
+6 ITs y 2 unitarios nuevos que cubren el default por empresa, el override, el `FctProp` de dos
+decimales en el XML, el mensaje accionable y el acumulado del factor sugerido.
+
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

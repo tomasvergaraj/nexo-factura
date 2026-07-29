@@ -68,6 +68,8 @@ dobles de firma y de SII — ver [Perfiles](#perfiles-real-en-prod-simulado-en-d
 - **Libros de compra/venta (IECV)**: libro de ventas desde los DTE emitidos y libro
   de compras desde el registro manual de documentos recibidos; salida en JSON y XML
   `LibroCompraVenta`, **firmado y enviado al SII** desde la UI con registro del TrackID.
+  El **IVA de uso común** se prorratea con el factor de proporcionalidad configurado en
+  la empresa (sobreescribible por período), y cada envío guarda el factor que declaró.
 - **Aviso de libros pendientes**: un job diario **prepara** el libro del mes anterior
   (lo firma y valida contra el esquema, sin enviarlo) y deja un marcador `PREPARADO`
   o `ERROR` con el motivo, para que el envío mensual no se pase por alto. El envío
@@ -191,7 +193,7 @@ cd backend
 mvn spring-boot:run        # http://localhost:8080
 ```
 
-Flyway aplica las migraciones (`V1`–`V16`) al arrancar. La **semilla de demostración**
+Flyway aplica las migraciones (`V1`–`V17`) al arrancar. La **semilla de demostración**
 (`V2__seed_dev.sql`) vive aparte, en `classpath:db/seed-dev`, y **solo se carga en el
 perfil `dev`**: una base de producción arranca limpia, sin empresa, usuario ni CAF de prueba.
 
@@ -251,7 +253,7 @@ Todos cuelgan del emisor: `/api/empresas/{empresaId}/…`.
 | Contingencia   | `POST …/documentos/reenviar-pendientes`                                                |
 | Compras        | `GET`/`POST`/`DELETE …/compras`                                                        |
 | Certificado    | `GET`/`POST` (multipart)/`DELETE …/certificado` (ADMIN; solo metadata, nunca el material) |
-| Libros (IECV)  | `GET …/libros/ventas` · `/libros/compras` (+ `/xml`) · `POST …/libros/enviar` · `GET …/libros/envios` · `/libros/pendientes` |
+| Libros (IECV)  | `GET …/libros/ventas` · `/libros/compras` (+ `/xml`) · `POST …/libros/enviar` · `GET …/libros/envios` · `/libros/pendientes` · `/libros/factor-proporcionalidad` |
 | RCOF           | `GET …/rcof?fecha=YYYY-MM-DD`                                                           |
 | Dashboard      | `GET …/dashboard`                                                                      |
 
@@ -284,7 +286,7 @@ tributario** (`CalculadoraImpuestosTest`) y las de **contingencia/reenvío**
 > Testcontainers falla con *"Could not find a valid Docker environment"*; se ajusta con
 > `-Ddocker.api.version=…`.
 
-Estado actual de la suite: **352 tests unitarios + 66 de integración, 0 fallos y 0 errores**.
+Estado actual de la suite: **354 tests unitarios + 72 de integración, 0 fallos y 0 errores**.
 
 CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `mvn -B verify` para el
 backend y `npm ci && npm run build` para el frontend, en cada push a `main` y cada PR.
@@ -364,11 +366,11 @@ con `docker-compose.cert.yml` (perfil `prod` + `APP_SII_AMBIENTE=CERTIFICACION`)
 El backlog priorizado (P0/P1/P2) está **completo**, incluida la integración
 tributaria real (P0-4/5/6, Sprint 6) y la salida a producción con certificado y
 resolución por empresa (Sprint 7). Quedan follow-ups documentados: verificación de la
-FRMA del CAF (bloqueada — el SII no publica la clave pública por IDK), `MedioPago` /
-`GeoRefEmision`, y el factor de proporcionalidad del IVA de uso común persistido para
-que la revisión automática de libros pueda preparar ese caso.
+FRMA del CAF (bloqueada — el SII no publica la clave pública por IDK) y `MedioPago` /
+`GeoRefEmision`.
 
-En curso: la **infraestructura de tests y CI**, con su estado vivo en
+La **infraestructura de tests y CI** y el **factor de proporcionalidad del IVA de uso
+común** quedaron cerrados; el detalle está en
 [`docs/PLAN-CONTINUIDAD.md`](docs/PLAN-CONTINUIDAD.md).
 
 El detalle, con la línea base de la auditoría y el registro por sprint, vive en
