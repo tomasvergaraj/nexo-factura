@@ -283,7 +283,7 @@ export function Configuracion() {
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field
                     label="Factor de proporcionalidad"
-                    hint="Entre 0 y 1, con dos decimales (0.60 = 60%). Es el valor que declaras tú: se calcula sobre tus ventas acumuladas desde enero, así que confírmalo con tu contador."
+                    hint="Entre 0 y 1, con dos decimales (0.60 = 60%). Es la proporción de tus ventas afectas sobre el total, acumuladas desde enero del año en curso — no las del mes. Debe coincidir con el factor que informas en tu F29 del período."
                     error={errores.fctProp}
                   >
                     <Input
@@ -307,9 +307,10 @@ export function Configuracion() {
                       {sugerido.primeraEmision && <> desde el {formatFecha(sugerido.primeraEmision)}</>}).
                     </p>
                     <p className="mt-1.5 text-xs leading-relaxed text-slate">
-                      Es solo una referencia: el cálculo legal usa tus ventas del año completo, y
-                      aquí solo están los documentos emitidos con nexo-factura. Confírmalo con tu
-                      contador antes de usarlo.
+                      Es solo una referencia. El cálculo legal usa tus ventas del año completo y
+                      aquí solo están las emitidas con nexo-factura: si vendiste por otro canal
+                      {sugerido.primeraEmision && <>, o antes del {formatFecha(sugerido.primeraEmision)}</>}
+                      , este número se queda corto. El que vale es el que informas en tu F29.
                     </p>
                     {esAdmin && (
                       <button

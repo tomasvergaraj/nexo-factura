@@ -14,7 +14,7 @@ follow-ups de mejor relación valor/esfuerzo. Todo empujado a `main` y validado 
 está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-**357 tests unitarios + 72 de integración, 0 fallos y 0 errores**, y CI los ejecuta en cada push
+**357 tests unitarios + 73 de integración, 0 fallos y 0 errores**, y CI los ejecuta en cada push
 —verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden
 enviar, y la resolución de los envíos llega sola en vez de haber que pedirla por TrackID.
 
@@ -24,10 +24,11 @@ enviar, y la resolución de los envíos llega sola en vez de haber que pedirla p
 reenvío masivo, signo de las NC en los totales del libro, semántica de `RECHAZADO` entre RCOF y
 libro, y `MedioPago`/`GeoRefEmision`. La tabla completa está al final.
 
-**Una verificación abierta, que no es una tarea de código:** la Fase 2 se implementó asumiendo
-que el acumulado de ventas del año **no** está completo en el sistema. Si el contador confirma
-que sí lo está, el cálculo automático por período pasa a ser defendible y el factor sugerido
-—que ya se calcula— podría promoverse a valor por defecto. Está planteado al final de la Fase 2.
+**La verificación que quedaba abierta ya está resuelta**, y confirma el diseño de la Fase 2: la
+emisión en producción arrancó en **julio de 2026**, así que para cualquier período de 2026 el
+acumulado desde enero **no puede** estar completo en el sistema. El factor calculado saldría
+corto con certeza, no por hipótesis. Revisable a partir de 2027, y el propio `primeraEmision`
+del factor sugerido deja ver cuándo deja de aplicar el argumento.
 
 ### Dos cosas que conviene saber antes de tocar nada
 
@@ -427,8 +428,10 @@ input de override a `Libros.tsx` queda como follow-up de la Fase 4, ya sin urgen
   fórmula necesita las ventas **acumuladas desde enero**, y el sistema sólo conoce los DTE que
   emitió él. Si la empresa adoptó nexo-factura a mitad de año o vende por otro canal, el
   acumulado está incompleto y el factor sale mal **en silencio, dentro de una declaración
-  tributaria**. En este dominio, «automático pero mal» es peor que «manual pero del contador»,
-  que además es quien responde por ese número.
+  tributaria**. En este dominio, «automático pero mal» es peor que «manual y a la vista de quien
+  responde por el número», que aquí es el propio contribuyente: **no hay contador en el medio**
+  (confirmado por el usuario), así que el sistema es la única salvaguarda y no puede permitirse
+  un valor plausible pero incorrecto.
 - **El costo real es bajo.** `fctProp` ya viaja como parámetro de punta a punta
   (`LibroController` → `LibroService` → `LibroEnvioService` → generador). El campo por empresa
   sólo aporta un default donde hoy el job pasa `null` a pelo:
@@ -444,9 +447,18 @@ Dos ajustes al checklist de arriba, ambos ya implementados:
    campo como pista (*«según tus ventas registradas: 0.87»*), **nunca** como valor automático.
    Captura casi todo el valor del cálculo por período a una fracción del costo.
 
-> Lo que no se puede verificar desde el código: si en el caso concreto de Nexo Software el
-> acumulado desde enero **sí** está completo en el sistema, el primer argumento pierde fuerza
-> y el cálculo por período se vuelve defendible. Conviene confirmarlo con el contador.
+> **Resuelto el 2026-07-29.** La duda era si el acumulado desde enero está completo en el
+> sistema para el caso concreto de Nexo Software. No lo está ni puede estarlo: la emisión en
+> producción arrancó **este mismo mes**, así que para cualquier período de 2026 faltan siete
+> meses de ventas. El primer argumento no solo se sostiene, se vuelve certeza.
+>
+> **Cuándo revisarlo:** a partir de un año calendario que el sistema haya cubierto entero
+> (2027, si se usa desde enero). El `primeraEmision` del factor sugerido es justamente el dato
+> que lo delata, así que no hace falta acordarse: cuando sea el 1 de enero, el argumento cae.
+>
+> Nota para quien retome esto: **el usuario no tiene contador**. Cualquier texto que derive la
+> decisión a uno —había dos en `Configuracion.tsx`— está mandando al usuario con alguien que no
+> existe. La referencia correcta es el **F29**, que es donde ese mismo factor se informa.
 
 ---
 
@@ -459,8 +471,30 @@ Dos ajustes al checklist de arriba, ambos ya implementados:
 | ~~Consulta automática del estado de los envíos de libro~~ | ✅ **hecha** — segundo `@Scheduled` en `RevisionLibroJob` (cron propio, `app.libro.revision-auto.cron-estado`) que resuelve a diario los envíos sin estado terminal |
 | ~~Subir las actions de CI a `@v5`~~ | ✅ **hecha** — se va el aviso de Node 20 deprecado |
 | ~~Input de override de `fctProp` en `Libros.tsx`~~ | ✅ **hecha** — aparece solo cuando el período trae IVA de uso común |
-| Motivo de fallo por documento en el reenvío masivo | Follow-up de P2-5, mejora la operación real |
-| Signo de las NC en los totales del libro | Follow-up de P2-5 |
-| Semántica de `RECHAZADO` entre RCOF y libro | Follow-up de P2-5, hoy inconsistente |
+| ~~Motivo de fallo por documento en el reenvío masivo~~ | ✅ **hecha** — `ReenvioResultado` lleva el motivo por documento y el dashboard los lista. Sin él, la respuesta decía «N siguen en contingencia» y había que abrir cada uno |
+| ~~Signo de las NC en los totales del libro~~ | ⚠️ **ya estaba hecho** — `LibroService.signo()` resta los tipos 60/61 del agregado mostrado y deja el XML por `TpoDoc` en positivo, con tests. El follow-up estaba obsoleto, no pendiente |
+| Semántica de `RECHAZADO` entre RCOF y libro | ⛔ **requiere decisión del usuario** (ver abajo) — confirmada la inconsistencia |
 | `MedioPago` / `GeoRefEmision` | Campos opcionales del DTE |
 | Verificación de la FRMA del CAF | **No accionable**: el SII no publica la clave pública por IDK. Queda como límite conocido documentado |
+
+### `RECHAZADO` entre RCOF y libro — la inconsistencia, confirmada
+
+- **Libro de ventas** ([`LibroDtos`](../backend/src/main/java/cl/nexosoftware/factura/libro/LibroDtos.java)):
+  excluye los `RECHAZADO`. Un DTE rechazado por el SII no es una emisión válida.
+- **RCOF** ([`RcofService`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofService.java)
+  líneas 72–75): sólo separa `ANULADO` de todo lo demás, así que una boleta `RECHAZADO` cae en
+  «vigentes» y **suma montos**.
+
+Resultado: una boleta que el SII rechazó se declara como folio utilizado **con sus montos** en
+el RCOF, y a la vez no aparece en el libro. De las tres lecturas posibles, la actual es la peor:
+sobredeclara ventas que el propio SII rechazó.
+
+**No se tocó porque es una decisión tributaria, no técnica**, y afecta a un envío real al SII.
+Las dos salidas defendibles:
+
+1. **Contarla como folio anulado** (entra en los rangos de anulados, sin montos). Alinea el RCOF
+   con el libro y mantiene la numeración completa, que es lo que el RCOF existe para reportar.
+2. **Dejarla como utilizada pero sin montos**. Conserva la distinción entre «yo la anulé» y «el
+   SII la rechazó», al precio de que `utilizados` incluya un documento sin valor tributario.
+
+Lo que no es defendible es lo de hoy. Hay que resolverlo con el usuario antes de implementarlo.

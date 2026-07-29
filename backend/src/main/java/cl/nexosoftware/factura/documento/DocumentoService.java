@@ -277,7 +277,7 @@ public class DocumentoService {
                 .findIdsByEmpresaIdAndEstado(empresaId, EstadoDte.EN_CONTINGENCIA);
 
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        List<DocumentoResumen> resultados = new ArrayList<>();
+        List<ReenvioResultado> resultados = new ArrayList<>();
         int enviados = 0;
         int enContingencia = 0;
         for (Long id : ids) {
@@ -294,9 +294,23 @@ public class DocumentoService {
             if (doc.getEstado() == EstadoDte.EN_CONTINGENCIA) {
                 enContingencia++;
             }
-            resultados.add(DocumentoMapper.toResumen(doc));
+            resultados.add(new ReenvioResultado(DocumentoMapper.toResumen(doc), motivoDe(doc)));
         }
         return new ReenvioMasivoResponse(resultados.size(), enviados, enContingencia, resultados);
+    }
+
+    /**
+     * Por que no prospero el reintento de este documento, o null si prospero.
+     *
+     * Solo los dos desenlaces malos llevan motivo. Un documento que salio de la
+     * cola porque la reconciliacion por folio lo encontro ACEPTADO puede
+     * conservar un {@code ultimoErrorEnvio} de intentos anteriores; devolverlo
+     * aqui lo haria pasar por el resultado de ESTE reenvio, que fue bueno.
+     */
+    private static String motivoDe(DocumentoTributario doc) {
+        return doc.getEstado() == EstadoDte.EN_CONTINGENCIA || doc.getEstado() == EstadoDte.RECHAZADO
+                ? doc.getUltimoErrorEnvio()
+                : null;
     }
 
     /**

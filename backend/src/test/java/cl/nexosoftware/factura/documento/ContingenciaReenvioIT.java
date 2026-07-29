@@ -149,7 +149,42 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         assertThat(resumen.enviados()).isEqualTo(2);
         assertThat(resumen.enContingencia()).isZero();
         assertThat(resumen.documentos())
-                .allSatisfy(d -> assertThat(d.estado()).isEqualTo(EstadoDte.ENVIADO));
+                .allSatisfy(r -> assertThat(r.documento().estado()).isEqualTo(EstadoDte.ENVIADO));
+        // Un reenvio que prospera no arrastra el motivo del fallo anterior.
+        assertThat(resumen.documentos()).extracting(ReenvioResultado::motivo).containsOnlyNulls();
+    }
+
+    @Test
+    @DisplayName("el reenvio masivo informa POR DOCUMENTO el motivo de los que siguen fallando")
+    void reenvioMasivoInformaElMotivoDeCadaFallo() {
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenThrow(new SiiNoDisponibleException("SII caido"));
+        DocumentoResponse doc1 = emitido();
+        DocumentoResponse doc2 = emitido();
+        documentoService.enviarSii(empresaId, doc1.id());
+        documentoService.enviarSii(empresaId, doc2.id());
+
+        // Uno se recupera y el otro sigue caido: el lote mezcla los dos desenlaces.
+        when(siiGateway.enviar(any(SiiGateway.EnvioSii.class)))
+                .thenReturn("TRACK-A")
+                .thenThrow(new SiiNoDisponibleException("connect timed out contra palena"));
+        ReenvioMasivoResponse resumen = documentoService.reenviarPendientes(empresaId);
+
+        assertThat(resumen.procesados()).isEqualTo(2);
+        assertThat(resumen.enviados()).isEqualTo(1);
+        assertThat(resumen.enContingencia()).isEqualTo(1);
+
+        // Antes, la respuesta solo decia "1 sigue en contingencia" y habia que abrir
+        // el documento para saber por que. Ahora el motivo viaja con el.
+        ReenvioResultado fallido = resumen.documentos().stream()
+                .filter(r -> r.documento().estado() == EstadoDte.EN_CONTINGENCIA)
+                .findFirst().orElseThrow();
+        assertThat(fallido.motivo()).contains("connect timed out contra palena");
+
+        ReenvioResultado exitoso = resumen.documentos().stream()
+                .filter(r -> r.documento().estado() == EstadoDte.ENVIADO)
+                .findFirst().orElseThrow();
+        assertThat(exitoso.motivo()).isNull();
     }
 
     @Test
@@ -258,8 +293,11 @@ class ContingenciaReenvioIT extends AbstractIntegrationTest {
         assertThat(resumen.procesados()).isEqualTo(2);
         assertThat(resumen.enviados()).isEqualTo(1);
         assertThat(resumen.enContingencia()).isZero();
-        assertThat(resumen.documentos()).extracting(DocumentoResumen::estado)
+        assertThat(resumen.documentos()).extracting(r -> r.documento().estado())
                 .containsExactlyInAnyOrder(EstadoDte.ACEPTADO, EstadoDte.ENVIADO);
+        // El ACEPTADO por reconciliacion conserva el ultimoErrorEnvio del intento
+        // que lo dejo en contingencia, pero ESTE reenvio no fallo: sin motivo.
+        assertThat(resumen.documentos()).extracting(ReenvioResultado::motivo).containsOnlyNulls();
     }
 
     @Test

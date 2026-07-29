@@ -158,7 +158,25 @@ public final class DocumentoDtos {
             int procesados,
             int enviados,
             int enContingencia,
-            List<DocumentoResumen> documentos
+            List<ReenvioResultado> documentos
+    ) {}
+
+    /**
+     * Como le fue a UN documento del lote. Sin {@code motivo}, la respuesta solo
+     * podia decir cuantos siguen en contingencia, no por que: quien opera tenia
+     * que abrir cada documento a mano para enterarse.
+     *
+     * @param motivo el error del intento; null salvo que el documento terminara
+     *               EN_CONTINGENCIA (sigue fallando) o RECHAZADO (el SII lo
+     *               rechazo por negocio y sale de la cola). Se deja fuera de los
+     *               desenlaces buenos a proposito: un documento que la
+     *               reconciliacion por folio encontro ACEPTADO puede arrastrar un
+     *               {@code ultimoErrorEnvio} viejo, y mostrarlo como motivo de
+     *               este reenvio seria mentir.
+     */
+    public record ReenvioResultado(
+            DocumentoResumen documento,
+            String motivo
     ) {}
 
     /** Vista compacta para listados. */

@@ -8,12 +8,13 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { getDashboard, mensajeError, reenviarPendientes } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
 import { formatCLP, formatFecha } from "../../lib/format";
-import { TIPO_DTE_LABEL, type PuntoSerie, type ResumenDashboard } from "../../lib/types";
+import { TIPO_DTE_LABEL, type PuntoSerie, type ReenvioResultado, type ResumenDashboard } from "../../lib/types";
 
 export function Dashboard() {
   const [data, setData] = useState<ResumenDashboard | null>(null);
   const [reintentando, setReintentando] = useState(false);
   const [avisoReenvio, setAvisoReenvio] = useState<string | null>(null);
+  const [fallidos, setFallidos] = useState<ReenvioResultado[]>([]);
 
   useEffect(() => {
     getDashboard(empresaIdActual()).then(setData);
@@ -22,8 +23,12 @@ export function Dashboard() {
   async function reintentarEnvios() {
     setReintentando(true);
     setAvisoReenvio(null);
+    setFallidos([]);
     try {
       const resumen = await reenviarPendientes(empresaIdActual());
+      // Los que no salieron: siguen en contingencia o el SII los rechazó. Ambos
+      // traen motivo y ambos requieren que el usuario haga algo.
+      setFallidos(resumen.documentos.filter((r) => r.motivo != null));
       setAvisoReenvio(
         resumen.enContingencia === 0
           ? `Se reenviaron ${resumen.enviados} de ${resumen.procesados} documentos.`
@@ -62,6 +67,28 @@ export function Dashboard() {
             </Alert>
           )}
           {avisoReenvio && <Alert tone="info">{avisoReenvio}</Alert>}
+
+          {/* El motivo por documento: sin esto el aviso decía "N siguen en
+              contingencia" y había que abrir cada uno para saber por qué. */}
+          {fallidos.length > 0 && (
+            <Card className="p-5">
+              <h2 className="font-display text-sm font-semibold text-ink">
+                No se pudieron enviar
+              </h2>
+              <ul className="mt-3 space-y-2.5">
+                {fallidos.map(({ documento, motivo }) => (
+                  <li key={documento.id} className="text-xs leading-relaxed">
+                    <span className="font-medium text-ink">
+                      {TIPO_DTE_LABEL[documento.tipoDte]}
+                      {documento.folio != null && <> N° <span className="tnum">{documento.folio}</span></>}
+                    </span>
+                    <span className="text-slate"> — {documento.receptorRazonSocial}</span>
+                    {motivo && <div className="mt-0.5 text-slate-soft">{motivo}</div>}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           {/* KPIs */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

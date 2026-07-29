@@ -122,12 +122,23 @@ export interface DocumentoResponse extends DocumentoResumen {
   ultimoErrorEnvio: string | null;
 }
 
+/** Cómo le fue a un documento del lote de reenvío. */
+export interface ReenvioResultado {
+  documento: DocumentoResumen;
+  /**
+   * Motivo del fallo; null salvo que el documento quedara EN_CONTINGENCIA o
+   * RECHAZADO. Los desenlaces buenos no lo traen aunque el documento arrastre un
+   * error viejo: sería el motivo de otro intento, no de éste.
+   */
+  motivo: string | null;
+}
+
 /** Resultado del reenvío masivo de documentos EN_CONTINGENCIA. */
 export interface ReenvioMasivoResponse {
   procesados: number;
   enviados: number;
   enContingencia: number;
-  documentos: DocumentoResumen[];
+  documentos: ReenvioResultado[];
 }
 
 export interface Cliente {
