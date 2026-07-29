@@ -2,12 +2,12 @@
 
 > Documento de ingeniería derivado de una auditoría del código (no del README).
 > Distingue lo **real** de lo **simulado** y prioriza el trabajo pendiente.
-> Última actualización: 2026-07-21.
+> Última actualización: 2026-07-29.
 
 > **Cómo leer este documento.** Las secciones **1 y 3 son la foto de la auditoría inicial
 > (pre-Sprint 1) y se conservan sin cambios** como línea base: es el punto de partida contra
 > el que se priorizó el backlog, **no** el estado de hoy. Lo que efectivamente está hecho está
-> en la §2 (marcas ✅) y en el registro por sprint de las §§4-9 y 11; el estado verificado vive
+> en la §2 (marcas ✅) y en el registro por sprint de las §§4-9, 11 y 12; el estado verificado vive
 > en [PROGRESS.md](PROGRESS.md). Todo lo que la §1 marca en rojo y la §3 lista como riesgo
 > ya se cerró — ver §10 para el saldo.
 
@@ -128,7 +128,7 @@ Commit `e1e834f`, solo frontend (ver [PROGRESS.md](PROGRESS.md)). Cierra los **c
 | Frontend desacoplado por un flag global hardcodeado | ✅ **Cerrado** en el Sprint 1 (`VITE_USE_MOCK`, default `false`) y completado en el Sprint 2 y en la §9: ya no queda ninguna pantalla mock ni `Placeholder`. |
 | Encoding/canonicalización del XML sin resolver | ✅ **Cerrado** en el Sprint 6: C14N inclusive (la que fija el XSD oficial de la firma), DTE marshallado **sin indentación** (una línea — elimina la deriva byte-a-byte del TED y de la firma), prólogo ISO-8859-1 coherente extremo a extremo y TED como string aplanado de fuente única. |
 
-**Saldo**: los cuatro riesgos de la §3 están cerrados y el backlog priorizado (P0/P1/P2) está **completo**. Lo que queda son los follow-ups documentados del §11 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md).
+**Saldo**: los cuatro riesgos de la §3 están cerrados y el backlog priorizado (P0/P1/P2) está **completo**. Con el Sprint 7 (§12) el sistema además **opera en producción ante el SII**. Lo que queda son los follow-ups documentados del §11, del §12 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md), más la **infraestructura de tests y CI** en curso ([PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md)).
 
 ## 11. Hecho en el Sprint 6 (P0-4/5/6: integración tributaria real)
 
@@ -138,3 +138,19 @@ Con el certificado PKCS#12 y dos CAF de certificación reales disponibles, se im
 - **P0-6** — `SiiGatewayProd` ruteando por tipo a dos transportes con token independiente: **boleta 39/41 por la API REST** (semilla/token/envío multipart/estado; pangal=cert, rahue=prod) y **facturas/notas 33/34/56/61 por el canal clásico** (SOAP `CrSeed`/`GetTokenFromSeed`, upload `DTEUpload`, estado `QueryEstUp` en maullin/palena). Errores de transporte → contingencia (Sprint 5 intacto); rechazo de negocio → error duro; token inválido → renovar y reintentar una vez.
 - **Operación**: `docker-compose.cert.yml` (perfil `prod` + ambiente `CERTIFICACION`), carga de CAF por XML en el frontend, config `app.sii.*` (FchResol/NroResol/user-agent). Suite en **231 unitarios** (todos los generadores validados contra los XSD oficiales).
 - **E2E contra el SII de certificación — los cinco tipos ACEPTADOS**: **factura 33** (canal clásico maullin), **boleta 39** (API REST pangal, folio 106; los primeros folios rechazaban con 601 porque el CAF original estaba superseded — se cerró timbrando un CAF nuevo), **nota de crédito 61**, **nota de débito 56** (anulando la NC) y **factura exenta 34**. El E2E cazó además **8 bugs invisibles para la suite** (los dos últimos: exenta que declaraba IVA en Totales y conexión cortada leyendo la respuesta que salía como 500 en vez de contingencia; detalle en [PROGRESS.md](PROGRESS.md)).
+
+## 12. Hecho en el Sprint 7 (multi-tenant real y salida a producción)
+
+El sistema pasa de **un emisor con activos de ambiente** a plataforma **multi-empresa**, y de certificación a **producción ante el SII** (ver [PROGRESS.md](PROGRESS.md)):
+
+- **Certificado y resolución por empresa** — `app.sii.firma-modo` (`GLOBAL` | `POR_EMPRESA`) como *property*, no perfil (certificación corre perfil `prod` y no podría distinguirse). `CertificadoDigital` se parte en `CertificadoFirma` + `CertificadoResolver`; PKCS#12 y clave **cifrados AES-256-GCM** en `certificado_empresa` (V13), token del SII cacheado **por huella del certificado**. `FchResol`/`NroResol` bajan de config a `Empresa` con `ResolucionResolver`.
+- **Cifrado en reposo del XML del CAF** (V14) — el CAF trae la clave privada del timbre: en claro, un volcado de la tabla bastaba para emitir DTE a nombre del contribuyente. `AttributeConverter` sobre la misma columna con formato `enc:v1:` y backfill por JDBC crudo al arrancar.
+- **Producción (palena)** — `docker-compose.prod.yml` en paralelo al de certificación, con DB aislada; [RUNBOOK-produccion.md](../RUNBOOK-produccion.md). **Fix de seguridad**: el seed de demostración (`V2__seed_dev.sql`) corría en producción; movido a `db/seed-dev/`, solo perfil `dev`.
+- **Libros IECV completos** — firma, validación y **envío al SII** desde la UI con registro del TrackID (V15), más un job diario que **prepara** el libro del mes anterior y avisa de los pendientes (V16).
+- **Gate de cierre**: dry-run `POR_EMPRESA` contra maullín **ACEPTADO** (TrackID `0253303236`) y **emisión de humo en producción verificada**.
+
+Follow-ups del Sprint 7: **factor de proporcionalidad del IVA de uso común** persistido —sin él, el job no puede preparar un libro de compras que lo tenga y el marcador queda en `ERROR`—, y consulta automática del estado de los envíos de libro (hoy es manual por TrackID).
+
+## 13. Infraestructura de tests y CI (en curso)
+
+Estado vivo en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). En una frase: los ITs que todos los sprints daban por «corren en CI» **nunca se ejecutaron en ninguna parte** (faltaba `maven-failsafe-plugin`), y al hacerlos correr aparecieron tres defectos reales de infraestructura de test más uno de código de producción (`SiiStubController` acoplado a una clase concreta).

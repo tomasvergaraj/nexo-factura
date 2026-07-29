@@ -1,6 +1,7 @@
 # Progreso
 
-> Última actualización: 2026-07-22. Sprints 1 a 6 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5) y la **reconciliación por folio antes de reenviar** (post-Sprint 6). E2E de certificación cumplido en ambos canales y en **los cinco tipos de DTE soportados: factura 33, boleta 39, factura exenta 34, nota de débito 56 y nota de crédito 61 — todas ACEPTADAS por el SII**.
+> Última actualización: 2026-07-29. Sprints 1 a 7 **completados y verificados**, más el **sitio público y la Configuración del emisor** (post-Sprint 5) y la **reconciliación por folio antes de reenviar** (post-Sprint 6). E2E de certificación cumplido en ambos canales y en **los cinco tipos de DTE soportados: factura 33, boleta 39, factura exenta 34, nota de débito 56 y nota de crédito 61 — todas ACEPTADAS por el SII**. El **Sprint 7** cierra el multi-tenant real (certificado y resolución por empresa), cifra el último secreto en reposo y **pone el sistema en producción ante el SII (palena), con la emisión de humo verificada**.
+> En curso: **infraestructura de tests y CI** — ver [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md).
 > Planes: [SPRINT-1-PLAN.md](SPRINT-1-PLAN.md), [SPRINT-2-PLAN.md](SPRINT-2-PLAN.md). Backlog: [ROADMAP.md](ROADMAP.md).
 
 # Sprint 1
@@ -371,5 +372,143 @@ Cierra el **límite conocido del Sprint 6** (timeout-tras-recepción): un docume
 | Fidelidad SII | ✅ getEstDte verificado contra el manual oficial (parámetros, DDMMAAAA, códigos); el recurso de boleta por folio queda para validar en el E2E de apicert (degrada seguro) |
 | ITs (`ContingenciaReenvioIT` +6 casos de reconciliación) | ⚠️ compilan; corren en CI |
 
+# Sprint 7 (multi-tenant real, secretos en reposo y salida a producción)
+
+## Resumen
+Con la certificación cerrada, el sprint convierte el sistema de **un emisor con activos de
+ambiente** en una plataforma **multi-empresa** y la pone **en producción ante el SII**
+(servidor palena, Resolución Ex. N°80 del 22/08/2014 de Nexo Software SpA). En el camino se
+cierra el último secreto que quedaba en claro (la clave privada del CAF) y se completa el
+ciclo de los libros IECV: envío al SII desde la UI y aviso automático de los pendientes.
+
+## Qué se implementó
+
+### Certificado y resolución por empresa — multi-tenant real
+- `app.sii.firma-modo` = `GLOBAL` (default, un PKCS#12 del ambiente — comportamiento
+  histórico) | `POR_EMPRESA` (cada empresa firma con su propio certificado). Es una
+  **property, no un perfil**: el ambiente de certificación corre perfil `prod` y no podría
+  distinguirse por perfil.
+- `CertificadoDigital` (bean singleton) se parte en `CertificadoFirma` (value object) +
+  `CertificadoResolver` (Global/PorEmpresa/Dev). PKCS#12 y clave **cifrados AES-256-GCM** en
+  `certificado_empresa` (**V13**), historial 1-N con un único activo. `FirmaElectronica` y
+  los records de `SiiGateway` llevan `empresaId`; el token del SII se cachea **por huella del
+  certificado** (es una sesión del certificado, no del proceso).
+- Endpoints `GET`/`POST` (multipart)/`DELETE /api/empresas/{id}/certificado` (ADMIN +
+  `tenantGuard`); **nunca devuelven el material**, solo metadata. Sin certificado configurado
+  en `POR_EMPRESA` → error de negocio explícito, jamás fallback a otro certificado.
+- `fchResol`/`nroResol` bajan de config a la entidad `Empresa` (**V13**) con
+  `ResolucionResolver`: propia de la empresa → fallback de entorno → error. Cubre la carátula
+  de `EnvioDTE`/`EnvioBOLETA`, el libro IECV y la leyenda del PDF.
+- **Fix de arranque** (`31f83b2`): dos defectos abortaban *cualquier* arranque en perfil prod
+  —incluido el modo GLOBAL de certificación— y pasaban desapercibidos porque los tests unit
+  no bootean el contexto prod: `application.yml` tenía **dos claves `app.security:`**
+  (`DuplicateKeyException` de snakeyaml) y `V13` declaraba `key_version` como `SMALLINT`
+  contra un `int` de la entidad (`ddl-auto=validate` abortaba). Verificado en runtime con un
+  dry-run `POR_EMPRESA` contra maullín **ACEPTADO** (factura 33, TrackID `0253303236`).
+
+### Cifrado en reposo del XML del CAF
+El CAF trae la clave privada RSA (RSASK) con la que se calcula el FRMT del TED: **en texto
+plano, un volcado de la tabla `caf` bastaba para emitir DTE timbrados a nombre del
+contribuyente**. Era el último secreto en claro tras el multi-tenant.
+- Se reusa `CifradorSecretos` (AES-256-GCM, `APP_MASTER_KEY`) pero por **`AttributeConverter`
+  sobre la misma columna `text`**, con formato auto-descriptivo `enc:v1:<base64>` — en vez de
+  una columna BYTEA aparte como en `certificado_empresa`. La columna se lee y se consulta en
+  varios puntos (`DocumentoService.emitir`, `bloquearCafDisponible` con `xmlCaf is not null`);
+  una columna nueva obligaba a dispersar lógica de dual-read por todos ellos. El prefijo
+  permite convivir sin ambigüedad con las filas legacy (un CAF real empieza en `<?xml`).
+- `SecretoTextoConverter` **lanza en vez de degradar** a texto plano si falta la clave maestra.
+- `CafCifradoBackfill` migra las filas viejas al arrancar, **por JDBC crudo a propósito**: vía
+  JPA, Hibernate compara el XML ya descifrado contra sí mismo, no ve cambio y no emitiría el
+  `UPDATE`. **V14** solo documenta el formato (cifrar exige la clave, que SQL no tiene).
+- `@DynamicUpdate` en `Caf`: avanzar el folio ya no reescribe —ni recifra con IV nuevo— un XML
+  que no cambia nunca.
+
+### Salida a producción (palena)
+- `docker-compose.prod.yml`: stack self-contained (perfil `prod`, `APP_SII_AMBIENTE=PRODUCCION`,
+  `APP_SII_FIRMA_MODO=POR_EMPRESA`), DB propia `nexo_factura_prod` aislada, backend **:8083** /
+  frontend **:8084**. Corre **en paralelo** al de certificación. `.env.prod.example` +
+  [RUNBOOK-produccion.md](../RUNBOOK-produccion.md) con los pasos del corte.
+- **Fix de seguridad de Flyway**: `V2__seed_dev.sql` —la empresa, el usuario y los CAF de
+  demostración— **corría en producción**. Movido a `db/seed-dev/`, cargado solo en perfil `dev`;
+  `ignore-migration-patterns="*:missing"` para que certificación (perfil prod sobre la BD de
+  dev, que ya tiene V2 aplicado) siga arrancando. Producción arranca con la BD limpia.
+- Formulario de cliente: agregado **Dirección** (el receptor de una factura lo exige el SII;
+  sin él el DTE 33 rebotaba) y editar un cliente ya no borra dirección/ciudad.
+- **Unidad SII** editable en Configuración: no estaba en el formulario ni en los tipos del
+  front, así que al guardar cualquier cambio el payload la omitía y MapStruct la
+  **sobrescribía con null** — se borraba sola.
+- Dashboard con datos reales: serie de emisión de los últimos 7 días calculada en el backend
+  (`sumTotalPorDiaDesde`), reemplaza el mock; mes del KPI dinámico.
+- **RUN del firmante**: se formatea y valida en la UI, y `CertificadoFirma.resolverRutFirmante`
+  ahora **rechaza** un override que no coincida con el SERIALNUMBER del certificado (antes el
+  override ganaba siempre y se podía firmar con un `rutSender` inválido → rechazo del SII).
+
+### Libros IECV: envío al SII y revisión automática
+- **Envío desde la UI** (`LibroEnvioService.enviar`, **V15** `envio_libro`): construye el libro,
+  genera el XML `LibroCV_v10`, lo firma XMLDSig enveloped con el certificado **de la empresa**,
+  lo valida contra el esquema y lo sube por el canal clásico; registra TrackID, tipo de libro y
+  folio de notificación. Consulta de estado por `QueryEstUp` persistida en el registro.
+- **Revisión automática** (`RevisionLibroJob` + `RevisionLibroService`, **V16** `libro_pendiente`):
+  a diario, desde el día configurado del mes, **prepara** el libro del mes anterior de cada
+  empresa que puede firmar —lo firma y valida **sin postearlo**— y deja un marcador
+  (`PREPARADO` / `ERROR` con el motivo). El envío real sigue siendo manual; el job solo avisa
+  temprano. Idempotente y self-healing. Banner de pendientes en la página Libros.
+- **Fix de aislamiento transaccional** (`527ad54`): `revisar()` era `@Transactional` y llamaba
+  a `xmlFirmado()` (que también lo es). Al fallar la preparación de una operación —p. ej. un
+  libro de compras con IVA de uso común sin factor de proporcionalidad— Spring marcaba la
+  transacción compartida como rollback-only **aunque la excepción se capturara**, y al commit
+  se revertían **todos** los marcadores del período (`UnexpectedRollbackException`). Ahora la
+  persistencia del marcador vive en `LibroPendienteStore`, con transacciones propias.
+- **Total del período con signo** (`35eb934`): la fila «Total» agregada sumaba todos los tipos
+  en positivo, incluidas las notas de crédito, inflando el neto. Ahora las NC **restan**. Es
+  solo el agregado de la UI: el `TotalesPeriodo` por tipo del XML que va al SII no cambia (ahí
+  cada tipo va en positivo en su propia línea, como exige el esquema).
+
+### Otros
+- **Eliminar borradores**: `DELETE …/documentos/{id}` solo en `BORRADOR` (sin folio ni envío,
+  borrarlo no consume folio ni deja rastro); un documento emitido no se borra, se anula con
+  nota de crédito.
+- **Buscador del documento de referencia** en NuevaFactura (antes cargaba todos los documentos).
+- Autocompletado del IVA (19 % del neto) y normalización del RUT del proveedor al registrar
+  una compra; código de producto secuencial.
+
+## Verificación
+
+| Gate | Resultado |
+|---|---|
+| Tests unitarios | ✅ 342 verdes al cierre del sprint |
+| `docker compose build` (backend + frontend `tsc`) | ✅ |
+| Arranque en perfil prod, modos GLOBAL y POR_EMPRESA | ✅ verificado en runtime |
+| Dry-run `POR_EMPRESA` contra maullín (certificación) | ✅ factura 33 **ACEPTADA**, TrackID `0253303236` |
+| **Emisión de humo en PRODUCCIÓN (palena)** | ✅ **verificada y funcionando** (paso 6 del runbook) |
+| ITs (Testcontainers) | ⚠️ seguían sin ejecutarse — ver el bloque siguiente |
+
+# Infraestructura de tests y CI (post-Sprint 7)
+
+> **En curso.** El estado vivo, con bitácora de ejecuciones y siguientes pasos, está en
+> [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Aquí solo el resumen de lo establecido.
+
+Todos los sprints anteriores reportan los ITs como *«compilan; no ejecutables en este host,
+corren en CI»*. **Ese CI no existía, y los ITs nunca se ejecutaron en ninguna parte**:
+`backend/pom.xml` no declaraba `maven-failsafe-plugin` y los includes por defecto de Surefire
+(`**/*Test.java`) no matchean `*IT.java`. Compilaban y ahí terminaba todo.
+
+Lo establecido hasta ahora:
+- **Failsafe** enlazado a `integration-test`/`verify` y `FolioServiceConcurrencyTest`
+  renombrado a `...IT`. Con eso `mvn test` quedó en **352 unitarios verdes** — el «único error
+  conocido» que arrastraban todas las tablas de verificación era ese test mal nombrado.
+- **Testcontainers desbloqueado.** La causa que documentaba el Sprint 1 (Docker anidado) era
+  equivocada: `docker-java` pide `/v1.32/info` y Docker ≥ 29 (`MinAPIVersion 1.44`) responde
+  **200 con un JSON degenerado** en vez de un error, que Testcontainers lee como
+  `BadRequestException`. Fijado con `-Dapi.version=1.44` en el `argLine` de failsafe.
+- **Línea base real de los ITs: 66 tests, 53 errores.** Tres causas raíz, no 53 defectos:
+  contenedor parado bajo contexto cacheado (`@Container static` + caché de contexto de Spring),
+  `SiiStubController` acoplado a la clase concreta `SiiGatewayStub` (un `@MockBean SiiGateway`
+  tumbaba el contexto entero y caían en cascada 4 clases), y `FolioServiceConcurrencyIT`
+  colgando para siempre por una barrera de 50 tareas sobre un pool de 16 hilos.
+- **`cert_prueba.p12` no estaba versionado**: la regla `*.p12` del `.gitignore` lo excluía, así
+  que en un clon limpio no había fixture. (Este documento afirmaba que sí lo estaba.)
+- **`.github/workflows/ci.yml`** con backend (`mvn -B verify`) y frontend (`npm ci`, build).
+
 # Pendiente
-Ver [ROADMAP.md](ROADMAP.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.
+Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

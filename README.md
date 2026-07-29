@@ -28,14 +28,14 @@ Cubre el ciclo completo **emisión → cálculo de IVA → armado del XML → ti
 → firma → envío al SII**, junto con la gestión de folios (CAF), libros de compra/venta
 (IECV), el reporte de consumo de folios (RCOF) y un panel de operación.
 
-Es un **proyecto de portafolio** construido para demostrar arquitectura de backend
-tributario con concurrencia real, seguridad multi-empresa y un frontend de producto
-cuidado. La integración tributaria crítica (firma XMLDSig con certificado y diálogo
-real con el SII) está **aislada tras interfaces y simulada** para que el flujo completo
-sea ejecutable sin trámites externos — ver [Qué está simulado](#qué-está-simulado).
+La integración tributaria es **real y está en producción**: el sistema emite documentos
+autorizados ante el SII (servidor **palena**) con firma XMLDSig sobre certificado PKCS#12,
+timbre TED firmado con la clave privada del CAF y diálogo con los dos canales oficiales
+del SII. Para desarrollar sin certificados ni folios reales, el perfil `dev` conserva
+dobles de firma y de SII — ver [Perfiles](#perfiles-real-en-prod-simulado-en-dev).
 
-> **Para quién es esto.** Está pensado como una demostración técnica evaluable de
-> extremo a extremo, no como un producto en producción ante el SII.
+> **Estado.** Nexo Software SpA opera con este sistema bajo la **Resolución Ex. N°80 del
+> 22/08/2014**. El ambiente de certificación (maullín/pangal) sigue disponible en paralelo.
 
 ---
 
@@ -66,7 +66,11 @@ sea ejecutable sin trámites externos — ver [Qué está simulado](#qué-está-
 - **Reenvío de rechazados** con el mismo XML firmado.
 - **Libros de compra/venta (IECV)**: libro de ventas desde los DTE emitidos y libro
   de compras desde el registro manual de documentos recibidos; salida en JSON y XML
-  `LibroCompraVenta`.
+  `LibroCompraVenta`, **firmado y enviado al SII** desde la UI con registro del TrackID.
+- **Aviso de libros pendientes**: un job diario **prepara** el libro del mes anterior
+  (lo firma y valida contra el esquema, sin enviarlo) y deja un marcador `PREPARADO`
+  o `ERROR` con el motivo, para que el envío mensual no se pase por alto. El envío
+  sigue siendo manual.
 - **RCOF** (Reporte de Consumo de Folios) diario para boletas, con su XML `ConsumoFolios`.
 - **Panel** con indicadores de emisión del período y estado ante el SII.
 
@@ -77,6 +81,10 @@ sea ejecutable sin trámites externos — ver [Qué está simulado](#qué-está-
 - **Aislamiento multi-empresa**: cada recurso cuelga de `/api/empresas/{empresaId}/…`
   y un *tenant guard* valida el `empresaId` de la ruta contra el claim del token
   (**403** si no coincide, **404** ante filas de otra empresa).
+- **Certificado y resolución por empresa**: con `APP_SII_FIRMA_MODO=POR_EMPRESA` cada
+  emisor firma con su propio PKCS#12, cifrado en reposo (AES-256-GCM) junto con su clave;
+  la resolución SII (`FchResol`/`NroResol`) vive en la empresa. Los endpoints de
+  certificado nunca devuelven el material, solo metadata.
 - **Inmutabilidad del DTE**: campos tributarios congelados (`updatable=false`) + **sello
   de integridad** SHA-256 del XML firmado; duplicados → **409**.
 - **Roles** `ADMIN` / `EMISOR` con autorización por método.
@@ -182,7 +190,9 @@ cd backend
 mvn spring-boot:run        # http://localhost:8080
 ```
 
-Flyway aplica las migraciones (`V1`–`V6`) al arrancar, incluida la semilla de desarrollo.
+Flyway aplica las migraciones (`V1`–`V16`) al arrancar. La **semilla de demostración**
+(`V2__seed_dev.sql`) vive aparte, en `classpath:db/seed-dev`, y **solo se carga en el
+perfil `dev`**: una base de producción arranca limpia, sin empresa, usuario ni CAF de prueba.
 
 **Frontend** (Node 20+):
 
@@ -239,7 +249,8 @@ Todos cuelgan del emisor: `/api/empresas/{empresaId}/…`.
 | Documentos     | `GET`/`POST …/documentos` · `POST …/{id}/emitir` · `/enviar` · `/reenviar` · `/estado-sii` · `GET …/{id}/pdf` |
 | Contingencia   | `POST …/documentos/reenviar-pendientes`                                                |
 | Compras        | `GET`/`POST`/`DELETE …/compras`                                                        |
-| Libros (IECV)  | `GET …/libros/ventas` · `/libros/compras` (+ `/xml`)                                   |
+| Certificado    | `GET`/`POST` (multipart)/`DELETE …/certificado` (ADMIN; solo metadata, nunca el material) |
+| Libros (IECV)  | `GET …/libros/ventas` · `/libros/compras` (+ `/xml`) · `POST …/libros/enviar` · `GET …/libros/envios` · `/libros/pendientes` |
 | RCOF           | `GET …/rcof?fecha=YYYY-MM-DD`                                                           |
 | Dashboard      | `GET …/dashboard`                                                                      |
 
@@ -251,7 +262,8 @@ La referencia completa e interactiva está en **Swagger UI** (`/swagger-ui.html`
 
 ```bash
 cd backend
-mvn test                   # unitarias + integración (Testcontainers levanta PostgreSQL)
+mvn test                   # unitarias (no requiere Docker)
+mvn verify                 # unitarias + integración (Testcontainers levanta PostgreSQL)
 ```
 
 ```bash
@@ -259,12 +271,20 @@ cd frontend
 npm run build              # type-check (tsc) + build de producción (Vite)
 ```
 
-Destacan la **prueba de concurrencia de folios** (`FolioServiceConcurrencyTest`: 50
-emisiones simultáneas sobre PostgreSQL real, verifica que no haya folios duplicados ni
-perdidos), la del **cálculo tributario** (`CalculadoraImpuestosTest`) y las de
-**contingencia/reenvío** (`ContingenciaReenvioIT`).
+Los tests de integración (`*IT`) corren en la fase `verify` con **maven-failsafe**, no en
+`test`: así la suite unitaria es ejecutable **sin daemon Docker**. Destacan la **prueba de
+concurrencia de folios** (`FolioServiceConcurrencyIT`: 50 emisiones simultáneas sobre
+PostgreSQL real, verifica que no haya folios duplicados ni perdidos), la del **cálculo
+tributario** (`CalculadoraImpuestosTest`) y las de **contingencia/reenvío**
+(`ContingenciaReenvioIT`).
 
-> La integración de tests requiere **Docker en ejecución** (Testcontainers).
+> `mvn verify` requiere **Docker en ejecución** (Testcontainers). Si el daemon es muy
+> nuevo o muy viejo respecto de `docker.api.version` (1.44 por defecto, ver `pom.xml`),
+> Testcontainers falla con *"Could not find a valid Docker environment"*; se ajusta con
+> `-Ddocker.api.version=…`.
+
+CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `mvn -B verify` para el
+backend y `npm ci && npm run build` para el frontend, en cada push a `main` y cada PR.
 
 ---
 
@@ -287,6 +307,9 @@ El backend se configura por variables de entorno (perfiles `dev` / `prod`):
 | `APP_MASTER_KEY`                | Clave maestra AES-256 (32 bytes en base64) de los secretos en reposo | *(default solo dev)* |
 | `APP_DTE_VALIDAR_XSD`           | Validar el XML contra el XSD antes de firmar            | `true`                   |
 | `APP_RATE_LIMIT_ENABLED`        | Rate limiting de autenticación                          | `true`                   |
+| `APP_LIBRO_REVISION_ENABLED`    | Revisión automática de libros IECV pendientes           | `true`                   |
+| `APP_LIBRO_REVISION_DIA`        | Día del mes desde el que se revisa el mes anterior      | `5`                      |
+| `APP_LIBRO_REVISION_CRON`       | Cron de la revisión                                     | `0 30 8 * * *`           |
 
 En **producción** el arranque **falla si falta `APP_JWT_SECRET`** (no hay default fuera
 de desarrollo).
@@ -335,10 +358,14 @@ con `docker-compose.cert.yml` (perfil `prod` + `APP_SII_AMBIENTE=CERTIFICACION`)
 ## Roadmap
 
 El backlog priorizado (P0/P1/P2) está **completo**, incluida la integración
-tributaria real (P0-4/5/6, Sprint 6). Quedan follow-ups documentados: E2E de
-notas 56/61 y factura exenta 34 (falta timbrar sus CAF), certificado y resolución
-por empresa (multi-tenant), verificación de la FRMA del CAF y el trámite formal de
-certificación → producción ante el SII.
+tributaria real (P0-4/5/6, Sprint 6) y la salida a producción con certificado y
+resolución por empresa (Sprint 7). Quedan follow-ups documentados: verificación de la
+FRMA del CAF (bloqueada — el SII no publica la clave pública por IDK), `MedioPago` /
+`GeoRefEmision`, y el factor de proporcionalidad del IVA de uso común persistido para
+que la revisión automática de libros pueda preparar ese caso.
+
+En curso: la **infraestructura de tests y CI**, con su estado vivo en
+[`docs/PLAN-CONTINUIDAD.md`](docs/PLAN-CONTINUIDAD.md).
 
 El detalle, con la línea base de la auditoría y el registro por sprint, vive en
 [`docs/ROADMAP.md`](docs/ROADMAP.md). El progreso verificado está en
@@ -348,11 +375,15 @@ El detalle, con la línea base de la auditoría y el registro por sprint, vive e
 
 ## Estado del proyecto
 
-En desarrollo activo. Los sprints 1–6 están completos (auth y seguridad, completitud
-tributaria, notas y boletas, impuestos adicionales, contingencia y libros IECV, y la
-**integración tributaria real**: firma XMLDSig, TED con FRMT real e integración con
-el SII por ambos canales — con una **factura 33 ACEPTADA por el SII de certificación**
-como gate de cierre; el detalle está en [`docs/PROGRESS.md`](docs/PROGRESS.md)).
+**En producción y en desarrollo activo.** Los sprints 1–7 están completos: auth y
+seguridad, completitud tributaria, notas y boletas, impuestos adicionales, contingencia y
+libros IECV, la **integración tributaria real** (firma XMLDSig, TED con FRMT real y los dos
+canales del SII) y el **multi-tenant con salida a producción**.
+
+Gates de cierre: los **cinco tipos de DTE ACEPTADOS** por el SII de certificación
+(facturas 33 y 34, boleta 39, notas 56 y 61) y la **emisión de humo en producción
+(palena) verificada**. El detalle, sprint por sprint, está en
+[`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Autor
 
