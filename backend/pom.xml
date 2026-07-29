@@ -24,6 +24,8 @@
         <springdoc.version>2.6.0</springdoc.version>
         <openpdf.version>2.0.3</openpdf.version>
         <zxing.version>3.5.3</zxing.version>
+        <!-- Ver el comentario del maven-failsafe-plugin. Sobreescribible: -Ddocker.api.version=1.43 -->
+        <docker.api.version>1.44</docker.api.version>
     </properties>
 
     <dependencies>
@@ -181,6 +183,43 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <!--
+                Los *IT.java necesitan Docker (Testcontainers levanta PostgreSQL), asi
+                que corren en la fase verify y no en test: `mvn test` queda ejecutable
+                sin daemon Docker y `mvn verify` corre la suite completa (lo que hace CI).
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <!--
+                        Fija la version de la API de Docker que usa docker-java (el cliente
+                        que trae Testcontainers). Sin esto, docker-java pide /v1.32/info y
+                        Docker >= 29 (MinAPIVersion 1.44) responde 200 con un JSON DEGENERADO
+                        —todos los campos vacios— en vez de un error: Testcontainers lo lee
+                        como BadRequestException y concluye "Could not find a valid Docker
+                        environment". Ese es el fallo que los sprints 1-6 atribuyeron a correr
+                        Maven dentro de un contenedor; la causa real es la version de API.
+                        1.44 la soporta cualquier Docker >= 25.
+                    -->
+                    <argLine>-Dapi.version=${docker.api.version}</argLine>
+                    <!--
+                        Red de seguridad: un IT que se cuelgue (p.ej. una barrera de
+                        concurrencia mal dimensionada) bloquearia el runner de CI hasta
+                        el timeout del job, sin reporte util. Con esto el fork muere y
+                        la build falla con evidencia.
+                    -->
+                    <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

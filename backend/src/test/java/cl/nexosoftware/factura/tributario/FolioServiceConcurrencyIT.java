@@ -15,6 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -25,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * simultaneas deben producir 50 folios distintos, sin duplicados ni perdidas. Si
  * el bloqueo pesimista del CAF fallara, apareceria al menos un folio repetido.
  */
-class FolioServiceConcurrencyTest extends AbstractIntegrationTest {
+class FolioServiceConcurrencyIT extends AbstractIntegrationTest {
 
     @Autowired private FolioService folioService;
     @Autowired private CafRepository cafRepository;
@@ -37,7 +38,7 @@ class FolioServiceConcurrencyTest extends AbstractIntegrationTest {
     @BeforeEach
     void preparar() {
         Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("90000000-" + ThreadLocalRandom.current().nextInt(0, 9))
+                .rut(rutUnicoDeTest())
                 .razonSocial("Empresa Concurrencia")
                 .giro("Pruebas")
                 .direccion("Calle 1")
@@ -60,10 +61,18 @@ class FolioServiceConcurrencyTest extends AbstractIntegrationTest {
     @DisplayName("50 emisiones concurrentes generan 50 folios unicos")
     void asignaFoliosUnicosBajoConcurrencia() throws InterruptedException {
         int hilos = 50;
-        ExecutorService pool = Executors.newFixedThreadPool(16);
+        // Un hilo POR tarea, no menos: la largada simultanea es una barrera y cada
+        // tarea hace countDown() y se queda bloqueada en partida.await(). Con un pool
+        // mas chico que `hilos`, las tareas sobrantes nunca salen de la cola, el latch
+        // `listos` no llega a cero y el await() de abajo cuelga PARA SIEMPRE (era un
+        // pool de 16 para 50 tareas: el test no podia pasar, colgaba).
+        ExecutorService pool = Executors.newFixedThreadPool(hilos);
         CountDownLatch listos = new CountDownLatch(hilos);
         CountDownLatch partida = new CountDownLatch(1);
         Set<Long> folios = ConcurrentHashMap.newKeySet();
+        // Sin esto, un fallo de las tareas queda sepultado en sus Future (que nadie
+        // consulta) y el test solo dice "esperaba 50, hubo 0", sin pista de por que.
+        Queue<Throwable> fallos = new ConcurrentLinkedQueue<>();
         TransactionTemplate tx = new TransactionTemplate(txManager);
 
         for (int i = 0; i < hilos; i++) {
@@ -76,14 +85,22 @@ class FolioServiceConcurrencyTest extends AbstractIntegrationTest {
                     folios.add(folio);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                } catch (Throwable t) {
+                    fallos.add(t);
                 }
             });
         }
 
-        listos.await();
+        // Con timeout: si la barrera no se completa, el test FALLA en vez de colgar.
+        assertThat(listos.await(30, TimeUnit.SECONDS)).isTrue();
         partida.countDown(); // largada simultanea
         pool.shutdown();
         assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(fallos)
+                .as("ninguna emision debe fallar; primer fallo: %s",
+                        fallos.isEmpty() ? "-" : fallos.peek())
+                .isEmpty();
 
         // 50 folios, todos distintos: no hubo condicion de carrera.
         assertThat(folios).hasSize(hilos);

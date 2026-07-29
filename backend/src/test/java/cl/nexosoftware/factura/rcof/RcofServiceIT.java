@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,7 +37,7 @@ class RcofServiceIT extends AbstractIntegrationTest {
     @BeforeEach
     void preparar() {
         Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("91000000-" + ThreadLocalRandom.current().nextInt(0, 9))
+                .rut(rutUnicoDeTest())
                 .razonSocial("Empresa RCOF")
                 .giro("Pruebas")
                 .direccion("Calle 1")

@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,7 +34,7 @@ class BoletaConsumidorFinalIT extends AbstractIntegrationTest {
     @BeforeEach
     void preparar() {
         Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("91000000-" + ThreadLocalRandom.current().nextInt(0, 9))
+                .rut(rutUnicoDeTest())
                 .razonSocial("Empresa Boletas")
                 .giro("Pruebas")
                 .direccion("Calle 1")

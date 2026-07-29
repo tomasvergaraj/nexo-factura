@@ -42,6 +42,10 @@ pnpm-debug.log*
 secrets/
 *.pfx
 *.p12
+# Excepcion: fixture SINTETICO de tests (autofirmado, RUN 11111111-1, clave
+# "test123"). No es material real y no sirve ante el SII, pero sin el la suite
+# no corre en un clon limpio (CI). El certificado real vive en secrets/.
+!backend/src/test/resources/sii/cert_prueba.p12
 
 # ==== Claude Code ====
 # Config local del agente (incluye settings.local.json con las reglas de

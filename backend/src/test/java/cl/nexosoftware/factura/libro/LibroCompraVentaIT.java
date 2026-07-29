@@ -18,7 +18,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,7 +41,7 @@ class LibroCompraVentaIT extends AbstractIntegrationTest {
     @BeforeEach
     void preparar() {
         Empresa empresa = empresaRepository.save(Empresa.builder()
-                .rut("93000000-" + ThreadLocalRandom.current().nextInt(0, 9))
+                .rut(rutUnicoDeTest())
                 .razonSocial("Empresa Libros")
                 .giro("Pruebas")
                 .direccion("Calle 1")
