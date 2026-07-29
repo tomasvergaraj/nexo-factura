@@ -7,6 +7,56 @@
 >
 > Última actualización: **2026-07-29**.
 
+## Empieza aquí — mensaje para la próxima sesión
+
+Sesión del **2026-07-29**. Se cerraron las fases 1 y 3 en tres commits (`f1508c9`,
+`2831e79`, `ec9f37a`). El árbol está limpio y **no se hizo push**.
+
+### Estado en una línea
+`mvn test` **352/352 verde**; `mvn verify` en **66 tests de integración con 1 fallo**
+(desde 53 errores). Ese fallo está aislado, diagnosticado y es lo primero de la lista.
+
+### Qué hacer, en este orden
+
+**1. Cerrar el último IT rojo — `FolioServiceConcurrencyIT`** *(lo más corto y lo que deja
+la suite entera en verde)*
+Está todo en la causa **(D)** de la Fase 1.2b: el test siembra su CAF sin `xmlCaf` y, desde
+P0-5, el selector de folios descarta los CAF sin XML. Hay que sembrarlo con
+`sii/caf_prueba_33.xml`. Ojo con el `RE` del CAF frente al RUT de la empresa sembrada y con
+que el `SecretoTextoConverter` cifra al escribir. El test ya imprime la excepción exacta de
+las tareas, así que iterás con evidencia y no a ciegas.
+
+**2. Push y validación de CI** — *requiere decisión del usuario, preguntá antes*
+`.github/workflows/ci.yml` está escrito pero **nunca se ha ejecutado**; solo un push lo
+valida. Si se hace antes del punto 1, **el primer run vendrá en rojo** por ese IT. Las dos
+opciones razonables: empujar ya y asumir el rojo como línea base visible, o cerrar el punto 1
+y empujar en verde. Vale la pena mirar en el log del job el paso *«Versión de Docker del
+runner»*: si su API no cubre `1.44`, hay que bajar `-Ddocker.api.version`.
+
+**3. Fase 2 — `fctProp`** — *bloqueada por una decisión de diseño, preguntá primero*
+No la empieces sin resolver con el usuario si el factor va **por empresa** (simple, desbloquea
+el job) o **calculado por período** desde las ventas (más correcto legalmente, bastante más
+trabajo). Está planteada al final de la sección de la Fase 2.
+
+**4. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
+consulta automática del estado de los envíos de libro: hoy es manual por TrackID y el job ya
+tiene el andamiaje.
+
+### Dos cosas que conviene saber antes de tocar nada
+
+- **El entorno no tiene Java ni Maven.** Todo pasa por el contenedor `maven`. Los comandos
+  exactos están abajo, y el de `verify` **no funciona sin** el montaje del socket y el
+  `TESTCONTAINERS_HOST_OVERRIDE`.
+- **La documentación de este repo describía cosas que no eran ciertas.** Tres ejemplos que
+  costó descubrir: los ITs «corrían en CI» (no existía CI), el fixture `cert_prueba.p12`
+  estaba «commiteado» (lo excluía el `.gitignore`) y el fallo de Testcontainers se atribuía a
+  Docker anidado (era la versión de API). **Verificá las afirmaciones antes de apoyarte en
+  ellas**, sobre todo las de las tablas de verificación de `PROGRESS.md`. Lo que sí está
+  confirmado de primera mano: la emisión de humo en producción sobre palena, que el usuario
+  dio por verificada y funcionando.
+
+---
+
 ## Contexto de partida
 
 Los sprints 1–6, la reconciliación por folio y el corte a producción sobre **palena**
