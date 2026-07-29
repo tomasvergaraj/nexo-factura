@@ -1,10 +1,12 @@
 package cl.nexosoftware.factura.tributario;
 
+import cl.nexosoftware.factura.common.exception.ReglaNegocioException;
 import cl.nexosoftware.factura.tributario.SiiGateway.EstadoDocumento;
 import cl.nexosoftware.factura.tributario.SiiGateway.EstadoEnvio;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -22,14 +24,37 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Dev: stub SII", description = "Control del simulador del SII (solo desarrollo)")
 public class SiiStubController {
 
-    private final SiiGatewayStub stub;
+    /**
+     * Se resuelve PEREZOSAMENTE a proposito, en vez de inyectar el
+     * {@link SiiGatewayStub} por constructor.
+     *
+     * Un test de integracion que sustituye el gateway con {@code @MockBean SiiGateway}
+     * reemplaza el bean por un mock de la INTERFAZ: el tipo concreto desaparece del
+     * contexto y este controller —que no tiene nada que ver con lo que ese test
+     * ejercita— tumbaba el contexto ENTERO con un
+     * "No qualifying bean of type SiiGatewayStub". Como Spring no reintenta un
+     * contexto que ya fallo, se caian en cascada todas las clases que comparten esa
+     * firma. Con {@code ObjectProvider} el controller siempre se construye y solo
+     * falla —de forma explicita— quien de verdad llama al endpoint sin stub detras.
+     */
+    private final ObjectProvider<SiiGatewayStub> stubProvider;
 
     public record EstadoStub(Boolean disponible, EstadoEnvio estadoConsulta,
                              EstadoDocumento estadoDocumento) {}
 
+    private SiiGatewayStub stub() {
+        SiiGatewayStub stub = stubProvider.getIfAvailable();
+        if (stub == null) {
+            throw new ReglaNegocioException(
+                    "No hay un simulador del SII activo: este endpoint solo opera con SiiGatewayStub");
+        }
+        return stub;
+    }
+
     @GetMapping
     @Operation(summary = "Estado actual del simulador del SII")
     public EstadoStub estado() {
+        SiiGatewayStub stub = stub();
         return new EstadoStub(stub.isDisponible(), stub.getEstadoConsulta(), stub.getEstadoDocumento());
     }
 
@@ -42,6 +67,7 @@ public class SiiStubController {
     // ambiente compartido): solo un ADMIN puede mutarlo.
     @PreAuthorize("hasRole('ADMIN')")
     public EstadoStub configurar(@RequestBody EstadoStub req) {
+        SiiGatewayStub stub = stub();
         if (req.disponible() != null) {
             stub.setDisponible(req.disponible());
         }
