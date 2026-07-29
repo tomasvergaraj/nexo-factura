@@ -53,6 +53,12 @@ class FolioServiceConcurrencyIT extends AbstractIntegrationTest {
                 .folioHasta(1000)
                 .folioActual(0)
                 .agotado(false)
+                // Obligatorio: bloquearCafDisponible() descarta los CAF sin XML (sin el
+                // se podria asignar folio pero no timbrar). Sembrado sin el, las 50
+                // tareas fallaban con "No hay folios disponibles". El rango de la fila
+                // manda para la asignacion; del XML aqui no se usa nada mas, porque este
+                // test no llega a timbrar.
+                .xmlCaf(DteFixtures.xmlCaf(33))
                 .creadoEn(OffsetDateTime.now())
                 .build());
     }
