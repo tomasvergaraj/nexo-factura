@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, FileDown } from "lucide-react";
 import { AppShell } from "../../components/app/AppShell";
-import { Card, Input, EmptyState, PageHeader, LoadingState, Alert, Th } from "../../components/ui";
-import { getRcof, mensajeError } from "../../lib/api";
+import { Card, Input, Button, EmptyState, PageHeader, LoadingState, Alert, Th } from "../../components/ui";
+import { getRcof, descargarRcofXmlFirmado, mensajeError } from "../../lib/api";
 import { empresaIdActual } from "../../lib/auth";
 import { formatCLP, formatNumero, hoyIso } from "../../lib/format";
 import { TIPO_DTE_LABEL, TIPO_DTE_POR_CODIGO, type RcofResponse } from "../../lib/types";
@@ -18,7 +18,28 @@ export function Rcof() {
   const [fecha, setFecha] = useState(HOY);
   const [rcof, setRcof] = useState<RcofResponse | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [descargando, setDescargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function descargarFirmado() {
+    setDescargando(true);
+    setError(null);
+    try {
+      const xml = await descargarRcofXmlFirmado(empresaIdActual(), fecha);
+      const url = URL.createObjectURL(xml);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `consumo-folios-${fecha}.xml`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      // Cambia la secuencia que le toca al próximo archivo del día.
+      setRcof(await getRcof(empresaIdActual(), fecha));
+    } catch (e) {
+      setError(mensajeError(e, "No se pudo generar el XML firmado."));
+    } finally {
+      setDescargando(false);
+    }
+  }
 
   useEffect(() => {
     let vigente = true;
@@ -36,16 +57,26 @@ export function Rcof() {
       <div className="space-y-6">
         <PageHeader
           titulo="Consumo de folios (RCOF)"
-          descripcion="Resumen diario de folios de boletas (39/41) utilizados y anulados."
+          descripcion="Resumen diario de folios de boletas (39/41) utilizados y anulados. El XML firmado no se envía al SII —esa obligación se eliminó en agosto de 2022—: es el adjunto del set de pruebas de certificación de boletas."
           accion={
-            <Input
-              type="date"
-              value={fecha}
-              max={HOY}
-              onChange={(e) => setFecha(e.target.value)}
-              className="w-44"
-              aria-label="Fecha del reporte"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={fecha}
+                max={HOY}
+                onChange={(e) => setFecha(e.target.value)}
+                className="w-44"
+                aria-label="Fecha del reporte"
+              />
+              <Button
+                variant="secondary"
+                onClick={descargarFirmado}
+                disabled={descargando || cargando || !rcof || rcof.sinMovimiento}
+              >
+                <FileDown size={16} />
+                {descargando ? "Firmando…" : "XML firmado"}
+              </Button>
+            </div>
           }
         />
 

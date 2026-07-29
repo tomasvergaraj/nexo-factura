@@ -62,12 +62,16 @@ public class DteXmlValidator {
     // tipos del namespace SiiDte, cada uno como un Schema aparte.
     private static final String XSD_RESPUESTA = "sii/oficial/RespuestaEnvioDTE_v10.xsd";
     private static final String XSD_RECIBOS = "sii/oficial/EnvioRecibos_v10.xsd";
+    // Consumo de folios de boletas (RCOF): tambien define tipos del namespace
+    // SiiDte (TipoConsumoType), asi que va como Schema propio.
+    private static final String XSD_CONSUMO_FOLIOS = "sii/oficial/ConsumoFolio_v10.xsd";
 
     private final Schema schemaFactura;
     private final Schema schemaBoleta;
     private final Schema schemaLibro;
     private final Schema schemaRespuesta;
     private final Schema schemaRecibos;
+    private final Schema schemaConsumoFolios;
     private final boolean habilitado;
 
     public DteXmlValidator(@Value("${app.dte.validar-xsd:true}") boolean habilitado) {
@@ -77,6 +81,7 @@ public class DteXmlValidator {
         this.schemaLibro = compilarSchema(XSD_LIBRO);
         this.schemaRespuesta = compilarSchema(XSD_RESPUESTA);
         this.schemaRecibos = compilarSchema(XSD_RECIBOS);
+        this.schemaConsumoFolios = compilarSchema(XSD_CONSUMO_FOLIOS);
         if (!habilitado) {
             log.warn("Validacion XSD del DTE DESHABILITADA (app.dte.validar-xsd=false). "
                     + "Solo para diagnostico, nunca en produccion.");
@@ -168,6 +173,12 @@ public class DteXmlValidator {
     public void validarRespuestaDte(String xmlRespuesta) {
         validarContra(schemaRespuesta, xmlRespuesta,
                 "La RespuestaDTE no cumple el esquema oficial del SII (RespuestaEnvioDTE_v10)");
+    }
+
+    /** Valida el ConsumoFolios (RCOF) firmado contra ConsumoFolio_v10. */
+    public void validarConsumoFolios(String xmlRcof) {
+        validarContra(schemaConsumoFolios, xmlRcof,
+                "El consumo de folios no cumple el esquema oficial del SII (ConsumoFolio_v10)");
     }
 
     /** Valida el EnvioRecibos firmado contra EnvioRecibos_v10 (recibo de mercaderias). */

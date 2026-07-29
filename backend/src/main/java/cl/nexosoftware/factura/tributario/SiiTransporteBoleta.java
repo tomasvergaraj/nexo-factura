@@ -65,11 +65,33 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
     @Override
     public String enviar(SiiGateway.EnvioSii envio) {
         String sobre = envioGenerator.generar(envio);
-        return conReintentoDeToken(envio.empresaId(), token -> postEnvio(envio, sobre, token));
+        return conReintentoDeToken(envio.empresaId(),
+                token -> postEnvio(multipartUpload(envio, sobre),
+                        "la boleta T" + envio.tipoDte() + "F" + envio.folio(),
+                        token));
     }
 
-    private String postEnvio(SiiGateway.EnvioSii envio, String sobre, String token) {
-        MultipartUpload upload = multipartUpload(envio, sobre);
+    /**
+     * Sobre multi-documento por el canal REST de boleta: UN EnvioBOLETA con N
+     * boletas y un solo TrackID. Es lo que exige el set de pruebas de boletas
+     * ("el envio del Set de Boletas debe ser en solo un archivo"), donde los 5
+     * casos van juntos; el envio normal sigue siendo una boleta por sobre.
+     *
+     * El armado del sobre ya era comun a los dos canales ({@code EnvioGenerator});
+     * lo que faltaba era exponerlo aca — el default de {@link SiiTransporte}
+     * lanzaba UnsupportedOperationException y el lote de boletas era imposible.
+     */
+    @Override
+    public String enviarLote(List<SiiGateway.EnvioSii> envios) {
+        String sobre = envioGenerator.generarLote(envios);
+        SiiGateway.EnvioSii primero = envios.get(0);
+        String nombre = "EnvioBOLETA_LOTE_" + envios.size() + "docs.xml";
+        return conReintentoDeToken(primero.empresaId(),
+                token -> postEnvio(multipartUpload(primero.rutEmisor(), nombre, sobre),
+                        "el lote de " + envios.size() + " boletas", token));
+    }
+
+    private String postEnvio(MultipartUpload upload, String contexto, String token) {
         String respuesta;
         try {
             respuesta = http.post()
@@ -81,22 +103,23 @@ public class SiiTransporteBoleta extends SiiTransporteBase {
                     .retrieve()
                     .body(String.class);
         } catch (ResourceAccessException e) {
-            throw new SiiNoDisponibleException("SII no disponible al enviar la boleta: " + e.getMessage());
+            throw new SiiNoDisponibleException(
+                    "SII no disponible al enviar " + contexto + ": " + e.getMessage());
         } catch (RestClientResponseException e) {
-            throw traducirError(e, "enviar la boleta");
+            throw traducirError(e, "enviar " + contexto);
         } catch (RestClientException e) {
             // Conexion cortada LEYENDO la respuesta (no viene como
             // ResourceAccessException): transporte -> contingencia.
-            throw new SiiNoDisponibleException("SII interrumpio la respuesta al enviar la boleta: " + e.getMessage());
+            throw new SiiNoDisponibleException(
+                    "SII interrumpio la respuesta al enviar " + contexto + ": " + e.getMessage());
         }
 
         RespuestaEnvio r = parsear(respuesta, RespuestaEnvio.class);
         if (r == null || r.trackid == null) {
             throw new SiiNoDisponibleException(
-                    "El SII no entrego TrackID al recibir la boleta: " + resumen(respuesta));
+                    "El SII no entrego TrackID al recibir " + contexto + ": " + resumen(respuesta));
         }
-        log.info("Boleta T{}F{} recibida por el SII: TrackID={}, estado={}",
-                envio.tipoDte(), envio.folio(), r.trackid, r.estado);
+        log.info("Recibido por el SII {}: TrackID={}, estado={}", contexto, r.trackid, r.estado);
         return String.valueOf(r.trackid);
     }
 

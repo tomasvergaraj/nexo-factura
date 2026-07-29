@@ -14,15 +14,14 @@ todos los follow-ups accionables salvo dos campos opcionales del DTE. Todo empuj
 validado en CI; el árbol está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-**357 tests unitarios + 74 de integración, 0 fallos y 0 errores**, ejecutados por CI en cada push
+**365 tests unitarios + 83 de integración, 0 fallos y 0 errores**, ejecutados por CI en cada push
 —verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden enviar,
 la resolución de los envíos llega sola, y el RCOF dejó de sobredeclarar boletas rechazadas.
 
 ### Qué hacer, en este orden
 
-**1. El RCOF no se envía al SII, y eso pesa más que todo lo que queda en la lista de abajo.**
-*Hallazgo de esta sesión; no estaba en ninguna fase.* El sistema **emite boletas en producción**,
-lo que genera la obligación recurrente de presentar el **Consumo de Folios**, y
+**1. ~~El RCOF no se envía al SII~~ — CERRADO el 2026-07-29, y no como decía este punto.**
+*Hallazgo de esta sesión; no estaba en ninguna fase.*
 [`RcofController`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofController.java)
 sólo expone dos GET: el reporte en JSON y el XML **sin firmar**. `SiiGateway` tiene `enviar`,
 `enviarLibro` y `enviarLote` — **no hay método para el RCOF**.
@@ -30,7 +29,20 @@ sólo expone dos GET: el reporte en JSON y el XML **sin firmar**. `SiiGateway` t
 No es un descuido oculto: el `ROADMAP` siempre dijo «sin firmar/enviar». Lo que cambió es el
 motivo. El javadoc justificaba el diferimiento en que *«requiere certificado real, igual que la
 firma del DTE»*, y **ese bloqueo desapareció en el Sprint 7**: hay certificado y resolución por
-empresa, y el canal de boleta corre en producción. Ya se corrigió ese comentario.
+empresa. Ya se corrigió ese comentario.
+
+> **Corrección del mismo día, en dos golpes — este punto ya no encabeza nada.**
+>
+> (1) Se escribió afirmando que «el sistema emite boletas en producción» y que por eso había una
+> **obligación tributaria incumplida**. **Era falso.** Producción tiene cuatro CAF (33, 34, 61,
+> 56) y **ninguno de boleta**, y su BD contiene sólo la factura 33 de humo —anulada— y su nota de
+> crédito. La boleta 39 aceptada fue en **certificación**. Lo detectó el usuario.
+>
+> (2) La obligación **tampoco existe**: la **Res. Ex. SII N°53 de 2022** eliminó el envío del
+> RCOF —hoy *Resumen de Ventas Diarias*— **desde el 01/08/2022**; el registro de ventas se
+> alimenta del XML de las boletas. Lo único que le queda al RCOF es ser un **archivo firmado que
+> se adjunta al correo de certificación de boletas** (`SII_BE_Certificacion@sii.cl`). No hay que
+> construir ningún canal de envío. Fuentes y detalle en [ROADMAP.md §15](ROADMAP.md).
 
 Lo que falta para cerrarlo:
 - Firmar el `ConsumoFolios` y postearlo. [`LibroEnvioService`](../backend/src/main/java/cl/nexosoftware/factura/libro/LibroEnvioService.java)
@@ -41,8 +53,11 @@ Lo que falta para cerrarlo:
 - Reutilizar lo ya construido en esta sesión: el job de consulta de estados y el patrón de
   «una transacción por ítem, un fallo no aborta el lote».
 
-*Antes de empezar, confirmá con el usuario la periodicidad exigida y desde cuándo le corre.* Es
-una obligación tributaria real y no la puedo verificar desde el código.
+**Resuelto el mismo día.** Disparo **manual** desde la pantalla RCOF, **sin job automático**;
+nada que regularizar hacia atrás (no hay boletas emitidas); la periodicidad la respondió la Res.
+53/2022 (no hay, no se envía). Se implementó firma + descarga con el XSD oficial vendoreado,
+carátula completa y secuencia por día (`V18`); **no** se construyó canal de envío. Suite en verde:
+361 unitarios + 80 ITs. Ver [ROADMAP.md §15](ROADMAP.md).
 
 **2. Archivar este plan.** Ya no tiene trabajo pendiente. Su contenido definitivo va a
 `PROGRESS.md` (Sprint 8 ya está escrito); este archivo se borra o se mueve a un histórico.
@@ -65,13 +80,15 @@ verificación de la FRMA del CAF **no es accionable**: el SII no publica la clav
   la referencia correcta es el **F29**. (2) No hay una segunda mirada profesional después del
   sistema, así que ante semántica tributaria con más de una lectura defendible, **preguntá al
   usuario** en vez de elegir por él. Así se resolvió lo del `RECHAZADO` en el RCOF.
-- **La documentación de este repo ha afirmado cosas falsas, repetidamente.** Cinco casos
+- **La documentación de este repo ha afirmado cosas falsas, repetidamente.** Seis casos
   confirmados: los ITs «corrían en CI» (no existía CI); el fixture `cert_prueba.p12` estaba
   «commiteado» (lo excluía el `.gitignore`); el fallo de Testcontainers se atribuía a Docker
   anidado (era la versión de API); el plan daba por hecho que `Libros.tsx` permitía sobreescribir
-  `fctProp` por período (esa pantalla no lo mencionaba en absoluto); y especificaba
+  `fctProp` por período (esa pantalla no lo mencionaba en absoluto); especificaba
   `NUMERIC(3,2)` para una columna que Hibernate exige como `float(53)` —eso tumbaba el contexto
-  entero, y lo cazó un IT, no la compilación—. **Verificá antes de apoyarte en cualquier
+  entero, y lo cazó un IT, no la compilación—; y **«el sistema emite boletas en producción»**,
+  que era la premisa entera del hallazgo del RCOF y **nunca ocurrió** (producción no tiene CAF de
+  boleta; lo detectó el usuario, no el repo). **Verificá antes de apoyarte en cualquier
   afirmación**, sobre todo si es la premisa de lo que vas a hacer. Cuando encuentres una falsa,
   dejala escrita con nombre y apellido en vez de corregirla en silencio.
 
@@ -81,7 +98,8 @@ verificación de la FRMA del CAF **no es accionable**: el SII no publica la clav
   último run, así que esa afirmación se mantiene sola en vez de depender de que alguien la
   actualice. El runner trae Docker 28.0.4 (API 1.48, mín. 1.24): el pin a `1.44` entra holgado.
 - La suite entera pasa local **y** en el runner, con los mismos números.
-- La emisión de humo en producción sobre palena, que el usuario dio por verificada.
+- La emisión de humo en producción sobre palena, que el usuario dio por verificada. Fue una
+  **factura 33** (hoy anulada, con su NC): en producción no hay CAF de boleta ni boletas emitidas.
 
 ---
 

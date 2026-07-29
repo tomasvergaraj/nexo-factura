@@ -84,9 +84,12 @@ public class DocumentoController {
     }
 
     @PostMapping("/enviar-lote")
-    @Operation(summary = "Enviar VARIOS documentos firmados en UN sobre EnvioDTE (un TrackID): "
-            + "lo que exige el set de pruebas de certificacion (un envio por set). "
-            + "El estado del lote se consulta por TrackID en /libros/envios/{trackId}/estado.")
+    @Operation(summary = "Enviar VARIOS documentos firmados en UN sobre (un TrackID): lo que exigen "
+            + "los sets de pruebas de certificacion — el de facturas/notas por el canal clasico "
+            + "(EnvioDTE) y el de BOLETAS por el canal REST (EnvioBOLETA), que el SII pide "
+            + "'en solo un archivo'. El tipo del primer documento decide el canal; no mezclar "
+            + "boletas con facturas en un lote. El estado se consulta por TrackID en "
+            + "/libros/envios/{trackId}/estado.")
     @PreAuthorize("@tenantGuard.checkEmpresa(#empresaId) and hasAnyRole('ADMIN','EMISOR')")
     public LoteEnvioResponse enviarLote(@PathVariable Long empresaId,
                                         @RequestBody List<Long> documentoIds) {

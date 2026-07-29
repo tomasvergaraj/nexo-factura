@@ -249,6 +249,20 @@ public class XmlDteGenerator {
         }
         documento.detalle = detalles;
 
+        // Referencia al caso del set de pruebas de BOLETAS. El set lo pide en su
+        // propia forma —"<CodRef> SET" y "<RazonRef> CASO-1"—, distinta de la del
+        // canal clasico (TpoDocRef=SET + FolioRef): en boleta CodRef es texto, y
+        // no existe FchRef. Sin esto el revisor no asocia la boleta a su caso.
+        // Antes esta rama no emitia Referencia en absoluto, asi que setCaso se
+        // ignoraba en silencio en las boletas.
+        if (doc.getSetCaso() != null) {
+            ModeloBoleta.Referencia set = new ModeloBoleta.Referencia();
+            set.numeroLinea = 1;
+            set.codigoReferencia = "SET";
+            set.razon = "CASO-" + casoDelSet(doc.getSetCaso());
+            documento.referencias = List.of(set);
+        }
+
         documento.ted = tedComoDom(tedXml);
         documento.tmstFirma = LocalDateTime.now(clock).format(TIMESTAMP);
 
@@ -260,6 +274,17 @@ public class XmlDteGenerator {
 
     private String idDocumento(DocumentoTributario doc) {
         return "T" + doc.getTipoDte().getCodigo() + "F" + doc.getFolio();
+    }
+
+    /**
+     * Numero de caso a partir del {@code setCaso}. El set de boletas numera los
+     * casos 1..N y no trae numero de atencion, mientras que el clasico usa
+     * {@code <atencion>-<caso>}: se toma el ultimo segmento, asi que "4965879-1"
+     * y "1" dan el mismo CASO-1.
+     */
+    private static String casoDelSet(String setCaso) {
+        int guion = setCaso.lastIndexOf('-');
+        return guion >= 0 ? setCaso.substring(guion + 1) : setCaso;
     }
 
     /**

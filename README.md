@@ -290,7 +290,7 @@ tributario** (`CalculadoraImpuestosTest`) y las de **contingencia/reenvío**
 > Testcontainers falla con *"Could not find a valid Docker environment"*; se ajusta con
 > `-Ddocker.api.version=…`.
 
-Estado actual de la suite: **357 tests unitarios + 74 de integración, 0 fallos y 0 errores**.
+Estado actual de la suite: **365 tests unitarios + 83 de integración, 0 fallos y 0 errores**.
 
 CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `mvn -B verify` para el
 backend y `npm ci && npm run build` para el frontend, en cada push a `main` y cada PR.
@@ -393,7 +393,10 @@ canales del SII) y el **multi-tenant con salida a producción**.
 
 Gates de cierre: los **cinco tipos de DTE ACEPTADOS** por el SII de certificación
 (facturas 33 y 34, boleta 39, notas 56 y 61) y la **emisión de humo en producción
-(palena) verificada**. El detalle, sprint por sprint, está en
+(palena) verificada** con una factura 33. Son dos hechos distintos: **en producción
+sólo hay CAF de facturas y notas (33, 34, 61, 56)** y **nunca se ha emitido una boleta
+ahí** — falta la certificación de boleta electrónica ante el SII, que es un trámite
+aparte ([ROADMAP §15](docs/ROADMAP.md)). El detalle, sprint por sprint, está en
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Autor

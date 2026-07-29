@@ -96,6 +96,49 @@ class XmlDteGeneratorXsdTest {
                 .doesNotContain("<MntNeto>").doesNotContain("<TasaIVA>").doesNotContain("<IVA>");
     }
 
+    /**
+     * El set de pruebas de BOLETAS exige referenciar el caso en cada boleta
+     * ({@code <CodRef> SET}, {@code <RazonRef> CASO-1}), en una forma distinta de
+     * la del canal clasico. Antes la rama de boleta no emitia Referencia en
+     * absoluto y {@code setCaso} se ignoraba en silencio.
+     */
+    @Test
+    @DisplayName("una boleta del set referencia su caso con CodRef=SET y cumple el XSD de boleta")
+    void boletaConCasoDelSet() {
+        DocumentoTributario doc = DteFixtures.boletaAfecta(29800L);
+        doc.setSetCaso("1");
+        String xml = DteFixtures.xmlFirmado(doc);
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.BOLETA_AFECTA)).doesNotThrowAnyException();
+        assertThat(xml).contains("<Referencia>")
+                .contains("<NroLinRef>1</NroLinRef>")
+                .contains("<CodRef>SET</CodRef>")
+                .contains("<RazonRef>CASO-1</RazonRef>")
+                // El esquema de boleta no tiene FchRef: emitirlo invalidaria el XML.
+                .doesNotContain("<FchRef>");
+        // La Referencia va DESPUES del detalle y ANTES del TED (orden del XSD).
+        assertThat(xml.indexOf("<Referencia>")).isGreaterThan(xml.indexOf("<MontoItem>"));
+        assertThat(xml.indexOf("<Referencia>")).isLessThan(xml.indexOf("<TED"));
+    }
+
+    @Test
+    @DisplayName("el numero de caso sale del ultimo segmento: 4965879-1 y 1 dan el mismo CASO-1")
+    void casoDelSetAdmiteLasDosFormas() {
+        DocumentoTributario doc = DteFixtures.boletaAfecta(29800L);
+        doc.setSetCaso("4965879-1");
+
+        assertThat(DteFixtures.xmlFirmado(doc)).contains("<RazonRef>CASO-1</RazonRef>");
+    }
+
+    @Test
+    @DisplayName("una boleta sin caso del set no emite Referencia (emision normal)")
+    void boletaSinCasoNoEmiteReferencia() {
+        String xml = DteFixtures.xmlFirmado(DteFixtures.boletaAfecta(11900L));
+
+        assertThatCode(() -> validator.validar(xml, TipoDte.BOLETA_AFECTA)).doesNotThrowAnyException();
+        assertThat(xml).doesNotContain("<Referencia>");
+    }
+
     @Test
     @DisplayName("una linea exenta emite IndExe ANTES de NmbItem (orden del XSD oficial)")
     void indExeAntesDeNmbItem() {

@@ -22,7 +22,9 @@ public interface SiiGateway {
 
     /**
      * Envia VARIOS DTE firmados en UN solo sobre (un TrackID): lo que exige el
-     * set de pruebas de certificacion (un envio por set). Solo canal clasico.
+     * set de pruebas de certificacion, tanto el de facturas/notas por el canal
+     * clasico como el de BOLETAS por el canal REST —"el envio del Set de Boletas
+     * debe ser en solo un archivo (sobre)"—. El tipo del primero decide el canal.
      */
     String enviarLote(java.util.List<EnvioSii> envios);
 

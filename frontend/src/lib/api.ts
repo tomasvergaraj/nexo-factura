@@ -593,6 +593,32 @@ export async function getRcof(empresaId: number, fecha: string): Promise<RcofRes
   return data;
 }
 
+/**
+ * XML ConsumoFolios del día FIRMADO y validado contra el esquema oficial, para
+ * descarga. No se envía al SII: la Res. Ex. SII N°53/2022 eliminó esa
+ * obligación, y el archivo es el adjunto del set de pruebas de certificación de
+ * boletas.
+ *
+ * Es POST porque consume secuencia (cada archivo queda registrado con su
+ * SecEnvio). Se pide como Blob para conservar los BYTES: el prólogo declara
+ * ISO-8859-1, y re-codificar a UTF-8 al guardar produciría un archivo que
+ * contradice su propia declaración — y encima invalidaría la firma.
+ */
+export async function descargarRcofXmlFirmado(empresaId: number, fecha: string): Promise<Blob> {
+  if (USE_MOCK) {
+    await demora(600);
+    return new Blob(
+      [`<?xml version="1.0" encoding="ISO-8859-1"?>\n<ConsumoFolios version="1.0"/>`],
+      { type: "application/xml" },
+    );
+  }
+  const { data } = await http.post(`/empresas/${empresaId}/rcof/xml-firmado`, null, {
+    params: { fecha },
+    responseType: "blob",
+  });
+  return data;
+}
+
 // ---- Compras (documentos recibidos) ----
 export async function getCompras(empresaId: number, periodo: string): Promise<Compra[]> {
   if (USE_MOCK) {

@@ -130,7 +130,7 @@ Commit `e1e834f`, solo frontend (ver [PROGRESS.md](PROGRESS.md)). Cierra los **c
 
 **Saldo**: los cuatro riesgos de la §3 están cerrados y el backlog priorizado (P0/P1/P2) está **completo**. Con el Sprint 7 (§12) el sistema además **opera en producción ante el SII**, y la infraestructura de tests y CI (§13) y el factor de proporcionalidad (§14) quedaron cerrados en el Sprint 8.
 
-**La brecha abierta más importante es la §15**: el sistema emite boletas en producción pero no presenta el RCOF. Por debajo de eso quedan los follow-ups documentados del §11, del §12 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md).
+La §15 —el RCOF sin firmar— **dejó de ser una brecha crítica**: el SII eliminó su envío en 2022 y lo que queda es material de certificación de boletas, que todavía no se inicia. El saldo real son los follow-ups documentados del §11, del §12 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md).
 
 ## 11. Hecho en el Sprint 6 (P0-4/5/6: integración tributaria real)
 
@@ -165,15 +165,48 @@ Detalle en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md) §Fase 2. El libro de comp
 
 Se resolvió con un factor **por empresa** (`V17`, editable en Configuración) que actúa de default, dejando intacto el override por período de la API. La decisión de no calcularlo automáticamente desde las ventas es deliberada: la fórmula legal necesita el acumulado del año completo y el sistema sólo conoce los DTE que emitió él, así que un cálculo automático sería *equivocado con más confianza* dentro de una declaración tributaria. En su lugar se ofrece un **factor sugerido** junto al campo, acompañado de cuántos documentos lo respaldan y desde qué fecha, para que quien decide pueda juzgar si el acumulado está completo. Cada envío guarda además el factor que declaró, porque el de la empresa es editable.
 
-## 15. El RCOF no se envía al SII (pendiente — la brecha abierta más importante)
+## 15. El RCOF: la brecha que no era (hecha — y con dos premisas falsas de por medio)
 
-*Detectado el 2026-07-29, fuera de toda fase.* El sistema **emite boletas electrónicas en producción**, lo que genera la obligación recurrente de presentar el **Consumo de Folios**. Hoy [`RcofController`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofController.java) sólo expone dos GET —el reporte en JSON y el XML **sin firmar**— y `SiiGateway` no tiene ningún método para el RCOF: tiene `enviar`, `enviarLibro` y `enviarLote`.
+*Detectado el 2026-07-29, fuera de toda fase.* Hoy [`RcofController`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofController.java) sólo expone dos GET —el reporte en JSON y el XML **sin firmar**— y `SiiGateway` no tiene ningún método para el RCOF: tiene `enviar`, `enviarLibro` y `enviarLote`.
 
-No es un descuido oculto: este documento siempre dijo «sin firmar/enviar» (§P1-2). Lo que cambió es el **motivo**. El código justificaba el diferimiento en que *«requiere certificado real, igual que la firma del DTE»*, y ese bloqueo desapareció en el Sprint 7: hay certificado y resolución por empresa, y el canal de boleta corre en producción. La razón documentada ya no se sostiene.
+No es un descuido oculto: este documento siempre dijo «sin firmar/enviar» (§P1-2). Lo que cambió es el **motivo**. El código justificaba el diferimiento en que *«requiere certificado real, igual que la firma del DTE»*, y ese bloqueo desapareció en el Sprint 7: hay certificado y resolución por empresa. La razón documentada ya no se sostiene.
 
-Para cerrarlo:
-- **Firmar y postear el `ConsumoFolios`.** [`LibroEnvioService`](../backend/src/main/java/cl/nexosoftware/factura/libro/LibroEnvioService.java) es la plantilla exacta: construir → firmar enveloped → validar contra el XSD → `SiiGateway` → persistir el TrackID.
-- **La secuencia de envío.** `RcofService.SEC_ENVIO_PLACEHOLDER` está fijo en `1` y el SII espera que incremente; hay que persistirla por empresa.
-- **Seguimiento del estado**, reutilizando el job de consulta y el patrón de «una transacción por ítem» del Sprint 8.
+> **Corrección del 2026-07-29 (misma fecha, más tarde).** Este apartado nació afirmando que «el sistema emite boletas electrónicas en producción» y que por eso había una **obligación incumplida**. Eso era **falso**, y lo detectó el usuario. Verificado: producción tiene cuatro CAF —33, 34, 61 y 56, [RUNBOOK §5](../RUNBOOK-produccion.md)— y **ninguno de boleta**; la BD de producción contiene exactamente dos documentos (la factura 33 de humo, anulada, y su nota de crédito); y la emisión de humo del [RUNBOOK §6](../RUNBOOK-produccion.md) fue una factura 33. **Nunca se emitió una boleta en producción.** La boleta 39 aceptada (folio 106, TrackID `30435211`) fue en **certificación**, por pangal/apicert. El origen del error está en [README.md](../README.md), que enumera en una sola frase los cinco tipos aceptados *en certificación* y la emisión de humo *en producción*: dos hechos distintos que se leyeron como uno.
+>
+> Lo que cambia: el RCOF **no** es una obligación que se esté incumpliendo.
+>
+> **Segunda corrección, del mismo día — y ésta anula la premisa que quedaba.** Al ir a buscar el endpoint del envío apareció que **el SII eliminó la obligación de enviar el RCOF**. La [Resolución Ex. SII N°53 de 2022](https://www.sii.cl/noticias/2022/160622noti01rp.htm) suprimió el envío del *Resumen de Ventas Diarias* (nombre nuevo del ex Reporte de Consumo de Folios) **a partir del 1 de agosto de 2022**, para usuarios del sistema del SII y de otros softwares por igual; desde entonces el registro de ventas del contribuyente se alimenta del XML de las boletas que llegan al Servicio. Lo confirman el [comunicado del SII](https://www.sii.cl/noticias/2022/040822noti01rp.htm) y su [pregunta frecuente](https://www.sii.cl/preguntas_frecuentes/factura_electronica/001_003_6272.htm). Sólo sobreviven los períodos **anteriores al 31/07/2022** que hubieran quedado sin enviar — no es el caso: acá no se emitieron boletas nunca.
+>
+> Queda entonces **un solo uso real: la certificación**. La [guía de certificación de boletas del SII](https://www.sii.cl/factura_electronica/guia_emitir_boleta_servicio.htm) sigue publicando el formato *Consumo de Folios* junto al de boletas y libro de boletas, y exige **5 envíos a la casilla `SII_BE_Certificacion@sii.cl`** — por **correo**, no por upload. La guía no enumera cuáles son los 5, así que *cuál exactamente y en qué formato se sabe al solicitar el set de pruebas*. Los instructivos de terceros que describen «enviar el RCOF por upload y luego diariamente» son **anteriores a la Res. 53/2022**.
 
-*Antes de implementarlo hay que confirmar con el usuario la periodicidad exigida y desde cuándo le corre:* es una obligación tributaria real y no se puede verificar desde el código.
+**Hecho el 2026-07-29**, con el objetivo corregido: el destinatario no es un endpoint sino un **archivo firmado que se adjunta al correo de certificación**.
+
+- **XSD oficial vendoreado.** `ConsumoFolio_v10.xsd` (de [sii.cl](https://www.sii.cl/factura_electronica/factura_mercado/ConsumoFolio_v10.xsd)) entra a `resources/sii/oficial/`, y con él el RCOF deja de ser el **único XML tributario del sistema sin esquema que lo respaldara**. Al validarlo apareció que el modelo no estaba incompleto sino **estructuralmente mal**: `Caratula` y `Resumen` colgaban de la raíz, sin el envoltorio `DocumentoConsumoFolios` ni su atributo `ID`; faltaban `RutEnvia`, `FchResol`, `NroResol` y `TmstFirmaEnv`; y la `Signature`, que el esquema exige, no existía. Ese XML no lo habría aceptado nadie.
+- **Firma y descarga.** [`RcofFirmaService`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofFirmaService.java): construir → firmar enveloped con el certificado de la empresa (Reference al `ID`) → validar contra el XSD → registrar. `POST /api/empresas/{id}/rcof/xml-firmado` y botón en la pantalla RCOF. Un día sin boletas se rechaza: el esquema exige al menos un `Resumen`, y no hay consumo que declarar.
+- **Secuencia real.** `SEC_ENVIO_PLACEHOLDER` eliminado. Sale de `rcof_firmado` (`V18`): 1 la primera vez del día, +1 al rehacerlo, con override para regenerar un número ya usado. La tabla registra **generaciones**, no envíos — el sistema no puede saber si el correo salió, y no lo afirma.
+- **Canal de envío: deliberadamente NO se construyó.** La obligación que lo justificaba no existe y el upload puede haberse retirado con la Res. 53/2022; sería código que nadie puede probar. Sin upload tampoco hay TrackID que seguir.
+
+Verificado local: suite completa en verde, incluidos 4 tests de esquema (uno prueba que **sin firma el XML no valida**) y 6 ITs de secuencia y rechazos.
+
+**Decidido con el usuario (2026-07-29):** disparo **manual**, **sin job automático**; nada que regularizar hacia atrás. La pregunta de la periodicidad **quedó respondida por la Res. 53/2022: no hay periodicidad, no se envía**.
+
+**Lo que queda abierto, y no se decidió sin el usuario:**
+- **El tipo 61 en el consumo de folios.** El XSD acepta `39`, `41` y **`61`** (notas de crédito electrónicas); hoy sólo se reportan 39 y 41. El set de pruebas recibido no tiene ningún caso de NC, así que no bloquea; incluirlas o no cambia lo que se declara y es semántica tributaria que decide el usuario.
+
+## 16. Certificación de boletas: lo que pide el set real (parcialmente hecha)
+
+*El usuario aportó el set el 2026-07-29 (`secrets/set_certificacion/boletas/`), y eso cerró la pregunta abierta de la §15 — y corrigió una conclusión de ahí.*
+
+**Corrección a la §15:** ahí se dijo que no correspondía construir canal de envío. Vale para producción, **no para certificación**: el correo del SII instruye «enviar al SII el Set de Boletas generado y el **Reporte de Consumo de Folios (RCOF)** asociado, utilizando para ello la opción de **UPLOAD, Web o automatizado**, en ambiente certificación». El RCOF sí se sube. El archivo firmado que ya se descarga cubre la opción *Web*; automatizar la subida sigue sin hacerse, y es opcional.
+
+El set son **5 casos** (5 folios) y exige, además de las boletas: referenciar el caso en cada XML, un solo sobre, y un plazo de **24 horas desde que se bajan los folios** — el correo dice que el plazo existe «puesto que se pretende verificar la capacidad de generación del RCOF».
+
+**Hecho:**
+- **Referencia al caso en la boleta.** El set la pide en su propia forma —`<CodRef>SET</CodRef>`, `<RazonRef>CASO-1</RazonRef>`—, distinta de la del canal clásico (`TpoDocRef=SET` + `FolioRef`): en boleta `CodRef` es texto y **no existe `FchRef`**. `ModeloBoleta` no tenía bloque `Referencia` **en absoluto**, así que `setCaso` —que sí funcionaba en facturas desde el Sprint 6— **se ignoraba en silencio en las boletas**. `setCaso` ahora admite `N` además de `<atencion>-<caso>`, porque el set de boletas numera 1..N sin atención.
+- **Las 5 boletas en un solo sobre.** «El envío del Set de Boletas debe ser en solo un archivo (sobre)». El armado multi-documento ya existía y era común a los dos canales (`EnvioGenerator.generarLote`), pero el canal de boleta no lo exponía: `SiiTransporteBoleta` no sobreescribía `enviarLote` y el default lanzaba `UnsupportedOperationException`. Se usa por `POST /api/empresas/{id}/documentos/enviar-lote` (vía Swagger, como el libro ESPECIAL).
+- **Guarda de lote mixto.** Al habilitar el segundo canal, un lote que mezcle boletas con facturas se iría por el canal del primer documento. Se rechaza antes de enviar.
+
+**Falta, y no es todo código:**
+- **El sitio web público de consulta de la boleta.** El SII lo exige señalado en la representación impresa y **disponible en la web**, y avisa que lo verifica al autorizar por resolución. El PDF no imprime ninguna URL y el sitio no existe. Es requisito de aprobación.
+- **Libro de boletas electrónicas (XML) y 10 muestras en PDF.** Aparecen en los 5 envíos del instructivo web del SII, pero **no** en el correo recibido, que pide 4 pasos. El sistema no genera nada en formato Libro de Boletas —los `LibroCV_v10` que sí produce son el IECV, otro formato—. **Hay que confirmar con el SII cuál rige** antes de construirlo.
+- **Subida automatizada** del set y del RCOF (opción *automatizado*). Hoy se resuelve con el UPLOAD web.

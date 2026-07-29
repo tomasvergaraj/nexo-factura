@@ -13,7 +13,7 @@ public final class RcofDtos {
 
     public record RcofResponse(
             LocalDate fecha,
-            int secEnvio,                  // secuencia de envio (placeholder = 1 sin SII real)
+            int secEnvio,                  // secuencia que le tocaria al proximo archivo del dia
             List<RcofPorTipo> documentos,  // siempre incluye 39 y 41 (con ceros si no hubo)
             RcofTotales totales,
             boolean sinMovimiento

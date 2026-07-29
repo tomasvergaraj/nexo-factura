@@ -219,6 +219,17 @@ public class DocumentoService {
                     doc.getXmlDte(), doc.getTipoDte().getCodigo(), doc.getFolio(), emisor.getRut()));
         }
 
+        // Un lote = un sobre = UN canal. El gateway rutea por el tipo del primer
+        // documento, asi que un lote mixto mandaria boletas por el canal clasico
+        // (o facturas por el de boleta) y el SII lo rechazaria por esquema: son
+        // sobres distintos, EnvioDTE y EnvioBOLETA. Se corta antes de enviar.
+        boolean boletas = docs.get(0).getTipoDte().preciosBrutos();
+        if (docs.stream().anyMatch(d -> d.getTipoDte().preciosBrutos() != boletas)) {
+            throw new ReglaNegocioException(
+                    "El lote mezcla boletas con facturas/notas: cada sobre viaja por un canal "
+                            + "distinto del SII, hay que enviarlos en lotes separados");
+        }
+
         String trackId = siiGateway.enviarLote(envios);
 
         List<DocumentoResumen> resumenes = new ArrayList<>();

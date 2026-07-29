@@ -36,9 +36,28 @@ public final class ModeloBoleta {
         @XmlAttribute(name = "ID") public String id;
         @XmlElement(name = "Encabezado") public Encabezado encabezado;
         @XmlElement(name = "Detalle") public List<Detalle> detalle;
+        // Orden del esquema: Encabezado, Detalle, SubTotInfo, DscRcgGlobal,
+        // Referencia, TED, TmstFirma.
+        @XmlElement(name = "Referencia") public List<Referencia> referencias;
         /** TED aplanado y firmado, insertado como DOM para no re-serializarlo. */
         @XmlAnyElement public Element ted;
         @XmlElement(name = "TmstFirma") public String tmstFirma;
+    }
+
+    /**
+     * Referencia de boleta. Es un bloque DISTINTO al de factura ({@link
+     * ModeloDte.Referencia}): el esquema de boleta no tiene {@code FchRef}, y
+     * {@code CodRef} es TEXTO de hasta 18 caracteres en vez de un codigo
+     * numerico — que es justamente lo que permite el {@code SET} que exige el
+     * set de pruebas de boletas.
+     */
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class Referencia {
+        @XmlElement(name = "NroLinRef") public int numeroLinea;
+        @XmlElement(name = "TpoDocRef") public String tipoDocumentoRef;
+        @XmlElement(name = "FolioRef") public String folioRef;
+        @XmlElement(name = "CodRef") public String codigoReferencia;
+        @XmlElement(name = "RazonRef") public String razon;
     }
 
     @XmlAccessorType(XmlAccessType.FIELD)

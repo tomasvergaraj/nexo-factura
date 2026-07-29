@@ -5,31 +5,70 @@ import cl.nexosoftware.factura.rcof.RcofDtos.RcofPorTipo;
 import cl.nexosoftware.factura.rcof.RcofDtos.RcofResponse;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Construye el XML ConsumoFolios (RCOF) a partir del reporte agregado, usando JAXB.
+ * Construye el XML {@code ConsumoFolios} (RCOF) a partir del reporte agregado,
+ * alineado al esquema OFICIAL {@code ConsumoFolio_v10.xsd} y listo para firmarse
+ * (XMLDSig enveloped con Reference al atributo ID del DocumentoConsumoFolios).
  *
- * NO se firma ni se envia al SII: requiere certificado y una secuencia de envio
- * real. Solo materializa la estructura del reporte (coherente con el subconjunto
- * del esquema usado en {@link XmlDteGenerator}).
+ * El archivo firmado ya no se sube al SII —la Res. Ex. SII N°53 de 2022 elimino
+ * el envio del Consumo de Folios— pero sigue siendo el adjunto que pide el set
+ * de pruebas de certificacion de boletas. Ver ROADMAP §15.
  */
 @Component
 public class RcofXmlGenerator {
 
-    private static final DateTimeFormatter FECHA = DateTimeFormatter.ISO_LOCAL_DATE;
+    public static final String ID_CONSUMO_FOLIOS = "NexoRCOF";
 
-    public String generar(RcofResponse reporte, Empresa emisor) {
+    private static final DateTimeFormatter FECHA = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    private final Clock clock;
+
+    public RcofXmlGenerator() {
+        this(Clock.system(ZoneId.of("America/Santiago")));
+    }
+
+    RcofXmlGenerator(Clock clock) {
+        this.clock = clock;
+    }
+
+    /**
+     * Datos de caratula que no salen del reporte del dia: quien envia, la
+     * resolucion que lo autoriza y la secuencia. {@code secEnvio} arranca en 1 y
+     * sube de a uno cada vez que se rehace el mismo dia (el SII lee un SecEnvio
+     * mayor como correccion del anterior).
+     */
+    public record CaratulaRcof(String rutEnvia, String fchResol, int nroResol, int secEnvio) {
+
+        /** Caratula de INSPECCION (sin certificado ni resolucion reales). */
+        public static CaratulaRcof inspeccion(String rutEmisor, int secEnvio) {
+            return new CaratulaRcof(rutEmisor, "2000-01-01", 0, secEnvio);
+        }
+    }
+
+    public String generar(RcofResponse reporte, Empresa emisor, CaratulaRcof caratula) {
         ModeloConsumoFolios.ConsumoFolios cf = new ModeloConsumoFolios.ConsumoFolios();
+        ModeloConsumoFolios.DocumentoConsumoFolios doc = new ModeloConsumoFolios.DocumentoConsumoFolios();
+        doc.id = ID_CONSUMO_FOLIOS;
+        cf.documento = doc;
 
         ModeloConsumoFolios.Caratula car = new ModeloConsumoFolios.Caratula();
         car.rutEmisor = emisor.getRut();
+        car.rutEnvia = caratula.rutEnvia();
+        car.fchResol = caratula.fchResol();
+        car.nroResol = caratula.nroResol();
         car.fchInicio = reporte.fecha().format(FECHA);
         car.fchFinal = reporte.fecha().format(FECHA);
-        car.secEnvio = reporte.secEnvio();
-        cf.caratula = car;
+        car.secEnvio = caratula.secEnvio();
+        car.tmstFirmaEnv = LocalDateTime.now(clock).format(TIMESTAMP);
+        doc.caratula = car;
 
         List<ModeloConsumoFolios.Resumen> resumenes = new ArrayList<>();
         for (RcofPorTipo t : reporte.documentos()) {
@@ -54,7 +93,7 @@ public class RcofXmlGenerator {
             }
             resumenes.add(r);
         }
-        cf.resumen = resumenes;
+        doc.resumen = resumenes;
 
         return marshal(cf);
     }

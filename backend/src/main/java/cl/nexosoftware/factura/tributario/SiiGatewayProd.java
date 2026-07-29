@@ -47,7 +47,9 @@ public class SiiGatewayProd implements SiiGateway {
 
     @Override
     public String enviarLote(List<EnvioSii> envios) {
-        // Solo el canal clasico admite sobres multi-documento.
+        // Ambos canales admiten sobres multi-documento: el clasico para el set de
+        // facturas/notas y el REST de boleta para el set de boletas, que el SII
+        // exige "en solo un archivo". El tipo del primero decide el canal.
         return transporte(envios.get(0).tipoDte()).enviarLote(envios);
     }
 

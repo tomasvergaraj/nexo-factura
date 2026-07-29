@@ -21,10 +21,14 @@ public final class DocumentoDtos {
             // Descuento global % sobre las lineas afectas (DscRcgGlobal); null = sin
             // descuento. Rango y compatibilidad con el tipo se validan en el servicio.
             @Positive Double descuentoGlobalPct,
-            // Numero de caso del set de pruebas de certificacion (ej: "4965879-1");
-            // el DTE lo referencia con TpoDocRef=SET. Null = emision normal.
-            @Size(max = 18) @Pattern(regexp = "\\d+-\\d+",
-                    message = "setCaso debe tener la forma <atencion>-<caso>, ej: 4965879-1")
+            // Numero de caso del set de pruebas de certificacion. Null = emision
+            // normal. Dos formas, porque los dos sets numeran distinto: el clasico
+            // usa <atencion>-<caso> ("4965879-1") y el DTE lo referencia con
+            // TpoDocRef=SET; el de BOLETAS numera los casos 1..N sin atencion y la
+            // boleta lo referencia con CodRef=SET y RazonRef=CASO-N.
+            @Size(max = 18) @Pattern(regexp = "\\d+(-\\d+)?",
+                    message = "setCaso debe ser el numero de caso (ej: 1) o "
+                            + "<atencion>-<caso> (ej: 4965879-1)")
             String setCaso
     ) {
         /** Forma sin descuento global (compatibilidad con los usos previos). */

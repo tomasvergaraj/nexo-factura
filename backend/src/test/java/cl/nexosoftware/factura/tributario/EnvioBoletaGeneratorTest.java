@@ -83,6 +83,35 @@ class EnvioBoletaGeneratorTest {
         assertThat(sobre).contains("<SetDTE ID=\"SetDoc\">");
     }
 
+    /**
+     * El set de pruebas de boletas exige los 5 casos "en solo un archivo
+     * (sobre)". El armado ya existia en {@code EnvioGenerator}, pero el canal de
+     * boleta no lo exponia: {@code SiiTransporteBoleta} no sobreescribia
+     * {@code enviarLote} y el default lanzaba UnsupportedOperationException.
+     */
+    @Test
+    @DisplayName("los 5 casos del set van en UN solo sobre valido, con un SubTotDTE de 5")
+    void loteDeCincoBoletasEnUnSobre() {
+        java.util.List<SiiGateway.EnvioSii> envios = new java.util.ArrayList<>();
+        for (int folio = 1; folio <= 5; folio++) {
+            var doc = DteFixtures.boletaAfecta(1000L * folio);
+            doc.setFolio((long) folio);
+            doc.setSetCaso(String.valueOf(folio));
+            envios.add(new SiiGateway.EnvioSii(
+                    1L, DteFixtures.xmlFirmado(doc), 39, folio, DteFixtures.RUT_EMISOR));
+        }
+
+        // generarLote valida el sobre contra EnvioBOLETA_v11 por dentro: si los 5
+        // Documento no cumplieran (p.ej. IDs repetidos), esto lanzaria.
+        String sobre = generador.generarLote(envios);
+
+        assertThat(sobre).contains("<SubTotDTE><TpoDTE>39</TpoDTE><NroDTE>5</NroDTE></SubTotDTE>");
+        assertThat(sobre.split("<Documento ", -1).length - 1).isEqualTo(5);
+        // Cada boleta conserva su referencia al caso dentro del sobre.
+        assertThat(sobre).contains("<RazonRef>CASO-1</RazonRef>")
+                .contains("<RazonRef>CASO-5</RazonRef>");
+    }
+
     @Test
     @DisplayName("modo GLOBAL sin FchResol de entorno: fail-fast en la construccion")
     void sinFchResolFallaAlConstruir() {

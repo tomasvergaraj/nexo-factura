@@ -20,6 +20,7 @@ import java.time.LocalDate;
 public class RcofController {
 
     private final RcofService service;
+    private final RcofFirmaService firmaService;
 
     @GetMapping
     @Operation(summary = "Reporte diario de consumo de folios de boletas (39/41). "
@@ -32,7 +33,8 @@ public class RcofController {
     }
 
     @GetMapping(value = "/xml", produces = MediaType.APPLICATION_XML_VALUE)
-    @Operation(summary = "RCOF como XML ConsumoFolios (sin firmar ni enviar al SII).")
+    @Operation(summary = "RCOF como XML ConsumoFolios SIN firmar, para inspeccion. "
+            + "Sin firma no cumple el esquema del SII: el presentable es /xml-firmado.")
     public ResponseEntity<String> xml(
             @PathVariable Long empresaId,
             @RequestParam(required = false)
@@ -40,5 +42,24 @@ public class RcofController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_XML)
                 .body(service.generarXml(empresaId, fecha));
+    }
+
+    /**
+     * POST y no GET porque consume secuencia: cada archivo firmado queda
+     * registrado con su SecEnvio, y rehacer el dia declara una correccion.
+     */
+    @PostMapping(value = "/xml-firmado", produces = MediaType.APPLICATION_XML_VALUE)
+    @Operation(summary = "RCOF firmado (XMLDSig) y validado contra ConsumoFolio_v10. "
+            + "NO se envia al SII: la Res. Ex. SII N°53/2022 elimino esa obligacion; el archivo "
+            + "es el adjunto del set de pruebas de certificacion de boletas. secEnvio se calcula "
+            + "solo (1 la primera vez del dia, +1 al rehacerlo) y admite override.")
+    public ResponseEntity<String> xmlFirmado(
+            @PathVariable Long empresaId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+            @RequestParam(required = false) Integer secEnvio) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_XML)
+                .body(firmaService.xmlFirmado(empresaId, fecha, secEnvio));
     }
 }

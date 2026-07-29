@@ -25,20 +25,21 @@ import java.util.Set;
  * cuyo documento no es tributariamente valido —ANULADO o RECHAZADO por el SII—
  * va a anulados: ver {@link #FOLIO_SIN_DOCUMENTO_VALIDO}.
  *
- * <p><b>El RCOF se genera pero NO se firma ni se envia al SII.</b> Se difirio
- * cuando no habia certificado real; ese bloqueo desaparecio en el Sprint 7, que
- * trajo certificado y resolucion por empresa y el canal de boleta en produccion.
- * Lo que falta hoy es el canal de envio del ConsumoFolios y una secuencia de
- * envio de verdad — {@link #SEC_ENVIO_PLACEHOLDER} esta fijo en 1, y el SII
- * espera que incremente. Mientras tanto, un emisor de boletas queda con el
- * reporte a mano pero sin presentarlo.
+ * <p>Esta clase solo AGREGA y sirve el reporte; el archivo presentable —firmado
+ * y validado contra el esquema oficial— lo produce {@link RcofFirmaService}.
+ *
+ * <p><b>El RCOF no se envia al SII, y no es un pendiente.</b> La Resolucion Ex.
+ * SII N°53 de 2022 elimino la obligacion de remitir el Resumen de Ventas Diarias
+ * (ex Reporte de Consumo de Folios) desde el 1 de agosto de 2022: el registro de
+ * ventas se alimenta del XML de las boletas. Lo que sigue teniendo uso es el
+ * ARCHIVO, que la certificacion de boletas pide por correo. Ver ROADMAP §15.
  */
 @Service
 @RequiredArgsConstructor
 public class RcofService {
 
-    /** Secuencia de envio: placeholder hasta tener historial de envios reales al SII. */
-    private static final int SEC_ENVIO_PLACEHOLDER = 1;
+    /** Tope del SecEnvio: el XSD lo restringe a 3 digitos. */
+    static final int SEC_ENVIO_MAX = 999;
 
     /** Tipos de boleta cubiertos por el RCOF, en orden de reporte (39 y luego 41). */
     private static final List<TipoDte> TIPOS_BOLETA =
@@ -47,6 +48,7 @@ public class RcofService {
     private final DocumentoRepository documentoRepository;
     private final EmpresaService empresaService;
     private final RcofXmlGenerator xmlGenerator;
+    private final RcofFirmadoRepository firmadoRepository;
 
     @Transactional(readOnly = true)
     public RcofResponse generar(Long empresaId, LocalDate fecha) {
@@ -63,14 +65,32 @@ public class RcofService {
         RcofTotales totales = totalizar(documentos);
         boolean sinMovimiento = documentos.stream().allMatch(d -> d.foliosEmitidos() == 0);
 
-        return new RcofResponse(dia, SEC_ENVIO_PLACEHOLDER, documentos, totales, sinMovimiento);
+        return new RcofResponse(dia, proximaSecuencia(empresaId, dia), documentos, totales, sinMovimiento);
     }
 
+    /**
+     * Secuencia que le tocaria al proximo archivo de ese dia: 1 si nunca se
+     * genero, y una mas que la ultima si se rehace (el SII lee un SecEnvio mayor
+     * sobre el mismo periodo como correccion del anterior).
+     */
+    @Transactional(readOnly = true)
+    public int proximaSecuencia(Long empresaId, LocalDate dia) {
+        return firmadoRepository.findFirstByEmpresaIdAndFechaOrderBySecEnvioDesc(empresaId, dia)
+                .map(ultimo -> ultimo.getSecEnvio() + 1)
+                .orElse(1);
+    }
+
+    /**
+     * XML sin firmar, para inspeccion. Lleva una caratula de forma correcta pero
+     * NO presentable: sin certificado no hay RutEnvia real, y sin firma el XML no
+     * cumple el esquema. El presentable lo produce {@code RcofFirmaService}.
+     */
     @Transactional(readOnly = true)
     public String generarXml(Long empresaId, LocalDate fecha) {
         Empresa emisor = empresaService.buscar(empresaId);
         RcofResponse reporte = generar(empresaId, fecha);
-        return xmlGenerator.generar(reporte, emisor);
+        return xmlGenerator.generar(reporte, emisor,
+                RcofXmlGenerator.CaratulaRcof.inspeccion(emisor.getRut(), reporte.secEnvio()));
     }
 
     /**

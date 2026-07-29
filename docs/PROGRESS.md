@@ -595,10 +595,29 @@ libros no se podían enviar **en absoluto**.
 
 # Pendiente
 
-> **Lo más importante que queda: el RCOF no se envía al SII** ([ROADMAP.md §15](ROADMAP.md)).
-> El sistema emite boletas en producción, lo que genera la obligación recurrente de presentar el
-> Consumo de Folios, y hoy sólo se genera el reporte y su XML **sin firmar**. `SiiGateway` no
-> tiene método para el RCOF. Este documento siempre dijo «sin firmar/enviar»; lo que cambió es
-> que el motivo declarado —«no hay certificado real»— dejó de aplicar en el Sprint 7.
+> **El RCOF ya no es lo que quedaba pendiente: era una brecha con dos premisas falsas**
+> ([ROADMAP.md §15](ROADMAP.md)). (1) Se afirmaba que «el sistema emite boletas en producción»:
+> **falso** — producción no tiene CAF de boleta (sólo 33, 34, 61 y 56) y su BD contiene sólo la
+> factura 33 de humo —anulada— y su nota de crédito; la boleta 39 aceptada fue en
+> **certificación**. Lo detectó el usuario. (2) La obligación tampoco existe: la **Res. Ex. SII
+> N°53 de 2022** eliminó el envío del RCOF/RVD **desde el 01/08/2022**.
+>
+> **Cerrado el 2026-07-29** con el objetivo corregido: el RCOF se **firma y se descarga** —es el
+> adjunto del set de pruebas de certificación de boletas—, con el `ConsumoFolio_v10.xsd` oficial
+> vendoreado, la carátula completa, secuencia real por día (`V18`) y **sin** canal de envío, que
+> ya no corresponde construir. Detalle y fuentes en [ROADMAP.md §15](ROADMAP.md).
+>
+> **Lo que sí queda pendiente es la certificación de boletas** ([ROADMAP.md §16](ROADMAP.md)). El
+> usuario aportó el set real el 2026-07-29, y eso **corrigió una conclusión de la §15**: en
+> certificación el RCOF **sí se sube** al SII («UPLOAD, Web o automatizado»); lo que no existe es
+> la obligación en producción. Del set ya están hechos los dos bloqueadores —la referencia
+> `CodRef=SET`/`RazonRef=CASO-N` en la boleta, que **no se emitía en absoluto** aunque `setCaso`
+> funcionara en facturas, y las 5 boletas en un solo sobre—. **Falta:** el sitio web público de
+> consulta de la boleta (requisito de aprobación, no existe en ninguna forma), y confirmar con el
+> SII si aplican el Libro de Boletas y las 10 muestras en PDF, que pide el instructivo web pero
+> no el correo recibido.
+>
+> Abierto y **sin decidir por el usuario**: si las notas de crédito (tipo **61**, que el esquema
+> acepta) deben entrar al consumo de folios. El set recibido no tiene casos de NC.
 
 Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.
