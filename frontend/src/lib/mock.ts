@@ -173,6 +173,7 @@ export function libroMock(tipo: TipoOperacionLibro, periodo: string): LibroRespo
         tipoDocumento, documentos: cs.length, anulados: 0,
         neto: suma(cs, (c) => c.neto), exento: suma(cs, (c) => c.exento), iva: suma(cs, (c) => c.iva),
         otrosImpuestos: 0, ivaRetenido: suma(cs, (c) => c.ivaRetenido), total: suma(cs, (c) => c.total),
+        ivaUsoComun: 0, operacionesIvaUsoComun: 0, creditoIvaUsoComun: 0,
       }));
     return {
       periodo,
@@ -191,15 +192,16 @@ export function libroMock(tipo: TipoOperacionLibro, periodo: string): LibroRespo
         ivaRetenido: suma(compras, (c) => c.ivaRetenido), total: suma(compras, (c) => c.total),
       },
       sinMovimiento: false,
+      fctProp: null,
     };
   }
   return {
     periodo,
     tipoOperacion: "VENTA",
     resumen: [
-      { tipoDocumento: 33, documentos: 6, anulados: 1, neto: 4934200, exento: 0, iva: 937498, otrosImpuestos: 0, ivaRetenido: 0, total: 5871698 },
-      { tipoDocumento: 39, documentos: 16, anulados: 1, neto: 546218, exento: 84000, iva: 103782, otrosImpuestos: 0, ivaRetenido: 0, total: 734000 },
-      { tipoDocumento: 61, documentos: 1, anulados: 0, neto: 100000, exento: 0, iva: 19000, otrosImpuestos: 0, ivaRetenido: 0, total: 119000 },
+      { tipoDocumento: 33, documentos: 6, anulados: 1, neto: 4934200, exento: 0, iva: 937498, otrosImpuestos: 0, ivaRetenido: 0, total: 5871698, ivaUsoComun: 0, operacionesIvaUsoComun: 0, creditoIvaUsoComun: 0 },
+      { tipoDocumento: 39, documentos: 16, anulados: 1, neto: 546218, exento: 84000, iva: 103782, otrosImpuestos: 0, ivaRetenido: 0, total: 734000, ivaUsoComun: 0, operacionesIvaUsoComun: 0, creditoIvaUsoComun: 0 },
+      { tipoDocumento: 61, documentos: 1, anulados: 0, neto: 100000, exento: 0, iva: 19000, otrosImpuestos: 0, ivaRetenido: 0, total: 119000, ivaUsoComun: 0, operacionesIvaUsoComun: 0, creditoIvaUsoComun: 0 },
     ],
     detalle: [
       { tipoDocumento: 33, folio: 142, fecha: `${periodo}-23`, rutContraparte: "78222333-4", razonSocial: "Constructora Andes SpA", neto: 1400000, exento: 0, iva: 266000, otrosImpuestos: 0, ivaRetenido: 0, total: 1666000, anulado: false },
@@ -209,6 +211,7 @@ export function libroMock(tipo: TipoOperacionLibro, periodo: string): LibroRespo
     ],
     totales: { documentos: 23, anulados: 2, neto: 5580418, exento: 84000, iva: 1060280, otrosImpuestos: 0, ivaRetenido: 0, total: 6724698 },
     sinMovimiento: false,
+    fctProp: null,
   };
 }
 

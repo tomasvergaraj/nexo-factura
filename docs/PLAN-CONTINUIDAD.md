@@ -9,25 +9,25 @@
 
 ## Empieza aquí — mensaje para la próxima sesión
 
-Sesión del **2026-07-29**. **Las fases 1 y 3 están cerradas**, empujadas a `main` y
-validadas en CI. El árbol está limpio y sincronizado con `origin/main`.
+Sesión del **2026-07-29**. **Las fases 1, 2 y 3 están cerradas** y de la 4 se hicieron los tres
+follow-ups de mejor relación valor/esfuerzo. Todo empujado a `main` y validado en CI; el árbol
+está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-CI **verde en su primera ejecución** ([run 30467377561](https://github.com/tomasvergaraj/nexo-factura/actions/runs/30467377561)):
-**352/352 unitarios + 66/66 tests de integración**, 0 fallos y 0 errores, en un runner limpio.
-Es la primera vez que la suite completa corre de punta a punta, y ahora corre sola en cada push.
+**357 tests unitarios + 72 de integración, 0 fallos y 0 errores**, y CI los ejecuta en cada push
+—verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden
+enviar, y la resolución de los envíos llega sola en vez de haber que pedirla por TrackID.
 
-### Qué hacer, en este orden
+### Qué hacer
 
-**1. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
-consulta automática del estado de los envíos de libro: hoy es manual por TrackID y el job ya
-tiene el andamiaje. Se sumaron dos en esta sesión: el input de override de `fctProp` en
-`Libros.tsx` y subir las actions de CI a `@v5`.
+**Fase 4, lo que queda** — nada urgente y nada bloqueado: motivo de fallo por documento en el
+reenvío masivo, signo de las NC en los totales del libro, semántica de `RECHAZADO` entre RCOF y
+libro, y `MedioPago`/`GeoRefEmision`. La tabla completa está al final.
 
-**Queda una verificación abierta, no una tarea:** la Fase 2 se implementó asumiendo que el
-acumulado de ventas del año **no** está completo en el sistema. Si el contador confirma que sí
-lo está, el cálculo automático por período pasa a ser defendible y el factor sugerido podría
-promoverse a valor por defecto. Está planteado al final de la sección de la Fase 2.
+**Una verificación abierta, que no es una tarea de código:** la Fase 2 se implementó asumiendo
+que el acumulado de ventas del año **no** está completo en el sistema. Si el contador confirma
+que sí lo está, el cálculo automático por período pasa a ser defendible y el factor sugerido
+—que ya se calcula— podría promoverse a valor por defecto. Está planteado al final de la Fase 2.
 
 ### Dos cosas que conviene saber antes de tocar nada
 
@@ -456,9 +456,9 @@ Dos ajustes al checklist de arriba, ambos ya implementados:
 
 | Item | Nota |
 |---|---|
-| Consulta automática del estado de los envíos de libro | Hoy `estadoEnvio` es manual por TrackID; el job ya tiene el andamiaje |
-| Subir las actions de CI a `@v5` | Trivial. Hoy `checkout`, `setup-java`, `setup-node` y `upload-artifact` van en `@v4` (Node 20, deprecado): el run pasa pero con aviso |
-| Input de override de `fctProp` en `Libros.tsx` | La API ya lo acepta y el default por empresa ya desbloquea el envío; esto es para el período atípico. Sin urgencia |
+| ~~Consulta automática del estado de los envíos de libro~~ | ✅ **hecha** — segundo `@Scheduled` en `RevisionLibroJob` (cron propio, `app.libro.revision-auto.cron-estado`) que resuelve a diario los envíos sin estado terminal |
+| ~~Subir las actions de CI a `@v5`~~ | ✅ **hecha** — se va el aviso de Node 20 deprecado |
+| ~~Input de override de `fctProp` en `Libros.tsx`~~ | ✅ **hecha** — aparece solo cuando el período trae IVA de uso común |
 | Motivo de fallo por documento en el reenvío masivo | Follow-up de P2-5, mejora la operación real |
 | Signo de las NC en los totales del libro | Follow-up de P2-5 |
 | Semántica de `RECHAZADO` entre RCOF y libro | Follow-up de P2-5, hoy inconsistente |

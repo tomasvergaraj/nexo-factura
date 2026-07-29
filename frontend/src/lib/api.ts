@@ -625,14 +625,17 @@ export async function eliminarCompra(empresaId: number, id: number): Promise<voi
 
 // ---- Libros de compra/venta (IECV) ----
 export async function getLibro(
-  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string, fctProp?: number,
 ): Promise<LibroResponse> {
   if (USE_MOCK) {
     await demora();
     return libroMock(tipo, periodo);
   }
   const ruta = tipo === "VENTA" ? "ventas" : "compras";
-  const { data } = await http.get(`/empresas/${empresaId}/libros/${ruta}`, { params: { periodo } });
+  const { data } = await http.get(`/empresas/${empresaId}/libros/${ruta}`, {
+    // Omitido = sin override: el backend usa el factor configurado en la empresa.
+    params: { periodo, ...(fctProp != null && { fctProp }) },
+  });
   return data;
 }
 
@@ -643,7 +646,7 @@ export async function getLibro(
  * guardar produciría un archivo cuyo contenido contradice su declaración.
  */
 export async function getLibroXml(
-  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string, fctProp?: number,
 ): Promise<Blob> {
   if (USE_MOCK) {
     await demora();
@@ -654,7 +657,7 @@ export async function getLibroXml(
   }
   const ruta = tipo === "VENTA" ? "ventas" : "compras";
   const { data } = await http.get(`/empresas/${empresaId}/libros/${ruta}/xml`, {
-    params: { periodo },
+    params: { periodo, ...(fctProp != null && { fctProp }) },
     responseType: "blob",
   });
   return data;
@@ -666,7 +669,7 @@ export async function getLibroXml(
  * ESPECIAL con folio es solo para el set de certificación, vía Swagger).
  */
 export async function enviarLibro(
-  empresaId: number, tipo: TipoOperacionLibro, periodo: string,
+  empresaId: number, tipo: TipoOperacionLibro, periodo: string, fctProp?: number,
 ): Promise<LibroEnvioResponse> {
   if (USE_MOCK) {
     await demora(600);
@@ -674,7 +677,7 @@ export async function enviarLibro(
   }
   const ruta = tipo === "VENTA" ? "ventas" : "compras";
   const { data } = await http.post(`/empresas/${empresaId}/libros/${ruta}/enviar`, null, {
-    params: { periodo },
+    params: { periodo, ...(fctProp != null && { fctProp }) },
   });
   return data;
 }

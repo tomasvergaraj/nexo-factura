@@ -552,9 +552,26 @@ libros no se podían enviar **en absoluto**.
   `CHECK` que quedó en su lugar es además mejor garantía: `NUMERIC(3,2)` habría redondeado un
   `0.605` en silencio en vez de rechazarlo.
 
-**Verificación:** suite completa en verde —354 unitarios + 72 ITs, 0 fallos y 0 errores— con
-6 ITs y 2 unitarios nuevos que cubren el default por empresa, el override, el `FctProp` de dos
-decimales en el XML, el mensaje accionable y el acumulado del factor sugerido.
+**Verificación:** 6 ITs y 2 unitarios nuevos que cubren el default por empresa, el override, el
+`FctProp` de dos decimales en el XML, el mensaje accionable y el acumulado del factor sugerido.
+
+# Sprint 8 (cont.) — Follow-ups de operación
+
+- **Resolución automática de los envíos de libro.** El POST solo devuelve un TrackID y la
+  resolución llegaba únicamente si alguien la pedía a mano, así que un libro **RECHAZADO** podía
+  pasar inadvertido justo cuando más urge reaccionar. Un segundo `@Scheduled` en
+  `RevisionLibroJob` (cron propio, `app.libro.revision-auto.cron-estado`) consulta a diario los
+  envíos sin estado terminal y lo persiste. No mira el día del mes ni un período concreto, a
+  diferencia de la revisión: un envío espera resolución desde que se hace. Cada TrackID se
+  consulta en su propia transacción, así que uno que falle no se lleva el lote — con test que lo
+  fija.
+- **Override de `fctProp` en `Libros.tsx`**, visible solo cuando el período trae IVA de uso
+  común. Al alinear el tipo del frontend con el DTO apareció otra brecha: `LibroResumenTipo` no
+  declaraba ninguno de los campos de uso común, así que esa parte del contrato era invisible
+  para la UI.
+- **Actions de CI a `@v5`**, con lo que se va el aviso de Node 20 deprecado.
+
+**Verificación:** suite completa en verde — **357 unitarios + 72 ITs**, 0 fallos y 0 errores.
 
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

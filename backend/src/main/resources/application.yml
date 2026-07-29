@@ -112,3 +112,7 @@ app:
       dia: ${APP_LIBRO_REVISION_DIA:5}
       # Corre a diario; re-evalua el marcador hasta que el libro se envia.
       cron: ${APP_LIBRO_REVISION_CRON:0 30 8 * * *}
+      # Consulta al SII el estado de los envios que aun no lo tienen resuelto.
+      # Media hora despues de la revision para no solapar dos rondas de tokens.
+      # No depende del dia del mes: un envio espera resolucion desde que se hace.
+      cron-estado: ${APP_LIBRO_ESTADO_CRON:0 0 9 * * *}

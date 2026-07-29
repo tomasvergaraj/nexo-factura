@@ -28,6 +28,11 @@ export function Libros() {
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [refrescando, setRefrescando] = useState<string | null>(null);
+  // Override del factor de proporcionalidad para ESTE período. Se separa del
+  // valor escrito para no recargar el libro en cada tecla: solo "Aplicar" (o
+  // limpiar el campo) dispara el refetch.
+  const [factorTexto, setFactorTexto] = useState("");
+  const [factorAplicado, setFactorAplicado] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     let vigente = true;
@@ -35,13 +40,19 @@ export function Libros() {
     setError(null);
     setEnvios([]);
     Promise.all([
-      getLibro(empresaIdActual(), tipo, periodo),
+      getLibro(empresaIdActual(), tipo, periodo, factorAplicado),
       getEnviosLibro(empresaIdActual(), tipo, periodo),
     ])
       .then(([l, e]) => { if (vigente) { setLibro(l); setEnvios(e); } })
       .catch((e) => { if (vigente) setError(mensajeError(e, "No se pudo cargar el libro.")); })
       .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
+  }, [tipo, periodo, factorAplicado]);
+
+  // Cambiar de libro o de período descarta el override: era de ese período.
+  useEffect(() => {
+    setFactorTexto("");
+    setFactorAplicado(undefined);
   }, [tipo, periodo]);
 
   // Avisos de la revisión automática (por empresa, no por período): se cargan una
@@ -65,7 +76,7 @@ export function Libros() {
     setEnviando(true);
     setError(null);
     try {
-      await enviarLibro(empresaIdActual(), tipo, periodo);
+      await enviarLibro(empresaIdActual(), tipo, periodo, factorAplicado);
       setConfirmando(false);
       // Releo la lista para mostrar el envío recién creado con su TrackID, y los
       // pendientes: el libro recién enviado deja de figurar como pendiente.
@@ -99,7 +110,7 @@ export function Libros() {
     setDescargando(true);
     setError(null);
     try {
-      const xml = await getLibroXml(empresaIdActual(), tipo, periodo);
+      const xml = await getLibroXml(empresaIdActual(), tipo, periodo, factorAplicado);
       const nombre = `libro-${tipo === "VENTA" ? "ventas" : "compras"}-${periodo}.xml`;
       const url = URL.createObjectURL(xml);
       const a = document.createElement("a");
@@ -115,6 +126,17 @@ export function Libros() {
   }
 
   const conMovimiento = libro && !libro.sinMovimiento;
+  const ivaUsoComun = libro?.resumen.reduce((suma, r) => suma + r.ivaUsoComun, 0) ?? 0;
+  const creditoUsoComun = libro?.resumen.reduce((suma, r) => suma + r.creditoIvaUsoComun, 0) ?? 0;
+  const conUsoComun = !!conMovimiento && ivaUsoComun > 0;
+  // Es una proporción: fuera de [0,1] el SII rechazaría el libro.
+  const factorValido = /^\d*\.?\d+$/.test(factorTexto.trim().replace(",", "."))
+    && Number(factorTexto.trim().replace(",", ".")) >= 0
+    && Number(factorTexto.trim().replace(",", ".")) <= 1;
+
+  function aplicarFactor() {
+    if (factorValido) setFactorAplicado(Number(factorTexto.trim().replace(",", ".")));
+  }
 
   return (
     <AppShell titulo="Libros de compra y venta">
@@ -163,6 +185,55 @@ export function Libros() {
         </div>
 
         {error && <Alert>{error}</Alert>}
+
+        {/* Solo aparece cuando el período trae IVA de uso común, que es cuando el
+            XML exige FctProp. Sin factor el libro no se puede firmar, así que el
+            aviso dice dónde configurarlo en vez de dejar reventar el envío. */}
+        {conUsoComun && (
+          <Card className={`p-5 ${libro!.fctProp == null ? "border-danger/40" : ""}`}>
+            <h2 className="font-display text-sm font-semibold text-ink">
+              IVA de uso común en este período
+            </h2>
+            {libro!.fctProp == null ? (
+              <p className="mt-1 text-xs leading-relaxed text-danger">
+                Este libro tiene IVA de uso común y no hay factor de proporcionalidad, así que no
+                se puede enviar. Configúralo en Configuración, o informa uno solo para este período.
+              </p>
+            ) : (
+              <p className="mt-1 text-xs leading-relaxed text-slate">
+                Se está aplicando el factor{" "}
+                <span className="font-semibold text-ink tnum">{libro!.fctProp.toFixed(2)}</span>
+                {factorAplicado == null && <> (el configurado en la empresa)</>}: crédito
+                proporcional de {formatCLP(creditoUsoComun)} sobre {formatCLP(ivaUsoComun)} de IVA
+                de uso común.
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Input
+                inputMode="decimal"
+                value={factorTexto}
+                placeholder="0.60"
+                className="w-28"
+                aria-label="Factor de proporcionalidad para este período"
+                onChange={(e) => setFactorTexto(e.target.value)}
+              />
+              <Button variant="secondary" onClick={aplicarFactor} disabled={!factorValido}>
+                Aplicar a este período
+              </Button>
+              {factorAplicado != null && (
+                <Button
+                  variant="secondary"
+                  onClick={() => { setFactorTexto(""); setFactorAplicado(undefined); }}
+                >
+                  Usar el de la empresa
+                </Button>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-slate-soft">
+              Solo para este período; no cambia el factor configurado en la empresa.
+            </p>
+          </Card>
+        )}
 
         {pendientes.length > 0 && (
           <Card className="overflow-hidden border-cobalt/30">

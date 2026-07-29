@@ -404,6 +404,11 @@ export interface LibroResumenTipo {
   otrosImpuestos: number;
   ivaRetenido: number;
   total: number;
+  /** Compras: IVA de uso común del tipo. Si es > 0, el XML exige el factor. */
+  ivaUsoComun: number;
+  operacionesIvaUsoComun: number;
+  /** round(ivaUsoComun × fctProp); 0 si no hay factor. */
+  creditoIvaUsoComun: number;
 }
 
 export interface LibroDetalleDoc {
@@ -439,6 +444,11 @@ export interface LibroResponse {
   detalle: LibroDetalleDoc[];
   totales: LibroTotales;
   sinMovimiento: boolean;
+  /**
+   * Factor de proporcionalidad aplicado: el override del período si se pidió y,
+   * si no, el configurado en la empresa. Null si no hay ninguno de los dos.
+   */
+  fctProp: number | null;
 }
 
 export type EstadoEnvioLibro =

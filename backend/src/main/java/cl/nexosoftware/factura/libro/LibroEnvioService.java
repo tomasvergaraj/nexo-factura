@@ -91,6 +91,22 @@ public class LibroEnvioService {
     }
 
     /**
+     * Envios que todavia esperan resolucion del SII (nunca consultados o en
+     * proceso). Es la lista de trabajo de la consulta automatica de estados: el
+     * job la recorre y llama a {@link #estadoEnvio} por cada uno, de modo que
+     * cada consulta corra en su propia transaccion y un TrackID que falle no
+     * arrastre a los demas.
+     */
+    @Transactional(readOnly = true)
+    public List<EnvioLibroResponse> pendientesDeResolucion(Long empresaId) {
+        return envioLibroRepository
+                .findPendientesDeResolucion(empresaId, SiiGateway.EstadoEnvio.RECIBIDO.name())
+                .stream()
+                .map(LibroEnvioService::aResponse)
+                .toList();
+    }
+
+    /**
      * Estado del envio del libro por TrackID (QueryEstUp del canal clasico).
      * Persiste el estado consultado en el registro del envio para que la UI lo
      * muestre sin volver a llamar al SII.

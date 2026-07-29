@@ -74,6 +74,10 @@ dobles de firma y de SII — ver [Perfiles](#perfiles-real-en-prod-simulado-en-d
   (lo firma y valida contra el esquema, sin enviarlo) y deja un marcador `PREPARADO`
   o `ERROR` con el motivo, para que el envío mensual no se pase por alto. El envío
   sigue siendo manual.
+- **Resolución automática de los envíos**: el POST del libro solo devuelve un TrackID,
+  así que un segundo job diario consulta al SII el estado de los envíos que aún no lo
+  tienen resuelto y lo persiste. Un libro **rechazado** deja de depender de que alguien
+  se acuerde de preguntar por su TrackID.
 - **RCOF** (Reporte de Consumo de Folios) diario para boletas, con su XML `ConsumoFolios`.
 - **Panel** con indicadores de emisión del período y estado ante el SII.
 
@@ -286,7 +290,7 @@ tributario** (`CalculadoraImpuestosTest`) y las de **contingencia/reenvío**
 > Testcontainers falla con *"Could not find a valid Docker environment"*; se ajusta con
 > `-Ddocker.api.version=…`.
 
-Estado actual de la suite: **354 tests unitarios + 72 de integración, 0 fallos y 0 errores**.
+Estado actual de la suite: **357 tests unitarios + 72 de integración, 0 fallos y 0 errores**.
 
 CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `mvn -B verify` para el
 backend y `npm ci && npm run build` para el frontend, en cada push a `main` y cada PR.
@@ -316,6 +320,7 @@ El backend se configura por variables de entorno (perfiles `dev` / `prod`):
 | `APP_LIBRO_REVISION_ENABLED`    | Revisión automática de libros IECV pendientes           | `true`                   |
 | `APP_LIBRO_REVISION_DIA`        | Día del mes desde el que se revisa el mes anterior      | `5`                      |
 | `APP_LIBRO_REVISION_CRON`       | Cron de la revisión                                     | `0 30 8 * * *`           |
+| `APP_LIBRO_ESTADO_CRON`         | Cron de la consulta de estados de envío al SII          | `0 0 9 * * *`            |
 
 En **producción** el arranque **falla si falta `APP_JWT_SECRET`** (no hay default fuera
 de desarrollo).
