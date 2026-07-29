@@ -23,9 +23,15 @@ import java.util.Set;
  * El RCOF resume, por tipo de boleta, los folios utilizados (vigentes) y anulados
  * y los montos asociados (los anulados se cuentan pero no suman monto). Un folio
  * cuyo documento no es tributariamente valido —ANULADO o RECHAZADO por el SII—
- * va a anulados: ver {@link #FOLIO_SIN_DOCUMENTO_VALIDO}. Es un reporte real y
- * verificable; el envio firmado al SII queda fuera de alcance (requiere
- * certificado y secuencia de envio real), igual que la firma del DTE.
+ * va a anulados: ver {@link #FOLIO_SIN_DOCUMENTO_VALIDO}.
+ *
+ * <p><b>El RCOF se genera pero NO se firma ni se envia al SII.</b> Se difirio
+ * cuando no habia certificado real; ese bloqueo desaparecio en el Sprint 7, que
+ * trajo certificado y resolucion por empresa y el canal de boleta en produccion.
+ * Lo que falta hoy es el canal de envio del ConsumoFolios y una secuencia de
+ * envio de verdad — {@link #SEC_ENVIO_PLACEHOLDER} esta fijo en 1, y el SII
+ * espera que incremente. Mientras tanto, un emisor de boletas queda con el
+ * reporte a mano pero sin presentarlo.
  */
 @Service
 @RequiredArgsConstructor

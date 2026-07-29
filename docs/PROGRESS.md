@@ -594,4 +594,11 @@ libros no se podían enviar **en absoluto**.
   defendibles y sin contador que revise después.
 
 # Pendiente
+
+> **Lo más importante que queda: el RCOF no se envía al SII** ([ROADMAP.md §15](ROADMAP.md)).
+> El sistema emite boletas en producción, lo que genera la obligación recurrente de presentar el
+> Consumo de Folios, y hoy sólo se genera el reporte y su XML **sin firmar**. `SiiGateway` no
+> tiene método para el RCOF. Este documento siempre dijo «sin firmar/enviar»; lo que cambió es
+> que el motivo declarado —«no hay certificado real»— dejó de aplicar en el Sprint 7.
+
 Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

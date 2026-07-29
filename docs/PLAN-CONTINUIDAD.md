@@ -9,44 +9,79 @@
 
 ## Empieza aquí — mensaje para la próxima sesión
 
-Sesión del **2026-07-29**. **Las fases 1, 2 y 3 están cerradas** y de la 4 se agotaron todos los
-follow-ups accionables salvo `MedioPago`/`GeoRefEmision`. Todo empujado a `main` y validado en
-CI; el árbol está limpio y sincronizado con `origin/main`.
+Sesión del **2026-07-29**. **Las cuatro fases de este plan están cerradas**: de la 4 se agotaron
+todos los follow-ups accionables salvo dos campos opcionales del DTE. Todo empujado a `main` y
+validado en CI; el árbol está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-**357 tests unitarios + 74 de integración, 0 fallos y 0 errores**, y CI los ejecuta en cada push
-—verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden
-enviar, y la resolución de los envíos llega sola en vez de haber que pedirla por TrackID.
+**357 tests unitarios + 74 de integración, 0 fallos y 0 errores**, ejecutados por CI en cada push
+—verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden enviar,
+la resolución de los envíos llega sola, y el RCOF dejó de sobredeclarar boletas rechazadas.
 
-### Qué hacer
+### Qué hacer, en este orden
 
-**Fase 4, lo que queda** — sólo `MedioPago`/`GeoRefEmision`, dos campos opcionales del DTE que
-nadie ha pedido, y la verificación de la FRMA del CAF, que **no es accionable** (el SII no
-publica la clave pública por IDK). La tabla completa está al final. En la práctica, este plan
-ya no tiene trabajo pendiente: cuando se archive, su contenido definitivo va a `PROGRESS.md`.
+**1. El RCOF no se envía al SII, y eso pesa más que todo lo que queda en la lista de abajo.**
+*Hallazgo de esta sesión; no estaba en ninguna fase.* El sistema **emite boletas en producción**,
+lo que genera la obligación recurrente de presentar el **Consumo de Folios**, y
+[`RcofController`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofController.java)
+sólo expone dos GET: el reporte en JSON y el XML **sin firmar**. `SiiGateway` tiene `enviar`,
+`enviarLibro` y `enviarLote` — **no hay método para el RCOF**.
 
-> **Al retomar, no confíes en esta lista sin mirar el código.** De los cuatro follow-ups que
-> quedaban, **uno ya estaba implementado** (el signo de las NC) y otro subestimaba el problema.
-> Verificalo antes de ponerte a trabajar sobre algo que quizá ya existe.
+No es un descuido oculto: el `ROADMAP` siempre dijo «sin firmar/enviar». Lo que cambió es el
+motivo. El javadoc justificaba el diferimiento en que *«requiere certificado real, igual que la
+firma del DTE»*, y **ese bloqueo desapareció en el Sprint 7**: hay certificado y resolución por
+empresa, y el canal de boleta corre en producción. Ya se corrigió ese comentario.
 
-**La verificación que quedaba abierta ya está resuelta**, y confirma el diseño de la Fase 2: la
-emisión en producción arrancó en **julio de 2026**, así que para cualquier período de 2026 el
-acumulado desde enero **no puede** estar completo en el sistema. El factor calculado saldría
-corto con certeza, no por hipótesis. Revisable a partir de 2027, y el propio `primeraEmision`
-del factor sugerido deja ver cuándo deja de aplicar el argumento.
+Lo que falta para cerrarlo:
+- Firmar el `ConsumoFolios` y postearlo. [`LibroEnvioService`](../backend/src/main/java/cl/nexosoftware/factura/libro/LibroEnvioService.java)
+  es la plantilla exacta: construir → firmar enveloped → validar contra el XSD → `SiiGateway` →
+  persistir el TrackID. Se puede copiar la forma casi tal cual.
+- **`SEC_ENVIO_PLACEHOLDER` está fijo en 1** y el SII espera que la secuencia incremente. Hace
+  falta persistirla por empresa, igual que se persiste el TrackID del libro.
+- Reutilizar lo ya construido en esta sesión: el job de consulta de estados y el patrón de
+  «una transacción por ítem, un fallo no aborta el lote».
 
-### Dos cosas que conviene saber antes de tocar nada
+*Antes de empezar, confirmá con el usuario la periodicidad exigida y desde cuándo le corre.* Es
+una obligación tributaria real y no la puedo verificar desde el código.
+
+**2. Archivar este plan.** Ya no tiene trabajo pendiente. Su contenido definitivo va a
+`PROGRESS.md` (Sprint 8 ya está escrito); este archivo se borra o se mueve a un histórico.
+
+**3. `MedioPago` / `GeoRefEmision`** — campos opcionales del DTE que nadie ha pedido. La
+verificación de la FRMA del CAF **no es accionable**: el SII no publica la clave pública por IDK.
+
+> **No confíes en la lista de la Fase 4 sin mirar el código.** De los cuatro follow-ups que
+> quedaban, **uno ya estaba implementado** (el signo de las NC, con tests) y otro subestimaba el
+> problema. Verificalo antes de ponerte a trabajar sobre algo que quizá ya existe.
+
+### Lo que conviene saber antes de tocar nada
 
 - **El entorno no tiene Java ni Maven.** Todo pasa por el contenedor `maven`. Los comandos
   exactos están abajo, y el de `verify` **no funciona sin** el montaje del socket y el
-  `TESTCONTAINERS_HOST_OVERRIDE`.
-- **La documentación de este repo describía cosas que no eran ciertas.** Tres ejemplos que
-  costó descubrir: los ITs «corrían en CI» (no existía CI), el fixture `cert_prueba.p12`
-  estaba «commiteado» (lo excluía el `.gitignore`) y el fallo de Testcontainers se atribuía a
-  Docker anidado (era la versión de API). **Verificá las afirmaciones antes de apoyarte en
-  ellas**, sobre todo las de las tablas de verificación de `PROGRESS.md`. Lo que sí está
-  confirmado de primera mano: la emisión de humo en producción sobre palena, que el usuario
-  dio por verificada y funcionando.
+  `TESTCONTAINERS_HOST_OVERRIDE`. Para iterar sobre un solo IT hace falta apagar Surefire con
+  **su** propiedad, `-Dsurefire.failIfNoSpecifiedTests=false`; la genérica no sirve.
+- **El usuario no tiene contador: declara él mismo.** Dos consecuencias. (1) Ningún texto de la
+  UI debe derivar una decisión tributaria a un asesor —había dos así y hubo que reescribirlos—;
+  la referencia correcta es el **F29**. (2) No hay una segunda mirada profesional después del
+  sistema, así que ante semántica tributaria con más de una lectura defendible, **preguntá al
+  usuario** en vez de elegir por él. Así se resolvió lo del `RECHAZADO` en el RCOF.
+- **La documentación de este repo ha afirmado cosas falsas, repetidamente.** Cinco casos
+  confirmados: los ITs «corrían en CI» (no existía CI); el fixture `cert_prueba.p12` estaba
+  «commiteado» (lo excluía el `.gitignore`); el fallo de Testcontainers se atribuía a Docker
+  anidado (era la versión de API); el plan daba por hecho que `Libros.tsx` permitía sobreescribir
+  `fctProp` por período (esa pantalla no lo mencionaba en absoluto); y especificaba
+  `NUMERIC(3,2)` para una columna que Hibernate exige como `float(53)` —eso tumbaba el contexto
+  entero, y lo cazó un IT, no la compilación—. **Verificá antes de apoyarte en cualquier
+  afirmación**, sobre todo si es la premisa de lo que vas a hacer. Cuando encuentres una falsa,
+  dejala escrita con nombre y apellido en vez de corregirla en silencio.
+
+### Lo confirmado de primera mano en esta sesión
+
+- CI existe, corre `mvn -B verify` completo y **está verde**; el badge del README refleja el
+  último run, así que esa afirmación se mantiene sola en vez de depender de que alguien la
+  actualice. El runner trae Docker 28.0.4 (API 1.48, mín. 1.24): el pin a `1.44` entra holgado.
+- La suite entera pasa local **y** en el runner, con los mismos números.
+- La emisión de humo en producción sobre palena, que el usuario dio por verificada.
 
 ---
 

@@ -128,7 +128,9 @@ Commit `e1e834f`, solo frontend (ver [PROGRESS.md](PROGRESS.md)). Cierra los **c
 | Frontend desacoplado por un flag global hardcodeado | ✅ **Cerrado** en el Sprint 1 (`VITE_USE_MOCK`, default `false`) y completado en el Sprint 2 y en la §9: ya no queda ninguna pantalla mock ni `Placeholder`. |
 | Encoding/canonicalización del XML sin resolver | ✅ **Cerrado** en el Sprint 6: C14N inclusive (la que fija el XSD oficial de la firma), DTE marshallado **sin indentación** (una línea — elimina la deriva byte-a-byte del TED y de la firma), prólogo ISO-8859-1 coherente extremo a extremo y TED como string aplanado de fuente única. |
 
-**Saldo**: los cuatro riesgos de la §3 están cerrados y el backlog priorizado (P0/P1/P2) está **completo**. Con el Sprint 7 (§12) el sistema además **opera en producción ante el SII**. Lo que queda son los follow-ups documentados del §11, del §12 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md), más la **infraestructura de tests y CI** en curso ([PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md)).
+**Saldo**: los cuatro riesgos de la §3 están cerrados y el backlog priorizado (P0/P1/P2) está **completo**. Con el Sprint 7 (§12) el sistema además **opera en producción ante el SII**, y la infraestructura de tests y CI (§13) y el factor de proporcionalidad (§14) quedaron cerrados en el Sprint 8.
+
+**La brecha abierta más importante es la §15**: el sistema emite boletas en producción pero no presenta el RCOF. Por debajo de eso quedan los follow-ups documentados del §11, del §12 y de [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md).
 
 ## 11. Hecho en el Sprint 6 (P0-4/5/6: integración tributaria real)
 
@@ -162,3 +164,16 @@ Cerrado: **la suite completa en verde**, y un workflow de GitHub Actions que la 
 Detalle en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md) §Fase 2. El libro de compras con IVA de uso común exige `FctProp` y nadie lo informaba: el job pasaba `null` y **la UI ni siquiera ofrecía dónde ponerlo**, así que esos períodos quedaban en `ERROR` permanente y no se podían enviar en absoluto desde la aplicación.
 
 Se resolvió con un factor **por empresa** (`V17`, editable en Configuración) que actúa de default, dejando intacto el override por período de la API. La decisión de no calcularlo automáticamente desde las ventas es deliberada: la fórmula legal necesita el acumulado del año completo y el sistema sólo conoce los DTE que emitió él, así que un cálculo automático sería *equivocado con más confianza* dentro de una declaración tributaria. En su lugar se ofrece un **factor sugerido** junto al campo, acompañado de cuántos documentos lo respaldan y desde qué fecha, para que quien decide pueda juzgar si el acumulado está completo. Cada envío guarda además el factor que declaró, porque el de la empresa es editable.
+
+## 15. El RCOF no se envía al SII (pendiente — la brecha abierta más importante)
+
+*Detectado el 2026-07-29, fuera de toda fase.* El sistema **emite boletas electrónicas en producción**, lo que genera la obligación recurrente de presentar el **Consumo de Folios**. Hoy [`RcofController`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofController.java) sólo expone dos GET —el reporte en JSON y el XML **sin firmar**— y `SiiGateway` no tiene ningún método para el RCOF: tiene `enviar`, `enviarLibro` y `enviarLote`.
+
+No es un descuido oculto: este documento siempre dijo «sin firmar/enviar» (§P1-2). Lo que cambió es el **motivo**. El código justificaba el diferimiento en que *«requiere certificado real, igual que la firma del DTE»*, y ese bloqueo desapareció en el Sprint 7: hay certificado y resolución por empresa, y el canal de boleta corre en producción. La razón documentada ya no se sostiene.
+
+Para cerrarlo:
+- **Firmar y postear el `ConsumoFolios`.** [`LibroEnvioService`](../backend/src/main/java/cl/nexosoftware/factura/libro/LibroEnvioService.java) es la plantilla exacta: construir → firmar enveloped → validar contra el XSD → `SiiGateway` → persistir el TrackID.
+- **La secuencia de envío.** `RcofService.SEC_ENVIO_PLACEHOLDER` está fijo en `1` y el SII espera que incremente; hay que persistirla por empresa.
+- **Seguimiento del estado**, reutilizando el job de consulta y el patrón de «una transacción por ítem» del Sprint 8.
+
+*Antes de implementarlo hay que confirmar con el usuario la periodicidad exigida y desde cuándo le corre:* es una obligación tributaria real y no se puede verificar desde el código.
