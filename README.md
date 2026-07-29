@@ -8,6 +8,7 @@
 
 Backend en Java 21 / Spring Boot 3 · Frontend en React 18 / TypeScript · PostgreSQL
 
+[![CI](https://github.com/tomasvergaraj/nexo-factura/actions/workflows/ci.yml/badge.svg)](https://github.com/tomasvergaraj/nexo-factura/actions/workflows/ci.yml)
 ![Java](https://img.shields.io/badge/Java-21-e76f00)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6db33f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
@@ -283,8 +284,11 @@ tributario** (`CalculadoraImpuestosTest`) y las de **contingencia/reenvío**
 > Testcontainers falla con *"Could not find a valid Docker environment"*; se ajusta con
 > `-Ddocker.api.version=…`.
 
+Estado actual de la suite: **352 tests unitarios + 66 de integración, 0 fallos y 0 errores**.
+
 CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `mvn -B verify` para el
 backend y `npm ci && npm run build` para el frontend, en cada push a `main` y cada PR.
+El badge de arriba refleja el último run, así que esta afirmación se mantiene sola.
 
 ---
 

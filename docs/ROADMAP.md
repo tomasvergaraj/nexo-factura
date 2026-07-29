@@ -151,6 +151,8 @@ El sistema pasa de **un emisor con activos de ambiente** a plataforma **multi-em
 
 Follow-ups del Sprint 7: **factor de proporcionalidad del IVA de uso común** persistido —sin él, el job no puede preparar un libro de compras que lo tenga y el marcador queda en `ERROR`—, y consulta automática del estado de los envíos de libro (hoy es manual por TrackID).
 
-## 13. Infraestructura de tests y CI (en curso)
+## 13. Infraestructura de tests y CI (hecha)
 
-Estado vivo en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). En una frase: los ITs que todos los sprints daban por «corren en CI» **nunca se ejecutaron en ninguna parte** (faltaba `maven-failsafe-plugin`), y al hacerlos correr aparecieron tres defectos reales de infraestructura de test más uno de código de producción (`SiiStubController` acoplado a una clase concreta).
+Detalle en [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). En una frase: los ITs que todos los sprints daban por «corren en CI» **nunca se ejecutaron en ninguna parte** (faltaba `maven-failsafe-plugin`), y al hacerlos correr aparecieron cuatro defectos reales de infraestructura de test más uno de código de producción (`SiiStubController` acoplado a una clase concreta).
+
+Cerrado: **352 unitarios + 66 ITs en verde**, y un workflow de GitHub Actions que los ejecuta en cada push y cada PR — **validado con un push real**, no supuesto. Queda como límite conocido que el `mvn verify` local exige el montaje del socket de Docker y `TESTCONTAINERS_HOST_OVERRIDE`, porque Maven corre en contenedor; en CI no hace falta.

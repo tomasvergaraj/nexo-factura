@@ -9,32 +9,24 @@
 
 ## Empieza aquí — mensaje para la próxima sesión
 
-Sesión del **2026-07-29**. La Fase 3 quedó cerrada y de la Fase 1 sólo falta validar el job
-`backend` de CI con un push real (1.3): todo lo demás —el binding de los ITs, el desbloqueo de
-Testcontainers y el fallout completo de la suite— está hecho. El árbol está limpio y **nada
-de esto se ha empujado todavía**: `git log origin/main..HEAD` es la lista exacta.
+Sesión del **2026-07-29**. **Las fases 1 y 3 están cerradas**, empujadas a `main` y
+validadas en CI. El árbol está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-`mvn verify` **entero en verde**: **352/352 unitarios + 66/66 tests de integración**, 0 fallos,
-0 errores, en 1:47 min. Las 14 clases de IT pasan. Es la primera vez que la suite completa
-—unitarios e integración— corre limpia de punta a punta.
+CI **verde en su primera ejecución** ([run 30467377561](https://github.com/tomasvergaraj/nexo-factura/actions/runs/30467377561)):
+**352/352 unitarios + 66/66 tests de integración**, 0 fallos y 0 errores, en un runner limpio.
+Es la primera vez que la suite completa corre de punta a punta, y ahora corre sola en cada push.
 
 ### Qué hacer, en este orden
 
-**1. Push y validación de CI** — *requiere decisión del usuario, preguntá antes*
-`.github/workflows/ci.yml` está escrito pero **nunca se ha ejecutado**; solo un push lo
-valida. Ya no hay ningún test rojo que lo tiña, así que la primera señal de CI puede ser
-verde y servir de línea base. Vale la pena mirar en el log del job el paso *«Versión de
-Docker del runner»*: si su API no cubre `1.44`, hay que bajar `-Ddocker.api.version`.
-El job `frontend` se validó a mano en esta máquina (`npm ci` + `npm run build`: `tsc` limpio
-y `vite build` en 1.93 s), así que el riesgo que queda está todo del lado del `backend`.
+**1. Fase 2 — `fctProp`** — *decisión de diseño con recomendación puesta, falta el visto bueno*
+El factor va **por empresa** o **calculado por período** desde las ventas. La recomendación
+—con el razonamiento completo al final de la sección de la Fase 2— es **por empresa**, y no
+por simplicidad: el cálculo automático no sería más correcto, sería *equivocado con más
+confianza*, porque el sistema no puede garantizar el acumulado de ventas desde enero que
+exige la fórmula. Falta que el usuario la confirme.
 
-**2. Fase 2 — `fctProp`** — *bloqueada por una decisión de diseño, preguntá primero*
-No la empieces sin resolver con el usuario si el factor va **por empresa** (simple, desbloquea
-el job) o **calculado por período** desde las ventas (más correcto legalmente, bastante más
-trabajo). Está planteada al final de la sección de la Fase 2.
-
-**3. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
+**2. Fase 4** — follow-ups sueltos, ninguno urgente. El de mejor relación valor/esfuerzo es la
 consulta automática del estado de los envíos de libro: hoy es manual por TrackID y el job ya
 tiene el andamiaje.
 
@@ -96,7 +88,8 @@ detecta este plan.
 
 ## Fase 1 — CI real y ejecución de los ITs
 
-**Estado: 🟡 en curso**
+**Estado: ✅ hecha** — los 14 ITs corren de verdad, la suite entera está verde y CI la
+ejecuta en cada push (validado, no supuesto).
 
 ### El hallazgo que motiva la fase
 
@@ -318,21 +311,30 @@ Dos precauciones que se anotaron aquí y que, al ejecutarlas, resultaron **no ap
 - **`APP_MASTER_KEY` en el contexto de test.** No hubo nada que configurar; el cifrado del
   `SecretoTextoConverter` funciona en los ITs tal cual (`CafCifradoIT` ya lo cubría).
 
-### 1.3 — Workflow de GitHub Actions · ✅ escrito; `frontend` validado a mano, `backend` sin validar
+### 1.3 — Workflow de GitHub Actions · ✅ hecho — verde en la primera ejecución
 
 - [x] `.github/workflows/ci.yml` con dos jobs: `backend` (JDK 21 temurin, caché maven,
       `mvn -B verify`, sube los reportes de test como artefacto) y `frontend`
       (Node 20, `npm ci`, `npm run build`). Dispara en `push` a `main`, `pull_request`
       y `workflow_dispatch`.
-- [x] Job `frontend` **validado a mano** en esta máquina, que es lo único de CI comprobable
-      sin push: `npm ci` + `npm run build` → `tsc` sin errores y `vite build` en 1.93 s
-      (1664 módulos). El `package-lock.json` sí está versionado y el script `build` es
-      `tsc && vite build`, tal como asume el workflow. Vite 6 soporta el Node 20 del job.
-- [ ] **Validar el job `backend` con un push real.** Es lo único que no se puede comprobar
-      desde esta máquina: depende del daemon Docker del runner.
-- ⚠️ **Punto frágil:** el job imprime a propósito la versión de API del daemon del runner.
-      Si ese Docker no llega a `1.44`, hay que bajar `-Ddocker.api.version` a lo que soporte
-      (cualquier Docker ≥ 25 cubre 1.44, así que no debería pasar).
+- [x] Job `frontend` **validado a mano** antes del push: `npm ci` + `npm run build` → `tsc`
+      sin errores y `vite build` en 1.93 s (1664 módulos). El `package-lock.json` sí está
+      versionado y el script `build` es `tsc && vite build`, tal como asume el workflow.
+- [x] **Validado con un push real.** [Run 30467377561](https://github.com/tomasvergaraj/nexo-factura/actions/runs/30467377561),
+      el primero del proyecto, **verde en los dos jobs**: `backend` 1m25s (352 unitarios +
+      66 ITs, 0 fallos, 0 errores, BUILD SUCCESS en 1:09) y `frontend` 20s. Los ITs levantan
+      PostgreSQL con Testcontainers en el runner sin ninguna configuración extra: el
+      `TESTCONTAINERS_HOST_OVERRIDE` es sólo para correr Maven en contenedor localmente.
+- ✅ **El punto frágil no lo era.** El paso de diagnóstico imprimió
+      `Server 28.0.4 — API 1.48 (min 1.24)`: el pin a `1.44` entra holgado y no hubo que
+      tocar `-Ddocker.api.version`. Ojo con la asimetría, que es la que causó todo el
+      problema local: el runner declara `min 1.24` y acepta APIs viejas, mientras que el
+      Docker 29.2.1 de la máquina de desarrollo declara `min 1.44` y responde a las
+      anteriores con el `/info` degenerado de la sección 1.2a.
+- ⚠️ **Aviso pendiente (no rompe nada):** GitHub anota que `actions/checkout@v4`,
+      `setup-java@v4`, `setup-node@v4` y `upload-artifact@v4` apuntan a Node 20, ya
+      deprecado, y el runner los fuerza a Node 24. Subirlos a `@v5` es un follow-up de la
+      Fase 4.
 
 #### Bloqueador de CI encontrado y corregido
 
@@ -395,6 +397,35 @@ el libro trae IVA de uso común. Consecuencia: **cualquier período con uso com�
 > desde las ventas del período es más correcto pero bastante más trabajo. Si se decide
 > cambiar de enfoque, esta fase se replantea.
 
+**Recomendación de la sesión del 2026-07-29 (pendiente del visto bueno del usuario): ir con
+el factor por empresa** — pero el encuadre de arriba está mal planteado. No es
+«simple vs. legalmente correcto»:
+
+- **El cálculo automático no sería más correcto, sería equivocado con más confianza.** La
+  fórmula necesita las ventas **acumuladas desde enero**, y el sistema sólo conoce los DTE que
+  emitió él. Si la empresa adoptó nexo-factura a mitad de año o vende por otro canal, el
+  acumulado está incompleto y el factor sale mal **en silencio, dentro de una declaración
+  tributaria**. En este dominio, «automático pero mal» es peor que «manual pero del contador»,
+  que además es quien responde por ese número.
+- **El costo real es bajo.** `fctProp` ya viaja como parámetro de punta a punta
+  (`LibroController` → `LibroService` → `LibroEnvioService` → generador). El campo por empresa
+  sólo aporta un default donde hoy el job pasa `null` a pelo:
+  [`RevisionLibroService`](../backend/src/main/java/cl/nexosoftware/factura/libro/RevisionLibroService.java)
+  líneas 63 y 73.
+
+Dos ajustes al checklist de arriba si se confirma este camino:
+
+1. **Persistir el factor usado en cada período**, no sólo el default de la empresa. Si alguien
+   edita la constante entre el primer envío y un reenvío del mismo período, hoy se declararían
+   dos números distintos para el mismo libro. El valor declarado tiene que ser reproducible.
+2. **Calcular un factor sugerido** con las ventas que el sistema sí tiene y mostrarlo junto al
+   campo como pista (*«según tus ventas registradas: 0.87»*), **nunca** como valor automático.
+   Captura casi todo el valor del cálculo por período a una fracción del costo.
+
+> Lo que no se puede verificar desde el código: si en el caso concreto de Nexo Software el
+> acumulado desde enero **sí** está completo en el sistema, el primer argumento pierde fuerza
+> y el cálculo por período se vuelve defendible. Conviene confirmarlo con el contador.
+
 ---
 
 ## Fase 4 — Follow-ups (a elegir después)
@@ -404,6 +435,7 @@ el libro trae IVA de uso común. Consecuencia: **cualquier período con uso com�
 | Item | Nota |
 |---|---|
 | Consulta automática del estado de los envíos de libro | Hoy `estadoEnvio` es manual por TrackID; el job ya tiene el andamiaje |
+| Subir las actions de CI a `@v5` | Trivial. Hoy `checkout`, `setup-java`, `setup-node` y `upload-artifact` van en `@v4` (Node 20, deprecado): el run pasa pero con aviso |
 | Motivo de fallo por documento en el reenvío masivo | Follow-up de P2-5, mejora la operación real |
 | Signo de las NC en los totales del libro | Follow-up de P2-5 |
 | Semántica de `RECHAZADO` entre RCOF y libro | Follow-up de P2-5, hoy inconsistente |

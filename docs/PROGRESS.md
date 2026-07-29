@@ -485,8 +485,8 @@ contribuyente**. Era el último secreto en claro tras el multi-tenant.
 
 # Infraestructura de tests y CI (post-Sprint 7)
 
-> **En curso.** El estado vivo, con bitácora de ejecuciones y siguientes pasos, está en
-> [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Aquí solo el resumen de lo establecido.
+> **Cerrado.** La bitácora completa de las nueve ejecuciones está en
+> [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Aquí solo el resumen.
 
 Todos los sprints anteriores reportan los ITs como *«compilan; no ejecutables en este host,
 corren en CI»*. **Ese CI no existía, y los ITs nunca se ejecutaron en ninguna parte**:
@@ -508,7 +508,18 @@ Lo establecido hasta ahora:
   colgando para siempre por una barrera de 50 tareas sobre un pool de 16 hilos.
 - **`cert_prueba.p12` no estaba versionado**: la regla `*.p12` del `.gitignore` lo excluía, así
   que en un clon limpio no había fixture. (Este documento afirmaba que sí lo estaba.)
-- **`.github/workflows/ci.yml`** con backend (`mvn -B verify`) y frontend (`npm ci`, build).
+- **Cuarta causa raíz, ya cerrada:** `FolioServiceConcurrencyIT` sembraba su CAF **sin
+  `xmlCaf`**, y desde P0-5 el selector de folios descarta los CAF sin XML (sin él se puede
+  asignar folio pero no timbrar). Las 50 tareas fallaban con *«No hay folios disponibles»*.
+  El test nunca se había actualizado a ese contrato porque nunca se había ejecutado.
+- **Resultado final: `mvn verify` entero en verde** — **352 unitarios + 66 tests de
+  integración**, 0 fallos y 0 errores, con las 14 clases de IT pasando. De 53 errores a 0.
+- **`.github/workflows/ci.yml`** con backend (`mvn -B verify`) y frontend (`npm ci`, build),
+  **validado con un push real y verde en su primera ejecución**
+  ([run 30467377561](https://github.com/tomasvergaraj/nexo-factura/actions/runs/30467377561)):
+  `backend` 1m25s y `frontend` 20s. El runner trae Docker 28.0.4 (API 1.48, mín. 1.24), así
+  que el pin a `1.44` entra holgado. **Esta vez la afirmación «corre en CI» está verificada**,
+  que es justamente lo que no ocurría en los sprints 1–6.
 
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.
