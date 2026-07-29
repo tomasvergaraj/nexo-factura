@@ -9,20 +9,25 @@
 
 ## Empieza aquí — mensaje para la próxima sesión
 
-Sesión del **2026-07-29**. **Las fases 1, 2 y 3 están cerradas** y de la 4 se hicieron los tres
-follow-ups de mejor relación valor/esfuerzo. Todo empujado a `main` y validado en CI; el árbol
-está limpio y sincronizado con `origin/main`.
+Sesión del **2026-07-29**. **Las fases 1, 2 y 3 están cerradas** y de la 4 se agotaron todos los
+follow-ups accionables salvo `MedioPago`/`GeoRefEmision`. Todo empujado a `main` y validado en
+CI; el árbol está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-**357 tests unitarios + 73 de integración, 0 fallos y 0 errores**, y CI los ejecuta en cada push
+**357 tests unitarios + 74 de integración, 0 fallos y 0 errores**, y CI los ejecuta en cada push
 —verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden
 enviar, y la resolución de los envíos llega sola en vez de haber que pedirla por TrackID.
 
 ### Qué hacer
 
-**Fase 4, lo que queda** — nada urgente y nada bloqueado: motivo de fallo por documento en el
-reenvío masivo, signo de las NC en los totales del libro, semántica de `RECHAZADO` entre RCOF y
-libro, y `MedioPago`/`GeoRefEmision`. La tabla completa está al final.
+**Fase 4, lo que queda** — sólo `MedioPago`/`GeoRefEmision`, dos campos opcionales del DTE que
+nadie ha pedido, y la verificación de la FRMA del CAF, que **no es accionable** (el SII no
+publica la clave pública por IDK). La tabla completa está al final. En la práctica, este plan
+ya no tiene trabajo pendiente: cuando se archive, su contenido definitivo va a `PROGRESS.md`.
+
+> **Al retomar, no confíes en esta lista sin mirar el código.** De los cuatro follow-ups que
+> quedaban, **uno ya estaba implementado** (el signo de las NC) y otro subestimaba el problema.
+> Verificalo antes de ponerte a trabajar sobre algo que quizá ya existe.
 
 **La verificación que quedaba abierta ya está resuelta**, y confirma el diseño de la Fase 2: la
 emisión en producción arrancó en **julio de 2026**, así que para cualquier período de 2026 el
@@ -473,28 +478,32 @@ Dos ajustes al checklist de arriba, ambos ya implementados:
 | ~~Input de override de `fctProp` en `Libros.tsx`~~ | ✅ **hecha** — aparece solo cuando el período trae IVA de uso común |
 | ~~Motivo de fallo por documento en el reenvío masivo~~ | ✅ **hecha** — `ReenvioResultado` lleva el motivo por documento y el dashboard los lista. Sin él, la respuesta decía «N siguen en contingencia» y había que abrir cada uno |
 | ~~Signo de las NC en los totales del libro~~ | ⚠️ **ya estaba hecho** — `LibroService.signo()` resta los tipos 60/61 del agregado mostrado y deja el XML por `TpoDoc` en positivo, con tests. El follow-up estaba obsoleto, no pendiente |
-| Semántica de `RECHAZADO` entre RCOF y libro | ⛔ **requiere decisión del usuario** (ver abajo) — confirmada la inconsistencia |
+| ~~Semántica de `RECHAZADO` entre RCOF y libro~~ | ✅ **hecha** — una boleta rechazada por el SII pasa a folio **anulado** (sin montos), decisión del usuario. Ver abajo |
 | `MedioPago` / `GeoRefEmision` | Campos opcionales del DTE |
 | Verificación de la FRMA del CAF | **No accionable**: el SII no publica la clave pública por IDK. Queda como límite conocido documentado |
 
-### `RECHAZADO` entre RCOF y libro — la inconsistencia, confirmada
+### `RECHAZADO` entre RCOF y libro — resuelto el 2026-07-29
+
+**Decisión del usuario: la boleta rechazada cuenta como folio anulado**, sin montos
+(`RcofService.FOLIO_SIN_DOCUMENTO_VALIDO` agrupa `ANULADO` y `RECHAZADO`). El folio se sigue
+reportando —el RCOF existe para que ninguno del rango quede sin explicar— pero sus montos ya no
+entran, así que el RCOF deja de contradecir al libro del mismo período. Cubierto por IT.
+
+Lo que había antes, y por qué era la peor de las tres lecturas:
 
 - **Libro de ventas** ([`LibroDtos`](../backend/src/main/java/cl/nexosoftware/factura/libro/LibroDtos.java)):
   excluye los `RECHAZADO`. Un DTE rechazado por el SII no es una emisión válida.
-- **RCOF** ([`RcofService`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofService.java)
-  líneas 72–75): sólo separa `ANULADO` de todo lo demás, así que una boleta `RECHAZADO` cae en
-  «vigentes» y **suma montos**.
+- **RCOF** ([`RcofService`](../backend/src/main/java/cl/nexosoftware/factura/rcof/RcofService.java)):
+  sólo separaba `ANULADO` de todo lo demás, así que una boleta `RECHAZADO` caía en «vigentes» y
+  **sumaba montos**.
 
-Resultado: una boleta que el SII rechazó se declara como folio utilizado **con sus montos** en
-el RCOF, y a la vez no aparece en el libro. De las tres lecturas posibles, la actual es la peor:
-sobredeclara ventas que el propio SII rechazó.
+Resultado: una boleta que el SII rechazó se declaraba como folio utilizado **con sus montos**, y
+a la vez no aparecía en el libro. Sobredeclaraba ventas que el propio SII había rechazado.
 
-**No se tocó porque es una decisión tributaria, no técnica**, y afecta a un envío real al SII.
-Las dos salidas defendibles:
+La alternativa descartada era dejarla como utilizada pero con monto cero. Conserva la distinción
+entre «yo la anulé» y «el SII la rechazó», pero declara un folio utilizado sin montos, que ante
+el SII se parece bastante a un error de cuadratura.
 
-1. **Contarla como folio anulado** (entra en los rangos de anulados, sin montos). Alinea el RCOF
-   con el libro y mantiene la numeración completa, que es lo que el RCOF existe para reportar.
-2. **Dejarla como utilizada pero sin montos**. Conserva la distinción entre «yo la anulé» y «el
-   SII la rechazó», al precio de que `utilizados` incluya un documento sin valor tributario.
-
-Lo que no es defendible es lo de hoy. Hay que resolverlo con el usuario antes de implementarlo.
+> **Por qué se preguntó en vez de decidirlo.** Es semántica tributaria, no una elección técnica,
+> y va en un envío real al SII. Con dos lecturas defendibles y sin contador que revise después,
+> la decisión es del usuario.

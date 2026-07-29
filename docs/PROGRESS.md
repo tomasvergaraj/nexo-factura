@@ -578,17 +578,20 @@ libros no se podían enviar **en absoluto**.
   que la reconciliación por folio encontró `ACEPTADO` puede arrastrar un `ultimoErrorEnvio`
   viejo, y devolverlo como resultado de *este* reenvío sería mentir. El dashboard los lista.
 
-**Verificación:** suite completa en verde — **357 unitarios + 73 ITs**, 0 fallos y 0 errores.
+**Verificación:** suite completa en verde — **357 unitarios + 74 ITs**, 0 fallos y 0 errores.
 
 **Dos follow-ups que resultaron no serlo, al ir a implementarlos:**
 - El **signo de las NC en los totales del libro** ya estaba hecho: `LibroService.signo()` resta
   los tipos 60/61 del agregado que se muestra y deja el XML por `TpoDoc` en positivo, con tests
   que lo cubren. El follow-up estaba obsoleto, no pendiente.
-- La **semántica de `RECHAZADO` entre RCOF y libro** sí es una inconsistencia real y confirmada:
-  el libro excluye los rechazados, pero el RCOF sólo separa `ANULADO`, así que una boleta que el
-  SII rechazó cuenta como folio utilizado **y suma montos**. No se tocó porque la salida correcta
-  es una decisión tributaria, no técnica, y afecta a un envío real al SII. Las opciones están en
-  [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md) §Fase 4.
+- La **semántica de `RECHAZADO` entre RCOF y libro** sí era una inconsistencia real: el libro
+  excluye los rechazados, pero el RCOF sólo separaba `ANULADO`, así que una boleta que el SII
+  rechazó contaba como folio utilizado **y sumaba montos** — sobredeclarando ventas que el
+  propio SII había rechazado. **Resuelto con decisión del usuario:** pasa a folio anulado, sin
+  montos. El folio se sigue reportando (el RCOF existe para que ninguno del rango quede sin
+  explicar) y el reporte deja de contradecir al libro del período. Se preguntó en vez de
+  decidirlo porque es semántica tributaria en un envío real al SII, con dos lecturas
+  defendibles y sin contador que revise después.
 
 # Pendiente
 Ver [ROADMAP.md](ROADMAP.md) y [PLAN-CONTINUIDAD.md](PLAN-CONTINUIDAD.md). Con P0-4/5/6 implementados, el E2E de certificación aceptado en los cinco tipos y la **reconciliación por folio implementada**, el saldo son los **follow-ups documentados** en [SPRINT-6-PLAN.md §7](SPRINT-6-PLAN.md) y del review: certificado y resolución **por empresa** (multi-tenant real), verificación de la FRMA del CAF, el set de pruebas formal de certificación → autorización de producción (trámite administrativo, **en curso**: el usuario está iniciando el trámite en el portal del SII), y `MedioPago`/`GeoRefEmision`. *Validación pendiente de la reconciliación:* ejercitar `getEstDte` y el recurso de boleta por folio contra apicert en el próximo E2E. *Follow-ups de P1-6:* impuesto por defecto en el producto, retención parcial (`IVANoRet`) y habilitar adicionales en boletas (exige el desglose IVA+ILA dentro del bruto y extender el RCOF) — y, para la retención de cambio de sujeto fiel, incorporar el tipo Factura de Compra (45). *Follow-ups de P2-5:* signo de las NC en los totales del libro, semántica de RECHAZADO entre RCOF y libro, y motivo de fallo por documento en el reenvío masivo.

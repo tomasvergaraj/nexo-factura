@@ -15,14 +15,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Construye el Reporte de Consumo de Folios (RCOF) de boletas (39/41) de un dia.
  *
  * El RCOF resume, por tipo de boleta, los folios utilizados (vigentes) y anulados
- * y los montos asociados (los anulados se cuentan pero no suman monto). Es un
- * reporte real y verificable; el envio firmado al SII queda fuera de alcance
- * (requiere certificado y secuencia de envio real), igual que la firma del DTE.
+ * y los montos asociados (los anulados se cuentan pero no suman monto). Un folio
+ * cuyo documento no es tributariamente valido —ANULADO o RECHAZADO por el SII—
+ * va a anulados: ver {@link #FOLIO_SIN_DOCUMENTO_VALIDO}. Es un reporte real y
+ * verificable; el envio firmado al SII queda fuera de alcance (requiere
+ * certificado y secuencia de envio real), igual que la firma del DTE.
  */
 @Service
 @RequiredArgsConstructor
@@ -64,15 +67,33 @@ public class RcofService {
         return xmlGenerator.generar(reporte, emisor);
     }
 
+    /**
+     * Estados cuyo folio se consumio SIN producir un documento tributario valido.
+     *
+     * ANULADO es el caso obvio. RECHAZADO se le suma porque un DTE que el SII
+     * rechazo no es una emision valida —el libro de ventas ya lo excluye— y antes
+     * caia en "vigentes": el RCOF lo declaraba como folio utilizado Y sumaba sus
+     * montos, o sea sobredeclaraba ventas que el propio SII habia rechazado, y
+     * ademas contradecia al libro del mismo periodo.
+     *
+     * Va a anulados y no a "utilizado con monto cero" porque FoliosAnulados es
+     * justamente la casilla que el RCOF tiene para un folio consumido sin
+     * documento detras; un utilizado con monto cero se le parece bastante a un
+     * error de cuadratura. Lo que no cambia es que el folio se reporta: el RCOF
+     * existe para que ninguno del rango quede sin explicar.
+     */
+    private static final Set<EstadoDte> FOLIO_SIN_DOCUMENTO_VALIDO =
+            Set.of(EstadoDte.ANULADO, EstadoDte.RECHAZADO);
+
     private RcofPorTipo resumirTipo(TipoDte tipo, List<DocumentoTributario> delDia) {
         List<DocumentoTributario> deTipo = delDia.stream()
                 .filter(d -> d.getTipoDte() == tipo)
                 .toList();
         List<DocumentoTributario> vigentes = deTipo.stream()
-                .filter(d -> d.getEstado() != EstadoDte.ANULADO)
+                .filter(d -> !FOLIO_SIN_DOCUMENTO_VALIDO.contains(d.getEstado()))
                 .toList();
         List<DocumentoTributario> anulados = deTipo.stream()
-                .filter(d -> d.getEstado() == EstadoDte.ANULADO)
+                .filter(d -> FOLIO_SIN_DOCUMENTO_VALIDO.contains(d.getEstado()))
                 .toList();
 
         long montoNeto = vigentes.stream().mapToLong(DocumentoTributario::getNeto).sum();

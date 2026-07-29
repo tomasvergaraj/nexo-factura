@@ -93,6 +93,26 @@ class RcofServiceIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("una boleta RECHAZADA por el SII va a folios anulados y no suma monto")
+    void boletaRechazadaCuentaComoAnulada() {
+        // Folio 20: el SII la rechazo, asi que no es una emision valida — el libro
+        // de ventas ya la excluye. Antes caia en "vigentes" y el RCOF declaraba sus
+        // montos, sobredeclarando ventas que el propio SII habia rechazado.
+        boleta(TipoDte.BOLETA_AFECTA, 20, EstadoDte.RECHAZADO, DIA, 99000, 18810, 0, 117810);
+
+        RcofPorTipo afecta = porTipo(rcofService.generar(empresaId, DIA), 39);
+
+        assertThat(afecta.foliosUtilizados()).isEqualTo(2);            // 10 y 11, sin la rechazada
+        assertThat(afecta.foliosAnulados()).isEqualTo(2);              // la anulada (12) y la rechazada (20)
+        assertThat(afecta.folioAnuladoInicial()).isEqualTo(12);
+        assertThat(afecta.folioAnuladoFinal()).isEqualTo(20);
+        // El folio se sigue reportando: el RCOF existe para que ninguno del rango
+        // quede sin explicar. Lo que no entra son sus montos.
+        assertThat(afecta.foliosEmitidos()).isEqualTo(4);
+        assertThat(afecta.montoTotal()).isEqualTo(35700);
+    }
+
+    @Test
     @DisplayName("un dia sin boletas devuelve dos entradas en cero y sinMovimiento")
     void reporteDiaSinBoletas() {
         RcofResponse rep = rcofService.generar(empresaId, LocalDate.of(2020, 1, 1));
