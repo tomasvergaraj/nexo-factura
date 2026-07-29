@@ -37,9 +37,18 @@ public final class LibroDtos {
             LibroTotales totales,
             boolean sinMovimiento,
             // Factor de proporcionalidad del IVA uso comun del periodo (compras);
-            // null si no se informo.
+            // null si no se informo ni hay uno configurado en la empresa.
             Double fctProp
-    ) {}
+    ) {
+        /**
+         * Si el libro lleva IVA de uso comun, que es exactamente cuando el XML
+         * exige {@code FctProp}. Sin uso comun el factor es irrelevante y su
+         * ausencia no impide firmar.
+         */
+        public boolean tieneIvaUsoComun() {
+            return resumen.stream().anyMatch(t -> t.ivaUsoComun() > 0);
+        }
+    }
 
     public record LibroResumenTipo(
             int tipoDocumento,
@@ -89,6 +98,30 @@ public final class LibroDtos {
             long total
     ) {}
 
+    /**
+     * Factor de proporcionalidad SUGERIDO, calculado con las ventas que el sistema
+     * tiene acumuladas desde enero del ano del periodo.
+     *
+     * <p>Es una PISTA, no un valor a aplicar solo: la formula legal necesita las
+     * ventas del ano completo y este sistema unicamente conoce los DTE que emitio
+     * el. Si la empresa adopto nexo-factura a mitad de ano o vende por otro canal,
+     * el acumulado esta incompleto. Por eso el DTO no devuelve nada mas que el
+     * numero: entrega tambien de que datos sale ({@code documentos},
+     * {@code primeraEmision}) para que quien decide pueda juzgar si le sirve.
+     *
+     * @param factor          afectas / (afectas + exentas), 2 decimales; null si no hay ventas
+     * @param primeraEmision  fecha del documento mas antiguo del rango; null si no hay ninguno
+     */
+    public record FactorProporcionalidadSugerido(
+            Double factor,
+            long ventasAfectas,
+            long ventasExentas,
+            long documentos,
+            LocalDate desde,
+            LocalDate hasta,
+            LocalDate primeraEmision
+    ) {}
+
     /** Resultado del envio del libro firmado al SII. */
     public record LibroEnvioResponse(
             String periodo,
@@ -109,6 +142,8 @@ public final class LibroDtos {
             String estado,
             String tipoLibro,
             Long folioNotificacion,
+            // Factor declarado en ESTE envio; null si el libro no tenia uso comun.
+            Double fctProp,
             java.time.OffsetDateTime tmstEnvio
     ) {}
 

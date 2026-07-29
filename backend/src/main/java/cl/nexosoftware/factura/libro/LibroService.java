@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -60,7 +61,47 @@ public class LibroService {
         return operacion == TipoOperacion.VENTA
                 ? construirVentas(documentoRepository.findLibroByEmpresaIdAndFolioNotNullAndFechaEmisionBetween(
                         empresaId, periodo.atDay(1), periodo.atEndOfMonth()), periodo)
-                : construirCompras(compraRepository.delPeriodo(empresaId, periodo), periodo, fctProp);
+                : construirCompras(compraRepository.delPeriodo(empresaId, periodo), periodo,
+                        factorEfectivo(empresaId, fctProp));
+    }
+
+    /**
+     * Factor de proporcionalidad SUGERIDO para el periodo: ventas afectas sobre
+     * ventas totales, acumuladas desde enero del ano del periodo, con dos
+     * decimales.
+     *
+     * NO se aplica solo, y esa es la decision de diseno, no una limitacion
+     * pendiente: la formula legal necesita las ventas del ano COMPLETO y aqui
+     * solo estan los DTE que emitio este sistema. Un acumulado incompleto daria
+     * un factor equivocado en silencio, dentro de una declaracion tributaria.
+     * Por eso el resultado viaja con los datos de los que sale —cuantos
+     * documentos y desde cuando— y la UI lo ofrece como pista junto al campo.
+     */
+    @Transactional(readOnly = true)
+    public FactorProporcionalidadSugerido factorSugerido(Long empresaId, YearMonth periodo) {
+        empresaService.buscar(empresaId);
+        LocalDate desde = LocalDate.of(periodo.getYear(), 1, 1);
+        LocalDate hasta = periodo.atEndOfMonth();
+        var ventas = documentoRepository.sumVentasAcumuladas(empresaId, desde, hasta);
+
+        long totales = ventas.getAfectas() + ventas.getExentas();
+        // Sin ventas no hay proporcion que calcular (y dividir daria NaN).
+        Double factor = totales == 0 ? null : Math.round(ventas.getAfectas() * 100.0 / totales) / 100.0;
+        return new FactorProporcionalidadSugerido(factor, ventas.getAfectas(), ventas.getExentas(),
+                ventas.getDocumentos(), desde, hasta, ventas.getPrimeraEmision());
+    }
+
+    /**
+     * Factor de proporcionalidad a aplicar: el del parametro si vino (override
+     * por periodo del envio manual) y, si no, el configurado en la empresa.
+     *
+     * Se resuelve AQUI, en el unico punto por el que pasan todos los caminos
+     * —preview de la UI, XML de descarga, envio y job de revision—, para que
+     * ninguno pueda quedar mostrando un credito proporcional distinto del que
+     * viaja en el XML que se declara al SII.
+     */
+    private Double factorEfectivo(Long empresaId, Double fctProp) {
+        return fctProp != null ? fctProp : empresaService.buscar(empresaId).getFctProp();
     }
 
     // ---------- agregacion (pura, testeable como unidad) ----------

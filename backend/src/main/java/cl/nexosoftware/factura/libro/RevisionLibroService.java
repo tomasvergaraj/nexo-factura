@@ -66,10 +66,23 @@ public class RevisionLibroService {
             store.borrar(empresaId, periodo.toString(), operacion);
             return;
         }
+        // Falta el factor de proporcionalidad: se corta aca en vez de dejar que
+        // reviente el generador, porque su mensaje ("informe el factor (fctProp)")
+        // le sirve a quien llama la API, no a quien mira la UI y necesita saber
+        // DONDE se configura. Era el caso que dejaba estos periodos en ERROR
+        // permanente sin decir como salir de el.
+        if (libro.tieneIvaUsoComun() && libro.fctProp() == null) {
+            store.guardar(empresaId, periodo.toString(), operacion, Estado.ERROR,
+                    "El libro tiene IVA de uso comun y la empresa no tiene configurado el factor "
+                            + "de proporcionalidad. Configuralo en Configuracion para poder enviarlo.");
+            return;
+        }
         Estado estado;
         String detalle;
         try {
             // Firma + validacion XSD del libro MENSUAL, sin postearlo al SII.
+            // fctProp = null: no es "sin factor", es "sin override" — LibroService
+            // resuelve el de la empresa, que es justo el que se verifico arriba.
             envioService.xmlFirmado(empresaId, operacion, periodo, null, "MENSUAL", null);
             estado = Estado.PREPARADO;
             detalle = null;

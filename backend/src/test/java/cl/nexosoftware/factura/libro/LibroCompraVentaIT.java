@@ -108,9 +108,125 @@ class LibroCompraVentaIT extends AbstractIntegrationTest {
                 .contains("<NroDoc>100</NroDoc>");
     }
 
+    @Test
+    @DisplayName("sin factor configurado ni override, el libro con uso comun queda sin credito proporcional")
+    void usoComunSinFactor() {
+        compraService.crear(empresaId, compraUsoComun(33, 200, LocalDate.of(2026, 7, 10)));
+
+        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO, null);
+
+        assertThat(libro.fctProp()).isNull();
+        assertThat(libro.tieneIvaUsoComun()).isTrue();
+        assertThat(libro.resumen().get(0).ivaUsoComun()).isEqualTo(19000);
+        // Sin factor no hay como prorratear: el credito queda en 0 (y el libro no
+        // se puede firmar, que es lo que el job reporta con motivo accionable).
+        assertThat(libro.resumen().get(0).creditoIvaUsoComun()).isZero();
+    }
+
+    @Test
+    @DisplayName("el factor configurado en la empresa se aplica sin pasarlo por parametro")
+    void usoComunConFactorDeLaEmpresa() {
+        empresaRepository.save(conFactor(0.60));
+        compraService.crear(empresaId, compraUsoComun(33, 201, LocalDate.of(2026, 7, 10)));
+
+        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO, null);
+
+        assertThat(libro.fctProp()).isEqualTo(0.60);
+        assertThat(libro.resumen().get(0).creditoIvaUsoComun()).isEqualTo(Math.round(19000 * 0.60));
+    }
+
+    @Test
+    @DisplayName("el factor pasado por parametro gana al configurado en la empresa")
+    void elOverrideGanaAlFactorDeLaEmpresa() {
+        empresaRepository.save(conFactor(0.60));
+        compraService.crear(empresaId, compraUsoComun(33, 202, LocalDate.of(2026, 7, 10)));
+
+        LibroResponse libro = libroService.libro(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO, 0.85);
+
+        assertThat(libro.fctProp()).isEqualTo(0.85);
+        assertThat(libro.resumen().get(0).creditoIvaUsoComun()).isEqualTo(Math.round(19000 * 0.85));
+    }
+
+    @Test
+    @DisplayName("el XML del libro con uso comun lleva FctProp con dos decimales fijos")
+    void xmlConFctProp() {
+        empresaRepository.save(conFactor(0.60));
+        compraService.crear(empresaId, compraUsoComun(33, 203, LocalDate.of(2026, 7, 10)));
+
+        String xml = libroService.libroXml(empresaId, LibroDtos.TipoOperacion.COMPRA, PERIODO, null);
+
+        // "0.60" y no "0.6": el validador del SII rechaza el segundo.
+        assertThat(xml)
+                .contains("<FctProp>0.60</FctProp>")
+                .contains("<TotCredIVAUsoComun>11400</TotCredIVAUsoComun>");
+    }
+
+    @Test
+    @DisplayName("el factor sugerido acumula desde enero, excluye rechazados y corta el ano anterior")
+    void factorSugeridoAcumuladoDesdeEnero() {
+        // Afectas 800.000 + exentas 200.000 = 1.000.000 -> 0.80.
+        guardarVenta(1L, EstadoDte.ACEPTADO, LocalDate.of(2026, 3, 4), 800_000, 0);
+        guardarVenta(2L, EstadoDte.ACEPTADO, LocalDate.of(2026, 5, 10), 0, 200_000);
+        // Ninguno de estos dos debe entrar: un rechazado no es una emision valida,
+        // y el acumulado arranca en enero del ano DEL PERIODO.
+        guardarVenta(3L, EstadoDte.RECHAZADO, LocalDate.of(2026, 4, 1), 5_000_000, 0);
+        guardarVenta(4L, EstadoDte.ACEPTADO, LocalDate.of(2025, 12, 20), 9_000_000, 0);
+
+        var sugerido = libroService.factorSugerido(empresaId, PERIODO);
+
+        assertThat(sugerido.factor()).isEqualTo(0.80);
+        assertThat(sugerido.ventasAfectas()).isEqualTo(800_000);
+        assertThat(sugerido.ventasExentas()).isEqualTo(200_000);
+        assertThat(sugerido.documentos()).isEqualTo(2);
+        assertThat(sugerido.desde()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(sugerido.hasta()).isEqualTo(LocalDate.of(2026, 7, 31));
+        // El dato que deja ver si el acumulado empieza de verdad en enero: aqui no,
+        // arranca en marzo, y por eso el valor se ofrece como pista y no se aplica.
+        assertThat(sugerido.primeraEmision()).isEqualTo(LocalDate.of(2026, 3, 4));
+    }
+
+    @Test
+    @DisplayName("sin ventas en el rango no hay factor sugerido (null, no NaN ni 0)")
+    void factorSugeridoSinVentas() {
+        var sugerido = libroService.factorSugerido(empresaId, PERIODO);
+
+        assertThat(sugerido.factor()).isNull();
+        assertThat(sugerido.documentos()).isZero();
+        assertThat(sugerido.primeraEmision()).isNull();
+    }
+
+    private void guardarVenta(Long folio, EstadoDte estado, LocalDate fecha, long neto, long exento) {
+        documentoRepository.save(DocumentoTributario.builder()
+                .empresaId(empresaId)
+                .tipoDte(TipoDte.FACTURA_AFECTA)
+                .folio(folio)
+                .estado(estado)
+                .fechaEmision(fecha)
+                .receptorRut("77111222-3")
+                .receptorRazonSocial("Cliente de prueba")
+                .neto(neto)
+                .exento(exento)
+                .tasaIva(19.0)
+                .iva(Math.round(neto * 0.19))
+                .total(neto + exento + Math.round(neto * 0.19))
+                .build());
+    }
+
+    /** La empresa sembrada, con el factor de proporcionalidad puesto. */
+    private Empresa conFactor(double fctProp) {
+        Empresa empresa = empresaRepository.findById(empresaId).orElseThrow();
+        empresa.setFctProp(fctProp);
+        return empresa;
+    }
+
     private CompraRequest compra(int tipo, long folio, LocalDate fecha) {
         return new CompraRequest(tipo, folio, "76543210-9", "Proveedor SpA",
                 fecha, 100000L, 0L, 19000L, null, 119000L, null);
+    }
+
+    private CompraRequest compraUsoComun(int tipo, long folio, LocalDate fecha) {
+        return new CompraRequest(tipo, folio, "76543210-9", "Proveedor SpA",
+                fecha, 100000L, 0L, 19000L, null, 119000L, null, true, null);
     }
 
     private void guardarDocumento(TipoDte tipo, Long folio, EstadoDte estado) {

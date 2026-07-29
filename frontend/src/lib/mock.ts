@@ -20,6 +20,7 @@ export const empresaMock: Empresa = {
   unidadSii: "S.I.I. - QUILLOTA",
   fchResol: null,
   nroResol: null,
+  fctProp: null,
 };
 
 export const clientesMock: Cliente[] = [

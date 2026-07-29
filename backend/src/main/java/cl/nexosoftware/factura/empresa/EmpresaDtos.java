@@ -1,6 +1,8 @@
 package cl.nexosoftware.factura.empresa;
 
 import cl.nexosoftware.factura.common.validation.RutValido;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -32,7 +34,11 @@ public final class EmpresaDtos {
             // (FchResol/NroResol de la caratula). Ambos o ninguno; vacios =
             // fallback de entorno. NroResol es 0 en el ambiente de certificacion.
             LocalDate fchResol,
-            @PositiveOrZero Integer nroResol
+            @PositiveOrZero Integer nroResol,
+            // Factor de proporcionalidad del IVA de uso comun. Es una proporcion,
+            // asi que fuera de [0,1] no significa nada: un 1.5 se colaria al XML
+            // y el SII rechazaria el libro. Null = no configurado (valido).
+            @DecimalMin("0.0") @DecimalMax("1.0") Double fctProp
     ) {}
 
     public record EmpresaResponse(
@@ -48,6 +54,7 @@ public final class EmpresaDtos {
             String telefono,
             String email,
             LocalDate fchResol,
-            Integer nroResol
+            Integer nroResol,
+            Double fctProp
     ) {}
 }

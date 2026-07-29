@@ -67,6 +67,19 @@ public class Empresa {
     @Column(name = "nro_resol")
     private Integer nroResol;
 
+    /**
+     * Factor de proporcionalidad del IVA de uso comun (FctProp del libro de
+     * compras), en [0, 1]. Nullable: mientras este vacio, un libro de compras
+     * con IVA de uso comun no se puede firmar y el job lo reporta con un motivo
+     * accionable en vez de la excepcion cruda del generador.
+     *
+     * <p>Es el valor que DECLARA el contribuyente, no uno calculado: la formula
+     * legal necesita las ventas acumuladas desde enero, y el sistema solo conoce
+     * los DTE que emitio el. Ver el comentario de {@code V17__fct_prop.sql}.
+     */
+    @Column(name = "fct_prop")
+    private Double fctProp;
+
     /** Control de concurrencia optimista (evita el lost update en edicion). */
     @Version
     private Long version;

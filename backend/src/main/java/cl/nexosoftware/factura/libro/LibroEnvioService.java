@@ -52,16 +52,16 @@ public class LibroEnvioService {
     @Transactional(readOnly = true)
     public String xmlFirmado(Long empresaId, TipoOperacion operacion, YearMonth periodo,
                              Double fctProp, String tipoLibro, Long folioNotificacion) {
-        return firmar(empresaId, operacion, periodo, fctProp, tipoLibro, folioNotificacion);
+        return firmar(empresaId, operacion, periodo, fctProp, tipoLibro, folioNotificacion).xml();
     }
 
     @Transactional
     public LibroEnvioResponse enviar(Long empresaId, TipoOperacion operacion, YearMonth periodo,
                                      Double fctProp, String tipoLibro, Long folioNotificacion) {
         Empresa emisor = empresaService.buscar(empresaId);
-        String xml = firmar(empresaId, operacion, periodo, fctProp, tipoLibro, folioNotificacion);
+        LibroFirmado firmado = firmar(empresaId, operacion, periodo, fctProp, tipoLibro, folioNotificacion);
         String trackId = siiGateway.enviarLibro(new SiiGateway.EnvioLibroSii(
-                empresaId, xml, emisor.getRut(), periodo.toString(), operacion.name()));
+                empresaId, firmado.xml(), emisor.getRut(), periodo.toString(), operacion.name()));
         log.info("Libro IECV {} {} enviado al SII: TrackID={}", operacion, periodo, trackId);
         // El estado real llega despues por QueryEstUp; aqui solo queda el TrackID.
         envioLibroRepository.save(EnvioLibro.builder()
@@ -71,6 +71,10 @@ public class LibroEnvioService {
                 .trackId(trackId)
                 .tipoLibro(tipoLibro)
                 .folioNotificacion(folioNotificacion)
+                // Se guarda el factor que quedo EN EL XML, no el que hoy tiene la
+                // empresa: ese es editable y el envio admite override, asi que sin
+                // esto no habria como saber despues que se declaro en este envio.
+                .fctProp(firmado.fctPropDeclarado())
                 .build());
         return new LibroEnvioResponse(periodo.toString(), operacion, trackId);
     }
@@ -105,11 +109,14 @@ public class LibroEnvioService {
     private static EnvioLibroResponse aResponse(EnvioLibro e) {
         return new EnvioLibroResponse(e.getId(), e.getPeriodo(), e.getTipoOperacion(),
                 e.getTrackId(), e.getEstado(), e.getTipoLibro(), e.getFolioNotificacion(),
-                e.getTmstEnvio());
+                e.getFctProp(), e.getTmstEnvio());
     }
 
-    private String firmar(Long empresaId, TipoOperacion operacion, YearMonth periodo,
-                          Double fctProp, String tipoLibro, Long folioNotificacion) {
+    /** XML firmado y el factor que quedo DECLARADO en el (null si no hay uso comun). */
+    private record LibroFirmado(String xml, Double fctPropDeclarado) {}
+
+    private LibroFirmado firmar(Long empresaId, TipoOperacion operacion, YearMonth periodo,
+                                Double fctProp, String tipoLibro, Long folioNotificacion) {
         Empresa emisor = empresaService.buscar(empresaId);
         LibroResponse libro = libroService.construir(empresaId, operacion, periodo, fctProp);
         if (libro.sinMovimiento()) {
@@ -126,6 +133,6 @@ public class LibroEnvioService {
                 tipoLibro, folioNotificacion));
         String firmado = firma.firmarEnveloped(xml, LibroXmlGenerator.ID_ENVIO_LIBRO, empresaId);
         validator.validarLibro(firmado);
-        return firmado;
+        return new LibroFirmado(firmado, libro.tieneIvaUsoComun() ? libro.fctProp() : null);
     }
 }

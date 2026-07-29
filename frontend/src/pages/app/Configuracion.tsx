@@ -4,10 +4,12 @@ import { AppShell } from "../../components/app/AppShell";
 import {
   Alert, Button, Card, Field, Input, LoadingState, PageHeader,
 } from "../../components/ui";
-import { actualizarEmpresa, erroresDeCampo, getEmpresa, mensajeError } from "../../lib/api";
+import {
+  actualizarEmpresa, erroresDeCampo, getEmpresa, getFactorSugerido, mensajeError,
+} from "../../lib/api";
 import { empresaIdActual, obtenerUsuario } from "../../lib/auth";
-import { MENSAJE_RUT_INVALIDO, validarRut } from "../../lib/format";
-import type { Empresa, EmpresaRequest } from "../../lib/types";
+import { formatCLP, formatFecha, MENSAJE_RUT_INVALIDO, validarRut } from "../../lib/format";
+import type { Empresa, EmpresaRequest, FactorProporcionalidadSugerido } from "../../lib/types";
 import { CertificadoCard } from "./CertificadoCard";
 
 // Estado del formulario: todos los campos como texto (incluida la actividad
@@ -25,6 +27,7 @@ type FormEmpresa = {
   unidadSii: string;
   fchResol: string;
   nroResol: string;
+  fctProp: string;
 };
 
 function aFormulario(e: Empresa): FormEmpresa {
@@ -41,6 +44,7 @@ function aFormulario(e: Empresa): FormEmpresa {
     unidadSii: e.unidadSii ?? "",
     fchResol: e.fchResol ?? "",
     nroResol: e.nroResol?.toString() ?? "",
+    fctProp: e.fctProp?.toString() ?? "",
   };
 }
 
@@ -53,12 +57,18 @@ export function Configuracion() {
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [sugerido, setSugerido] = useState<FactorProporcionalidadSugerido | null>(null);
 
   useEffect(() => {
     let activo = true;
     getEmpresa(empresaIdActual())
       .then((e) => activo && setForm(aFormulario(e)))
       .catch((error) => activo && setCargaError(mensajeError(error, "No se pudieron cargar los datos de la empresa.")));
+    // Es una pista opcional: si falla, la pantalla sigue siendo usable y no se
+    // molesta al usuario con un error por algo que no pidió.
+    getFactorSugerido(empresaIdActual())
+      .then((s) => activo && setSugerido(s))
+      .catch(() => undefined);
     return () => {
       activo = false;
     };
@@ -96,6 +106,15 @@ export function Configuracion() {
       const campo = tieneFch ? "nroResol" : "fchResol";
       nuevos[campo] = "Completa la fecha y el número de resolución, o deja ambos vacíos.";
     }
+    // Es una proporción: fuera de [0,1] no significa nada y el SII rechazaría el
+    // libro. Se valida acá además del backend para no gastar un viaje.
+    const fctProp = form.fctProp.trim().replace(",", ".");
+    if (fctProp) {
+      const valor = Number(fctProp);
+      if (!/^\d*\.?\d+$/.test(fctProp) || Number.isNaN(valor) || valor < 0 || valor > 1) {
+        nuevos.fctProp = "Debe ser un número entre 0 y 1 (por ejemplo, 0.60).";
+      }
+    }
     if (Object.keys(nuevos).length > 0) {
       setErrores(nuevos);
       return;
@@ -114,6 +133,7 @@ export function Configuracion() {
       unidadSii: form.unidadSii.trim() || undefined,
       fchResol: tieneFch ? form.fchResol.trim() : null,
       nroResol: tieneNro ? Number(form.nroResol) : null,
+      fctProp: fctProp ? Number(fctProp) : null,
     };
 
     setGuardando(true);
@@ -251,6 +271,57 @@ export function Configuracion() {
                     />
                   </Field>
                 </div>
+              </div>
+
+              <div className="border-t border-line pt-5">
+                <h2 className="font-display text-sm font-semibold text-ink">Libro de compras</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate">
+                  Factor de proporcionalidad del IVA de uso común: la parte del IVA de compras
+                  de uso común que puedes usar como crédito fiscal. Solo hace falta si registras
+                  compras con IVA de uso común; sin él, esos períodos no se pueden enviar al SII.
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Factor de proporcionalidad"
+                    hint="Entre 0 y 1, con dos decimales (0.60 = 60%). Es el valor que declaras tú: se calcula sobre tus ventas acumuladas desde enero, así que confírmalo con tu contador."
+                    error={errores.fctProp}
+                  >
+                    <Input
+                      inputMode="decimal"
+                      value={form.fctProp}
+                      disabled={!esAdmin}
+                      placeholder="0.60"
+                      onChange={(e) => set("fctProp", e.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                {sugerido?.factor != null && (
+                  <div className="mt-4 rounded-lg border border-line bg-canvas p-4">
+                    <p className="text-xs leading-relaxed text-slate">
+                      Según tus ventas registradas en el sistema, el factor sería{" "}
+                      <span className="font-semibold text-ink">{sugerido.factor.toFixed(2)}</span>{" "}
+                      ({formatCLP(sugerido.ventasAfectas)} afectas de{" "}
+                      {formatCLP(sugerido.ventasAfectas + sugerido.ventasExentas)} totales,{" "}
+                      {sugerido.documentos} documento{sugerido.documentos === 1 ? "" : "s"}
+                      {sugerido.primeraEmision && <> desde el {formatFecha(sugerido.primeraEmision)}</>}).
+                    </p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate">
+                      Es solo una referencia: el cálculo legal usa tus ventas del año completo, y
+                      aquí solo están los documentos emitidos con nexo-factura. Confírmalo con tu
+                      contador antes de usarlo.
+                    </p>
+                    {esAdmin && (
+                      <button
+                        type="button"
+                        className="mt-2.5 text-xs font-medium text-cobalt hover:underline"
+                        onClick={() => set("fctProp", sugerido.factor!.toFixed(2))}
+                      >
+                        Usar {sugerido.factor.toFixed(2)}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

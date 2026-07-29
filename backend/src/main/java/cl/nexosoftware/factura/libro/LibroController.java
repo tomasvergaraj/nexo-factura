@@ -44,6 +44,19 @@ public class LibroController {
         return service.libro(empresaId, operacion(tipo), normalizar(periodo), fctProp);
     }
 
+    @GetMapping("/factor-proporcionalidad")
+    @Operation(summary = "Factor de proporcionalidad SUGERIDO del periodo: ventas afectas sobre ventas "
+            + "totales acumuladas desde enero. Es una pista para configurar el factor de la empresa, "
+            + "NO un valor que se aplique solo: el calculo legal necesita las ventas del ano completo y "
+            + "aqui solo estan los DTE emitidos por este sistema. Por eso la respuesta incluye cuantos "
+            + "documentos lo respaldan y desde que fecha.")
+    public LibroDtos.FactorProporcionalidadSugerido factorSugerido(
+            @PathVariable Long empresaId,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo) {
+        return service.factorSugerido(empresaId, normalizar(periodo));
+    }
+
     @GetMapping(value = "/{tipo}/xml", produces = MediaType.APPLICATION_XML_VALUE)
     @Operation(summary = "Libro del periodo como XML LibroCompraVenta oficial, SIN firmar (inspeccion).")
     public ResponseEntity<String> libroXml(

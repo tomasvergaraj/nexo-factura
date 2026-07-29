@@ -135,6 +135,40 @@ class RevisionLibroServiceTest {
     }
 
     @Test
+    @DisplayName("revisar() con IVA de uso comun y sin factor: ERROR accionable, sin intentar firmar")
+    void marcaErrorAccionableSinFactorDeProporcionalidad() {
+        stubConstruir(TipoOperacion.VENTA, false);
+        stubConstruirUsoComun(TipoOperacion.COMPRA, null);
+
+        service.revisar(EMPRESA, PERIODO);
+
+        // Ni se intenta: el generador reventaria igual, pero con un mensaje que no
+        // le dice al usuario donde configurarlo.
+        verify(envioService, never()).xmlFirmado(
+                eq(EMPRESA), eq(TipoOperacion.COMPRA), any(), any(), any(), any());
+        ArgumentCaptor<String> detalle = ArgumentCaptor.forClass(String.class);
+        verify(store).guardar(eq(EMPRESA), eq("2026-07"), eq(TipoOperacion.COMPRA),
+                eq(Estado.ERROR), detalle.capture());
+        assertThat(detalle.getValue())
+                .contains("IVA de uso comun")
+                .contains("Configuracion");
+    }
+
+    @Test
+    @DisplayName("revisar() con IVA de uso comun y factor configurado: PREPARADO normal")
+    void preparaConFactorConfigurado() {
+        stubConstruir(TipoOperacion.VENTA, false);
+        // El factor ya viene resuelto en el libro: LibroService antepone el override
+        // del parametro y, si no hay, toma el de la empresa.
+        stubConstruirUsoComun(TipoOperacion.COMPRA, 0.60);
+
+        service.revisar(EMPRESA, PERIODO);
+
+        verify(envioService).xmlFirmado(EMPRESA, TipoOperacion.COMPRA, PERIODO, null, "MENSUAL", null);
+        verify(store).guardar(EMPRESA, "2026-07", TipoOperacion.COMPRA, Estado.PREPARADO, null);
+    }
+
+    @Test
     @DisplayName("listarPendientes() oculta los libros que ya quedaron gestionados")
     void listarOcultaLosGestionados() {
         LibroPendiente ventas = marcador(1L, TipoOperacion.VENTA);
@@ -158,6 +192,16 @@ class RevisionLibroServiceTest {
     private void stubConstruir(TipoOperacion operacion, boolean sinMovimiento) {
         LibroResponse libro = new LibroResponse("2026-07", operacion,
                 List.of(), List.of(), null, sinMovimiento, null);
+        when(libroService.construir(eq(EMPRESA), eq(operacion), eq(PERIODO), any())).thenReturn(libro);
+    }
+
+    /** Libro con movimiento y con IVA de uso comun, que es cuando el XML exige FctProp. */
+    private void stubConstruirUsoComun(TipoOperacion operacion, Double fctProp) {
+        LibroDtos.LibroResumenTipo resumen = new LibroDtos.LibroResumenTipo(
+                33, 1, 0, 100_000, 0, 19_000, 0, 0, 119_000,
+                19_000, 1, fctProp == null ? 0 : Math.round(19_000 * fctProp), List.of());
+        LibroResponse libro = new LibroResponse("2026-07", operacion,
+                List.of(resumen), List.of(), null, false, fctProp);
         when(libroService.construir(eq(EMPRESA), eq(operacion), eq(PERIODO), any())).thenReturn(libro);
     }
 

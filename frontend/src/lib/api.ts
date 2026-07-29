@@ -15,6 +15,7 @@ import {
 import type {
   Caf, CafRequest, CertificadoResponse, Cliente, ClienteRequest, Compra, CompraRequest,
   DocumentoResponse, DocumentoResumen, Empresa, EmpresaRequest, EnvioLibro, EstadoEnvioLibro,
+  FactorProporcionalidadSugerido,
   LibroEnvioResponse, LibroPendiente, LibroResponse, Producto,
   ProductoRequest, RcofResponse, ReenvioMasivoResponse, ReferenciaRequest, ResumenDashboard,
   TipoDte, TipoOperacionLibro,
@@ -674,6 +675,26 @@ export async function enviarLibro(
   const ruta = tipo === "VENTA" ? "ventas" : "compras";
   const { data } = await http.post(`/empresas/${empresaId}/libros/${ruta}/enviar`, null, {
     params: { periodo },
+  });
+  return data;
+}
+
+/**
+ * Factor de proporcionalidad sugerido para el período (mes actual si se omite).
+ * Se ofrece como pista junto al campo de Configuración; nunca se aplica solo.
+ */
+export async function getFactorSugerido(
+  empresaId: number, periodo?: string,
+): Promise<FactorProporcionalidadSugerido> {
+  if (USE_MOCK) {
+    await demora();
+    return {
+      factor: 0.87, ventasAfectas: 8_700_000, ventasExentas: 1_300_000, documentos: 42,
+      desde: "2026-01-01", hasta: "2026-07-31", primeraEmision: "2026-03-04",
+    };
+  }
+  const { data } = await http.get(`/empresas/${empresaId}/libros/factor-proporcionalidad`, {
+    params: periodo ? { periodo } : undefined,
   });
   return data;
 }

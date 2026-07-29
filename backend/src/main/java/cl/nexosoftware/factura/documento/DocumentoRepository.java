@@ -112,4 +112,38 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
         LocalDate getFecha();
         long getMonto();
     }
+
+    /**
+     * Ventas ACUMULADAS de un rango, base del factor de proporcionalidad sugerido.
+     * Mismas reglas de inclusion que el libro de ventas (foliados, sin RECHAZADOS)
+     * para que el numerador no discrepe de lo que se declara.
+     *
+     * <p>Devuelve tambien {@code primeraEmision}: sin ella no habria como saber si
+     * el acumulado arranca de verdad en enero. Esa es justamente la incertidumbre
+     * que impide usar el resultado como valor automatico, asi que se expone en vez
+     * de esconderse. Con cero documentos la fila igual vuelve (agregados sin group
+     * by), con sumas 0 y {@code primeraEmision} nula.
+     */
+    @Query("""
+            select coalesce(sum(d.neto), 0) as afectas,
+                   coalesce(sum(d.exento), 0) as exentas,
+                   count(d) as documentos,
+                   min(d.fechaEmision) as primeraEmision
+            from DocumentoTributario d
+            where d.empresaId = :empresaId
+              and d.folio is not null
+              and d.estado <> cl.nexosoftware.factura.documento.EstadoDte.RECHAZADO
+              and d.fechaEmision between :desde and :hasta
+            """)
+    VentasAcumuladasView sumVentasAcumuladas(@Param("empresaId") Long empresaId,
+                                             @Param("desde") LocalDate desde,
+                                             @Param("hasta") LocalDate hasta);
+
+    /** Proyeccion de las ventas acumuladas del rango. */
+    interface VentasAcumuladasView {
+        long getAfectas();
+        long getExentas();
+        long getDocumentos();
+        LocalDate getPrimeraEmision();
+    }
 }

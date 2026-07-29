@@ -169,6 +169,11 @@ export interface Empresa {
   fchResol: string | null;
   /** Número de la resolución SII (0 en certificación); null = fallback de entorno. */
   nroResol: number | null;
+  /**
+   * Factor de proporcionalidad del IVA de uso común [0,1]; null = no configurado.
+   * Sin él, un libro de compras con IVA de uso común no se puede firmar ni enviar.
+   */
+  fctProp: number | null;
 }
 
 export interface EmpresaRequest {
@@ -185,6 +190,8 @@ export interface EmpresaRequest {
   /** Resolución SII: fecha y número. Ambos o ninguno (vacíos = fallback de entorno). */
   fchResol?: string | null;
   nroResol?: number | null;
+  /** Factor de proporcionalidad del IVA de uso común [0,1]; null = no configurado. */
+  fctProp?: number | null;
 }
 
 /** Metadata del certificado digital activo (espejo de CertificadoResponse del backend). */
@@ -456,7 +463,27 @@ export interface EnvioLibro {
   estado: EstadoEnvioLibro | null;
   tipoLibro: string;
   folioNotificacion: number | null;
+  /** Factor de proporcionalidad declarado en ESTE envío; null si no había uso común. */
+  fctProp: number | null;
   tmstEnvio: string; // ISO-8601
+}
+
+/**
+ * Factor de proporcionalidad sugerido a partir de las ventas acumuladas desde
+ * enero. Es una pista, no un valor a aplicar solo: el cálculo legal necesita las
+ * ventas del año completo y el sistema solo conoce los DTE que emitió él. Por eso
+ * viene con los datos que lo respaldan, para que quien decide pueda juzgarlo.
+ */
+export interface FactorProporcionalidadSugerido {
+  /** afectas / (afectas + exentas), 2 decimales; null si no hay ventas en el rango. */
+  factor: number | null;
+  ventasAfectas: number;
+  ventasExentas: number;
+  documentos: number;
+  desde: string; // AAAA-MM-DD
+  hasta: string;
+  /** Documento más antiguo del rango; null si no hay ninguno. */
+  primeraEmision: string | null;
 }
 
 export type EstadoLibroPendiente = "PREPARADO" | "ERROR";

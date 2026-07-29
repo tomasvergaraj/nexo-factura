@@ -51,6 +51,15 @@ public class EnvioLibro {
     @Column(name = "folio_notificacion", updatable = false)
     private Long folioNotificacion;
 
+    /**
+     * Factor de proporcionalidad DECLARADO en este envio; null si el libro no
+     * tenia IVA de uso comun. No se deduce de la empresa al leerlo: ese valor es
+     * editable y el envio manual admite un override por periodo, asi que sin
+     * guardarlo aqui no habria forma de saber despues que se declaro.
+     */
+    @Column(name = "fct_prop", updatable = false)
+    private Double fctProp;
+
     @Column(name = "tmst_envio", nullable = false, updatable = false)
     private OffsetDateTime tmstEnvio;
 
