@@ -164,6 +164,29 @@ const HEALTH_URL = `${BASE_URL.replace(/\/api\/?$/, "")}/actuator/health`;
  * Comprueba la salud de la API (endpoint público, sin token ni interceptores:
  * un 401 aquí jamás debe redirigir al login). Devuelve true si responde UP.
  */
+/** Parámetros de la consulta pública: los cinco datos impresos en la boleta. */
+export interface ConsultaBoletaParams {
+  rutEmisor: string;
+  tipo: number;
+  folio: number;
+  fecha: string; // AAAA-MM-DD
+  total: number;
+}
+
+/**
+ * Consulta PÚBLICA de una boleta (sin sesión): descarga la representación
+ * impresa si los cinco datos coinciden exactos con los del documento. Usa axios
+ * pelado (no `http`) para no arrastrar un token de una sesión abierta en la
+ * misma pestaña: el endpoint es anónimo a propósito.
+ */
+export async function consultarBoletaPublica(params: ConsultaBoletaParams): Promise<Blob> {
+  const { data } = await axios.get(`${BASE_URL}/public/boletas/pdf`, {
+    params,
+    responseType: "blob",
+  });
+  return data;
+}
+
 export async function comprobarSalud(): Promise<boolean> {
   if (USE_MOCK) {
     await demora();

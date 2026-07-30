@@ -28,6 +28,7 @@ type FormEmpresa = {
   fchResol: string;
   nroResol: string;
   fctProp: string;
+  urlConsultaBoleta: string;
 };
 
 function aFormulario(e: Empresa): FormEmpresa {
@@ -45,6 +46,7 @@ function aFormulario(e: Empresa): FormEmpresa {
     fchResol: e.fchResol ?? "",
     nroResol: e.nroResol?.toString() ?? "",
     fctProp: e.fctProp?.toString() ?? "",
+    urlConsultaBoleta: e.urlConsultaBoleta ?? "",
   };
 }
 
@@ -134,6 +136,7 @@ export function Configuracion() {
       fchResol: tieneFch ? form.fchResol.trim() : null,
       nroResol: tieneNro ? Number(form.nroResol) : null,
       fctProp: fctProp ? Number(fctProp) : null,
+      urlConsultaBoleta: form.urlConsultaBoleta.trim() || null,
     };
 
     setGuardando(true);
@@ -268,6 +271,30 @@ export function Configuracion() {
                       disabled={!esAdmin}
                       placeholder="0"
                       onChange={(e) => set("nroResol", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="border-t border-line pt-5">
+                <h2 className="font-display text-sm font-semibold text-ink">Consulta pública de boletas</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate">
+                  El SII exige que tus clientes puedan consultar las boletas emitidas en un sitio
+                  web durante 3 meses, y que esa dirección vaya impresa bajo el timbre de cada
+                  boleta («Verifique documento: …»). Al completarla se habilita la consulta
+                  pública y los PDF de las boletas empiezan a imprimirla.
+                </p>
+                <div className="mt-4">
+                  <Field
+                    label="URL de consulta"
+                    hint="Tal como debe imprimirse (por ejemplo, consultaboleta.tuempresa.cl). Déjala vacía mientras el sitio no exista."
+                    error={errores.urlConsultaBoleta}
+                  >
+                    <Input
+                      value={form.urlConsultaBoleta}
+                      disabled={!esAdmin}
+                      placeholder="consultaboleta.tuempresa.cl"
+                      onChange={(e) => set("urlConsultaBoleta", e.target.value)}
                     />
                   </Field>
                 </div>

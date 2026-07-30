@@ -21,6 +21,7 @@ export const empresaMock: Empresa = {
   fchResol: null,
   nroResol: null,
   fctProp: null,
+  urlConsultaBoleta: null,
 };
 
 export const clientesMock: Cliente[] = [

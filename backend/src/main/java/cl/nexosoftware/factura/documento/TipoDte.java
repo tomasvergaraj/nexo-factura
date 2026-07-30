@@ -70,6 +70,11 @@ public enum TipoDte {
         return this == FACTURA_AFECTA || this == NOTA_DEBITO || this == NOTA_CREDITO;
     }
 
+    /** True para boletas (39/41). */
+    public boolean esBoleta() {
+        return this == BOLETA_AFECTA || this == BOLETA_EXENTA;
+    }
+
     public static TipoDte desdeCodigo(int codigo) {
         for (TipoDte t : values()) {
             if (t.codigo == codigo) return t;

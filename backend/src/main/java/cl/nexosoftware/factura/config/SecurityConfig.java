@@ -34,6 +34,9 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_PATHS = {
             "/api/auth/**",
+            // Consulta publica de boletas: el sitio de verificacion que el SII
+            // exige al emisor. Anti-enumeracion y rate limit en el servicio.
+            "/api/public/**",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",

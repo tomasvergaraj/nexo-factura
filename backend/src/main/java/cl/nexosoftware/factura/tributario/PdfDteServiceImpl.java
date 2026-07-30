@@ -320,7 +320,8 @@ public class PdfDteServiceImpl implements PdfDteService {
             leyenda.setAlignment(Element.ALIGN_CENTER);
             leyenda.add(new Chunk("Timbre Electrónico SII\n", font(8, Font.BOLD, GRIS)));
             leyenda.add(new Chunk(leyendaResolucion(doc, emisor)
-                    + " - Verifique documento: www.sii.cl", font(7, Font.NORMAL, GRIS)));
+                    + " - Verifique documento: " + sitioVerificacion(doc, emisor),
+                    font(7, Font.NORMAL, GRIS)));
             pdf.add(leyenda);
         } catch (Exception e) {
             // Fallback: si zxing falla, mantener el texto para no romper la emision.
@@ -346,6 +347,23 @@ public class PdfDteServiceImpl implements PdfDteService {
         int fin = xmlDte.indexOf("</TED>");
         if (inicio < 0 || fin < 0) return null;
         return xmlDte.substring(inicio, fin + "</TED>".length());
+    }
+
+    /**
+     * Sitio de verificacion de la leyenda bajo el timbre. Para las BOLETAS con
+     * sitio de consulta configurado, la URL de la empresa: el Formato de Boletas
+     * Electronicas del SII (v2.0, pag. 5) exige que el sitio donde el cliente
+     * consulta la boleta este "senalado en la representacion impresa como una
+     * leyenda bajo el timbre electronico". Para facturas y notas —que se
+     * verifican en el propio SII— y para boletas sin sitio configurado, se
+     * mantiene www.sii.cl.
+     */
+    private String sitioVerificacion(DocumentoTributario doc, Empresa emisor) {
+        String url = emisor.getUrlConsultaBoleta();
+        if (doc.getTipoDte().esBoleta() && url != null && !url.isBlank()) {
+            return url.trim();
+        }
+        return "www.sii.cl";
     }
 
     /**

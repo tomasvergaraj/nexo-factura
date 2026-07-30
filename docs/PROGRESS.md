@@ -620,10 +620,13 @@ libros no se podían enviar **en absoluto**.
 > era del instructivo web genérico. Lo dicho aquí antes («el Libro sí aplica, el instructivo lo
 > pide sin condición») leía el instructivo como si fuera el trámite; detalle en ROADMAP §16. El
 > Libro queda como capacidad implementada.
-> **Falta:** solicitar la revisión del set con el TrackID (paso 4, manual, en el apartado de
-> Boletas electrónicas del sitio del SII), la **Declaración de Cumplimiento** tras el V°B°, y el
-> sitio web público de consulta de la boleta (requisito previo a la aprobación, no existe en
-> ninguna forma).
+> **Falta:** solicitar la revisión del set con el TrackID (paso 4, manual; la opción «Declarar
+> avance» del Menú postulantes no ofrece la postulación de boletas, así que se informó por
+> correo a la casilla de certificación), la **Declaración de Cumplimiento** tras el V°B°, y
+> **desplegar** el sitio de consulta de boletas: el software ya lo trae (endpoint público +
+> página + leyenda bajo el timbre + campo por empresa, V19, 2026-07-30 — detalle en ROADMAP
+> §16), pero debe quedar accesible en internet bajo el dominio del emisor, y eso es
+> infraestructura que decide el usuario.
 >
 > Abierto y **sin decidir por el usuario**: si las notas de crédito (tipo **61**, que el esquema
 > acepta) deben entrar al consumo de folios. El set recibido no tiene casos de NC.

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
@@ -38,7 +39,11 @@ public final class EmpresaDtos {
             // Factor de proporcionalidad del IVA de uso comun. Es una proporcion,
             // asi que fuera de [0,1] no significa nada: un 1.5 se colaria al XML
             // y el SII rechazaria el libro. Null = no configurado (valido).
-            @DecimalMin("0.0") @DecimalMax("1.0") Double fctProp
+            @DecimalMin("0.0") @DecimalMax("1.0") Double fctProp,
+            // Sitio publico de consulta de boletas, impreso bajo el timbre como
+            // "Verifique documento: <url>". Sin esquema para que quepa tal cual
+            // en la leyenda (ej: "consultaboleta.nexosoftware.cl").
+            @Size(max = 120) String urlConsultaBoleta
     ) {}
 
     public record EmpresaResponse(
@@ -55,6 +60,7 @@ public final class EmpresaDtos {
             String email,
             LocalDate fchResol,
             Integer nroResol,
-            Double fctProp
+            Double fctProp,
+            String urlConsultaBoleta
     ) {}
 }

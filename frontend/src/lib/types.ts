@@ -185,6 +185,11 @@ export interface Empresa {
    * Sin él, un libro de compras con IVA de uso común no se puede firmar ni enviar.
    */
   fctProp: number | null;
+  /**
+   * URL pública donde los clientes consultan las boletas (se imprime bajo el
+   * timbre como «Verifique documento: <url>»); null = sitio no configurado.
+   */
+  urlConsultaBoleta: string | null;
 }
 
 export interface EmpresaRequest {
@@ -203,6 +208,8 @@ export interface EmpresaRequest {
   nroResol?: number | null;
   /** Factor de proporcionalidad del IVA de uso común [0,1]; null = no configurado. */
   fctProp?: number | null;
+  /** URL pública de consulta de boletas; null = sitio no configurado. */
+  urlConsultaBoleta?: string | null;
 }
 
 /** Metadata del certificado digital activo (espejo de CertificadoResponse del backend). */

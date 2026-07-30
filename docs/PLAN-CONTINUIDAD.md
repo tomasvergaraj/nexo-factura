@@ -14,7 +14,7 @@ todos los follow-ups accionables salvo dos campos opcionales del DTE. Todo empuj
 validado en CI; el árbol está limpio y sincronizado con `origin/main`.
 
 ### Estado en una línea
-**370 tests unitarios + 86 de integración, 0 fallos y 0 errores**, ejecutados por CI en cada push
+**370 tests unitarios + 90 de integración, 0 fallos y 0 errores**, ejecutados por CI en cada push
 —verde desde su primera corrida—. Los libros de compras con IVA de uso común ya se pueden enviar,
 la resolución de los envíos llega sola, y el RCOF dejó de sobredeclarar boletas rechazadas.
 

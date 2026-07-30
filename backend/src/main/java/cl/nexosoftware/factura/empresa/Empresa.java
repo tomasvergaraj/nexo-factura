@@ -80,6 +80,16 @@ public class Empresa {
     @Column(name = "fct_prop")
     private Double fctProp;
 
+    /**
+     * URL publica donde los clientes consultan las boletas emitidas. El Formato
+     * de Boletas Electronicas del SII la exige impresa bajo el timbre como
+     * "Verifique documento: <url>", con las boletas disponibles por tres meses.
+     * Nullable: sin ella, el PDF conserva la leyenda generica (www.sii.cl) y la
+     * consulta publica de esta empresa responde 404.
+     */
+    @Column(name = "url_consulta_boleta", length = 120)
+    private String urlConsultaBoleta;
+
     /** Control de concurrencia optimista (evita el lost update en edicion). */
     @Version
     private Long version;

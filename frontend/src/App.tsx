@@ -8,6 +8,7 @@ import { Contacto } from "./pages/site/Contacto";
 import { Terminos } from "./pages/site/Terminos";
 import { Privacidad } from "./pages/site/Privacidad";
 import { Estado } from "./pages/site/Estado";
+import { ConsultaBoleta } from "./pages/site/ConsultaBoleta";
 import { Dashboard } from "./pages/app/Dashboard";
 import { Documentos } from "./pages/app/Documentos";
 import { DetalleDocumento } from "./pages/app/DetalleDocumento";
@@ -41,6 +42,8 @@ export default function App() {
         <Route path="/terminos" element={<Terminos />} />
         <Route path="/privacidad" element={<Privacidad />} />
         <Route path="/estado" element={<Estado />} />
+        {/* Pública: el sitio de verificación de boletas que exige el SII. */}
+        <Route path="/consulta-boleta" element={<ConsultaBoleta />} />
         <Route path="/app" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/app/documentos" element={<RequireAuth><Documentos /></RequireAuth>} />
         <Route path="/app/documentos/:id" element={<RequireAuth><DetalleDocumento /></RequireAuth>} />
