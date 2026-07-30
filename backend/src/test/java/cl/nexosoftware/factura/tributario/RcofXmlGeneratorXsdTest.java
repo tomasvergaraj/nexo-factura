@@ -40,6 +40,10 @@ class RcofXmlGeneratorXsdTest {
         String xml = firmado(reporte());
 
         assertThatCode(() -> validator.validarConsumoFolios(xml)).doesNotThrowAnyException();
+        // El upload del SII identifica el archivo por el schemaLocation: sin el
+        // rechaza con "SCH-00001: Invalid Schema Name" antes de validar nada.
+        assertThat(xml).contains(
+                "xsi:schemaLocation=\"http://www.sii.cl/SiiDte ConsumoFolio_v10.xsd\"");
         assertThat(xml).contains("<TipoDocumento>39</TipoDocumento>")
                 .contains("<TipoDocumento>41</TipoDocumento>")
                 .contains("<RangoUtilizados>")

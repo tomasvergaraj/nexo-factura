@@ -42,6 +42,9 @@ class LibroBoletaXmlGeneratorXsdTest {
 
         assertThatCode(() -> validator.validarLibroBoleta(xml)).doesNotThrowAnyException();
         assertThat(xml).contains("<LibroBoleta")
+                // schemaLocation como el resto de los archivos que pasan por los
+                // validadores del SII (sin el: "SCH-00001: Invalid Schema Name").
+                .contains("xsi:schemaLocation=\"http://www.sii.cl/SiiDte LibroBOLETA_v10.xsd\"")
                 .contains("<EnvioLibro ID=\"" + LibroBoletaXmlGenerator.ID_ENVIO_LIBRO_BOLETA + "\">")
                 .contains("<TipoLibro>ESPECIAL</TipoLibro>")
                 .contains("<TipoEnvio>TOTAL</TipoEnvio>")

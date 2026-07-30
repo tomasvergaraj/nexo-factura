@@ -106,6 +106,13 @@ public class RcofXmlGenerator {
     }
 
     private String marshal(ModeloConsumoFolios.ConsumoFolios cf) {
-        return JaxbXml.marshal(cf, "No se pudo generar el XML del RCOF");
+        String xml = JaxbXml.marshal(cf, "No se pudo generar el XML del RCOF");
+        // xsi:schemaLocation ANTES de firmar: el upload del SII identifica el tipo
+        // de archivo por esta declaracion y sin ella rechaza con "SCH-00001:
+        // Invalid Schema Name" (hallado al subir el RCOF del set de boletas por
+        // el UPLOAD web de certificacion; mismo defecto que tuvo el IECV).
+        return xml.replaceFirst("<ConsumoFolios ",
+                "<ConsumoFolios xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                        + "xsi:schemaLocation=\"http://www.sii.cl/SiiDte ConsumoFolio_v10.xsd\" ");
     }
 }

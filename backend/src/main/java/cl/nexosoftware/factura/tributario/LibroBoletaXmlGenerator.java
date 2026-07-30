@@ -81,7 +81,15 @@ public class LibroBoletaXmlGenerator {
         envio.detalle = boletas.stream().map(this::aDetalle).toList();
         envio.tmstFirma = LocalDateTime.now(clock).format(TIMESTAMP);
 
-        return JaxbXml.marshal(libro, "No se pudo generar el XML del libro de boletas");
+        String xml = JaxbXml.marshal(libro, "No se pudo generar el XML del libro de boletas");
+        // xsi:schemaLocation como en el resto de los archivos que ven los
+        // validadores del SII: el upload identifica el tipo por esta declaracion
+        // (sin ella: "SCH-00001: Invalid Schema Name", hallado con el RCOF del
+        // set de boletas). Este libro va adjunto al correo, pero el revisor lo
+        // pasa por el mismo validador.
+        return xml.replaceFirst("<LibroBoleta ",
+                "<LibroBoleta xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+                        + "xsi:schemaLocation=\"http://www.sii.cl/SiiDte LibroBOLETA_v10.xsd\" ");
     }
 
     private ModeloLibroBoleta.Detalle aDetalle(BoletaLibro b) {
