@@ -31,7 +31,13 @@ class LibroServiceTest {
             String getReceptorRut, String getReceptorRazonSocial,
             long getNeto, long getExento, long getIva,
             long getImpuestosAdicionales, long getIvaRetenido, long getTotal
-    ) implements VentaLibroView {}
+    ) implements VentaLibroView {
+
+        /** El IECV no la usa (si el libro de boletas): 19% en todos los casos. */
+        @Override public double getTasaIva() {
+            return 19.0;
+        }
+    }
 
     @Test
     @DisplayName("el libro de ventas agrega por tipo y detalla los documentos no-boleta")

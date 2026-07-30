@@ -68,6 +68,8 @@ public interface DocumentoRepository extends JpaRepository<DocumentoTributario, 
         long getImpuestosAdicionales();
         long getIvaRetenido();
         long getTotal();
+        /** Tasa vigente al emitir: el libro de boletas la declara por tipo. */
+        double getTasaIva();
     }
 
     Page<DocumentoTributario> findByEmpresaIdOrderByCreadoEnDesc(Long empresaId, Pageable pageable);

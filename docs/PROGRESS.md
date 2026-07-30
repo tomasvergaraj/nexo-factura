@@ -612,10 +612,11 @@ libros no se podían enviar **en absoluto**.
 > certificación el RCOF **sí se sube** al SII («UPLOAD, Web o automatizado»); lo que no existe es
 > la obligación en producción. Del set ya están hechos los dos bloqueadores —la referencia
 > `CodRef=SET`/`RazonRef=CASO-N` en la boleta, que **no se emitía en absoluto** aunque `setCaso`
-> funcionara en facturas, y las 5 boletas en un solo sobre—. **Falta:** el sitio web público de
-> consulta de la boleta (requisito de aprobación, no existe en ninguna forma), y confirmar con el
-> SII si aplican el Libro de Boletas y las 10 muestras en PDF, que pide el instructivo web pero
-> no el correo recibido.
+> funcionara en facturas, y las 5 boletas en un solo sobre—, y también el **Libro de Boletas
+> Electrónicas** (envío 4) con su XSD oficial: sí aplica, el instructivo lo pide sin condición.
+> **Falta:** el sitio web público de consulta de la boleta (requisito de aprobación, no existe en
+> ninguna forma) y las 10 muestras en PDF del envío 5, que son 10 emisiones más y conviene hacer
+> en otro día que el set para no contaminar su RCOF.
 >
 > Abierto y **sin decidir por el usuario**: si las notas de crédito (tipo **61**, que el esquema
 > acepta) deben entrar al consumo de folios. El set recibido no tiene casos de NC.

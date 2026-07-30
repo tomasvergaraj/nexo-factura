@@ -65,6 +65,9 @@ public class DteXmlValidator {
     // Consumo de folios de boletas (RCOF): tambien define tipos del namespace
     // SiiDte (TipoConsumoType), asi que va como Schema propio.
     private static final String XSD_CONSUMO_FOLIOS = "sii/oficial/ConsumoFolio_v10.xsd";
+    // Libro de boletas: esquema autocontenido (define sus propios RUTType,
+    // MontoType, DoctoType... y hasta su propio SignatureType).
+    private static final String XSD_LIBRO_BOLETA = "sii/oficial/LibroBOLETA_v10.xsd";
 
     private final Schema schemaFactura;
     private final Schema schemaBoleta;
@@ -72,6 +75,7 @@ public class DteXmlValidator {
     private final Schema schemaRespuesta;
     private final Schema schemaRecibos;
     private final Schema schemaConsumoFolios;
+    private final Schema schemaLibroBoleta;
     private final boolean habilitado;
 
     public DteXmlValidator(@Value("${app.dte.validar-xsd:true}") boolean habilitado) {
@@ -82,6 +86,7 @@ public class DteXmlValidator {
         this.schemaRespuesta = compilarSchema(XSD_RESPUESTA);
         this.schemaRecibos = compilarSchema(XSD_RECIBOS);
         this.schemaConsumoFolios = compilarSchema(XSD_CONSUMO_FOLIOS);
+        this.schemaLibroBoleta = compilarSchema(XSD_LIBRO_BOLETA);
         if (!habilitado) {
             log.warn("Validacion XSD del DTE DESHABILITADA (app.dte.validar-xsd=false). "
                     + "Solo para diagnostico, nunca en produccion.");
@@ -179,6 +184,42 @@ public class DteXmlValidator {
     public void validarConsumoFolios(String xmlRcof) {
         validarContra(schemaConsumoFolios, xmlRcof,
                 "El consumo de folios no cumple el esquema oficial del SII (ConsumoFolio_v10)");
+    }
+
+    /**
+     * Valida el Libro de Boletas firmado contra LibroBOLETA_v10.
+     *
+     * <p><b>Adaptacion necesaria, y el motivo importa.</b> Ese esquema —al
+     * contrario de LibroCV_v10, que importa {@code xmldsignature_v10.xsd} y usa
+     * {@code ref="ds:Signature"}— declara su PROPIO elemento {@code Signature}
+     * de tipo {@code SiiDte:SignatureType}, o sea en el namespace del SII y no
+     * en el de XMLDSig. Una firma XMLDSig de verdad vive obligatoriamente en
+     * {@code http://www.w3.org/2000/09/xmldsig#} (es lo que verifica el SII y
+     * cualquier validador), asi que el documento correcto NUNCA cumpliria ese
+     * esquema al pie de la letra: el defecto es del XSD, de 2005.
+     *
+     * Para no perder el control de esquema sobre TODO lo demas (caratula,
+     * totales, detalle, TmstFirma, ID), se valida una copia con la declaracion
+     * de namespace de la firma quitada —queda heredando el default SiiDte del
+     * documento, que es justo lo que el XSD espera—. Lo que se firma y se
+     * entrega conserva el namespace de XMLDSig, intacto.
+     */
+    public void validarLibroBoleta(String xmlFirmado) {
+        validarContra(schemaLibroBoleta, firmaEnNamespaceDelSii(xmlFirmado),
+                "El libro de boletas no cumple el esquema oficial del SII (LibroBOLETA_v10)");
+    }
+
+    /** Declaracion de namespace de la firma, tal como la emiten el stub y el JDK. */
+    private static final String XMLNS_FIRMA = " xmlns=\"http://www.w3.org/2000/09/xmldsig#\"";
+
+    /**
+     * Solo para validar: deja la firma en el namespace SiiDte que exige
+     * LibroBOLETA_v10. Si la firma no trae la declaracion esperada, se devuelve
+     * el XML sin tocar y la validacion falla ruidosamente — mejor eso que
+     * silenciar el control por un cambio de formato de la firma.
+     */
+    private static String firmaEnNamespaceDelSii(String xmlFirmado) {
+        return xmlFirmado.replace("<Signature" + XMLNS_FIRMA + ">", "<Signature>");
     }
 
     /** Valida el EnvioRecibos firmado contra EnvioRecibos_v10 (recibo de mercaderias). */

@@ -290,7 +290,7 @@ tributario** (`CalculadoraImpuestosTest`) y las de **contingencia/reenvío**
 > Testcontainers falla con *"Could not find a valid Docker environment"*; se ajusta con
 > `-Ddocker.api.version=…`.
 
-Estado actual de la suite: **365 tests unitarios + 83 de integración, 0 fallos y 0 errores**.
+Estado actual de la suite: **370 tests unitarios + 86 de integración, 0 fallos y 0 errores**.
 
 CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `mvn -B verify` para el
 backend y `npm ci && npm run build` para el frontend, en cada push a `main` y cada PR.

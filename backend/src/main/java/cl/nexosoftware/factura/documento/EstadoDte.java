@@ -57,4 +57,20 @@ public enum EstadoDte {
     public boolean puedeTransicionarA(EstadoDte destino) {
         return TRANSICIONES.getOrDefault(this, Set.of()).contains(destino);
     }
+
+    /**
+     * Estados en que el folio se consumio SIN producir un documento
+     * tributariamente valido: ANULADO (por nota de credito) y RECHAZADO (el SII
+     * no lo acepto, asi que no es una emision valida).
+     *
+     * Vive en el enum para que sea UNA regla: el RCOF y el libro de boletas
+     * informan el mismo periodo al SII y una discrepancia entre ellos es
+     * exactamente lo que se corrigio cuando el RCOF contaba una boleta rechazada
+     * como folio utilizado Y sumaba sus montos. El folio se sigue reportando en
+     * ambos —ninguno del rango puede quedar sin explicar—; lo que no entra son
+     * sus montos.
+     */
+    public boolean folioSinDocumentoValido() {
+        return this == ANULADO || this == RECHAZADO;
+    }
 }

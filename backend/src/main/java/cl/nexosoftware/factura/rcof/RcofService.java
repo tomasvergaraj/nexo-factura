@@ -94,32 +94,22 @@ public class RcofService {
     }
 
     /**
-     * Estados cuyo folio se consumio SIN producir un documento tributario valido.
-     *
-     * ANULADO es el caso obvio. RECHAZADO se le suma porque un DTE que el SII
-     * rechazo no es una emision valida —el libro de ventas ya lo excluye— y antes
-     * caia en "vigentes": el RCOF lo declaraba como folio utilizado Y sumaba sus
-     * montos, o sea sobredeclaraba ventas que el propio SII habia rechazado, y
-     * ademas contradecia al libro del mismo periodo.
-     *
-     * Va a anulados y no a "utilizado con monto cero" porque FoliosAnulados es
-     * justamente la casilla que el RCOF tiene para un folio consumido sin
-     * documento detras; un utilizado con monto cero se le parece bastante a un
-     * error de cuadratura. Lo que no cambia es que el folio se reporta: el RCOF
-     * existe para que ninguno del rango quede sin explicar.
+     * Un folio cuyo documento no es tributariamente valido va a ANULADOS, no a
+     * "utilizado con monto cero": FoliosAnulados es justamente la casilla que el
+     * RCOF tiene para un folio consumido sin documento detras, mientras que un
+     * utilizado en cero se parece bastante a un error de cuadratura. Qué estados
+     * cuentan como tal es una sola regla compartida con el libro de boletas:
+     * {@link EstadoDte#folioSinDocumentoValido()}.
      */
-    private static final Set<EstadoDte> FOLIO_SIN_DOCUMENTO_VALIDO =
-            Set.of(EstadoDte.ANULADO, EstadoDte.RECHAZADO);
-
     private RcofPorTipo resumirTipo(TipoDte tipo, List<DocumentoTributario> delDia) {
         List<DocumentoTributario> deTipo = delDia.stream()
                 .filter(d -> d.getTipoDte() == tipo)
                 .toList();
         List<DocumentoTributario> vigentes = deTipo.stream()
-                .filter(d -> !FOLIO_SIN_DOCUMENTO_VALIDO.contains(d.getEstado()))
+                .filter(d -> !d.getEstado().folioSinDocumentoValido())
                 .toList();
         List<DocumentoTributario> anulados = deTipo.stream()
-                .filter(d -> FOLIO_SIN_DOCUMENTO_VALIDO.contains(d.getEstado()))
+                .filter(d -> d.getEstado().folioSinDocumentoValido())
                 .toList();
 
         long montoNeto = vigentes.stream().mapToLong(DocumentoTributario::getNeto).sum();
