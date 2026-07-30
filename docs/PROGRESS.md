@@ -610,13 +610,20 @@ libros no se podían enviar **en absoluto**.
 > **Lo que sí queda pendiente es la certificación de boletas** ([ROADMAP.md §16](ROADMAP.md)). El
 > usuario aportó el set real el 2026-07-29, y eso **corrigió una conclusión de la §15**: en
 > certificación el RCOF **sí se sube** al SII («UPLOAD, Web o automatizado»); lo que no existe es
-> la obligación en producción. Del set ya están hechos los dos bloqueadores —la referencia
-> `CodRef=SET`/`RazonRef=CASO-N` en la boleta, que **no se emitía en absoluto** aunque `setCaso`
-> funcionara en facturas, y las 5 boletas en un solo sobre—, y también el **Libro de Boletas
-> Electrónicas** (envío 4) con su XSD oficial: sí aplica, el instructivo lo pide sin condición.
-> **Falta:** el sitio web público de consulta de la boleta (requisito de aprobación, no existe en
-> ninguna forma) y las 10 muestras en PDF del envío 5, que son 10 emisiones más y conviene hacer
-> en otro día que el set para no contaminar su RCOF.
+> la obligación en producción. **El set se ejecutó el 2026-07-30, dentro del plazo de 24 h**: 5
+> boletas (folios 156-160) en un solo sobre, TrackID `30500869`, las 5 **ACEPTADO**; RCOF subido
+> y validado (envío `0253507092`, REPARO informativo cod 250 = Res. 53/2022). El primer upload
+> del RCOF rebotó con `SCH-00001` por falta de `xsi:schemaLocation` — la misma piedra del primer
+> IECV, corregida en el generador.
+> **Y una corrección más, del correo fuente:** el trámite pide 4 pasos y **no incluye** el Libro
+> de Boletas ni las 10 muestras en PDF ni el correo a `SII_BE_Certificacion@sii.cl` — todo eso
+> era del instructivo web genérico. Lo dicho aquí antes («el Libro sí aplica, el instructivo lo
+> pide sin condición») leía el instructivo como si fuera el trámite; detalle en ROADMAP §16. El
+> Libro queda como capacidad implementada.
+> **Falta:** solicitar la revisión del set con el TrackID (paso 4, manual, en el apartado de
+> Boletas electrónicas del sitio del SII), la **Declaración de Cumplimiento** tras el V°B°, y el
+> sitio web público de consulta de la boleta (requisito previo a la aprobación, no existe en
+> ninguna forma).
 >
 > Abierto y **sin decidir por el usuario**: si las notas de crédito (tipo **61**, que el esquema
 > acepta) deben entrar al consumo de folios. El set recibido no tiene casos de NC.
